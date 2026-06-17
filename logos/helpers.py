@@ -33,6 +33,10 @@ def structural_eq(a: Expr, b: Expr) -> bool:
             return structural_eq(v1,v2) and structural_eq(b1,b2)
         case App(f1,args1), App(f2,args2):
             return f1 == f2 and len(args1)==len(args2) and all(structural_eq(a,b) for a,b in zip(args1,args2))
+        case CaseExpr(branches1), CaseExpr(branches2):
+            return (len(branches1) == len(branches2) and
+                    all(structural_eq(c1, c2) and structural_eq(v1, v2)
+                        for (c1, v1), (c2, v2) in zip(branches1, branches2)))
         case _:
             return False
 
@@ -55,6 +59,10 @@ def substitute(expr: Expr, var: Var, val: Expr) -> Expr:
             return ExistsNode(v, substitute(body, var, val))
         case App(name, args):
             return App(name, [substitute(a, var, val) for a in args])
+        case CaseExpr(branches):
+            new_branches = [(substitute(cond, var, val), substitute(result, var, val))
+                            for cond, result in branches]
+            return CaseExpr(new_branches)
         case _:
             # For all binary/unary nodes: recurse on children
             cls = type(expr)
@@ -69,6 +77,11 @@ def free_vars(expr: Expr) -> set[str]:
         case ForallNode(v,b): return free_vars(b) - {v.name}
         case ExistsNode(v,b): return free_vars(b) - {v.name}
         case App(_, args):    return set().union(*(free_vars(a) for a in args))
+        case CaseExpr(branches):
+            result = set()
+            for cond, val in branches:
+                result |= free_vars(cond) | free_vars(val)
+            return result
         case _:
             result = set()
             for f in expr.__dataclass_fields__:

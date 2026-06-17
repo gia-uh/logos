@@ -1,5 +1,5 @@
 # tests/test_helpers.py
-from logos.expr import Var, Lit, Add, Mul, Eq, ForallNode, Forall
+from logos.expr import Var, Lit, Add, Mul, Eq, ForallNode, Forall, CaseExpr
 from logos.helpers import structural_eq, substitute, free_vars
 
 def test_structural_eq_same(x, y):
@@ -38,3 +38,18 @@ def test_free_vars(x, y):
 def test_free_vars_bound(x, y):
     expr = Forall(x, x + y)
     assert free_vars(expr) == {"y"}   # x is bound
+
+def test_structural_eq_case_expr(x):
+    c1 = CaseExpr([(x == Lit(1), Lit(10))])
+    c2 = CaseExpr([(x == Lit(1), Lit(10))])
+    assert structural_eq(c1, c2)
+
+def test_substitute_case_expr(x, y):
+    c = CaseExpr([(x == Lit(1), y + Lit(1))])
+    result = substitute(c, x, Lit(5))
+    expected = CaseExpr([(Lit(5) == Lit(1), y + Lit(1))])
+    assert structural_eq(result, expected)
+
+def test_free_vars_case_expr(x, y):
+    c = CaseExpr([(x == Lit(1), y)])
+    assert free_vars(c) == {"x", "y"}
