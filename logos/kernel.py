@@ -123,6 +123,18 @@ class ExFalso(ProofTerm):
     false_proof: ProofTerm
     conclusion: Expr
 
+@dataclass(frozen=True)
+class ExistsIntro(ProofTerm):
+    """Proves Exists(x, P) given a witness w and a proof of P[x := w].
+
+    `exists_goal` carries the original ExistsNode so infer can return the
+    correct existential type. Optional for v0.1 backward compat; if absent,
+    returns the substituted body statement instead.
+    """
+    witness: Expr
+    body: ProofTerm   # proof of P[x := witness]
+    exists_goal: "ExistsNode | None" = None
+
 
 # ── Kernel Inference ──────────────────────────────────────────────────────────
 
@@ -231,6 +243,15 @@ def infer(term: ProofTerm, ctx: Context) -> Expr:
             # is Lit(False). For now, we accept any proof and return the conclusion as-is.
             # This is known and acceptable for v0.1. The contradiction() tactic depends on this behavior.
             return conclusion
+
+        case ExistsIntro(witness, body, exists_goal):
+            # body proves P[x := witness].
+            # If we have the original ExistsNode, return it (the existential is proven).
+            # Otherwise fall back to returning the substituted body statement.
+            body_stmt = infer(body, ctx)   # validate the sub-proof
+            if exists_goal is not None:
+                return exists_goal
+            return body_stmt
 
         case _:
             raise KernelError(f"Unknown proof term: {term!r}")
