@@ -1,7 +1,7 @@
 # logos/tactics/rewrite.py
 from logos.expr import Expr, Lit, Var, Add, Sub, Mul, Div, Mod, Neg, Pow, Eq
 from logos.goal import Goal
-from logos.kernel import ProofTerm, Refl, Symm, Trans, Subst, Axiom, KernelError
+from logos.kernel import ProofTerm, Refl
 from logos.helpers import structural_eq, substitute
 from logos.runner import TacticFailed
 
@@ -21,13 +21,16 @@ def eval_():
     def tactic(goal: Goal) -> ProofTerm:
         match goal.statement:
             case Eq(lhs, rhs):
-                lhs_val = _eval_ground(lhs)
-                rhs_val = _eval_ground(rhs)
-                if lhs_val == rhs_val:
-                    return Refl(Lit(lhs_val))
-                raise TacticFailed(f"eval: {lhs_val} ≠ {rhs_val}")
+                try:
+                    lhs_val = _eval_ground(lhs)
+                    rhs_val = _eval_ground(rhs)
+                    if lhs_val == rhs_val:
+                        return Refl(Lit(lhs_val))
+                    raise TacticFailed(f"eval_: {lhs_val} ≠ {rhs_val}")
+                except ValueError as e:
+                    raise TacticFailed(f"eval_: {e}")
             case _:
-                raise TacticFailed("eval: goal must be an equation")
+                raise TacticFailed("eval_: goal must be an equation")
     return tactic
 
 
