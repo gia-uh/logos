@@ -1,7 +1,7 @@
 # logos/tactics/combinators.py
 from logos.goal import Goal
 from logos.kernel import ProofTerm
-from logos.runner import TacticFailed, TacticResult
+from logos.runner import TacticFailed, TacticResult, _AllGoals
 
 
 def then(*tactics):
@@ -46,8 +46,13 @@ def repeat(tactic_fn):
                 result = tactic_fn(current)
                 if isinstance(result, ProofTerm):
                     if steps:
-                        # Build composed result
-                        pass  # handled by closure below
+                        # Closing tactic returned a ProofTerm; compose through accumulated steps
+                        def compose_all(proofs: list[ProofTerm], _pt=result, _steps=list(steps)) -> ProofTerm:
+                            pt = _pt
+                            for compose in reversed(_steps):
+                                pt = compose([pt])
+                            return pt
+                        return [], compose_all
                     return result
                 subgoals, compose = result
                 if len(subgoals) != 1:
@@ -60,29 +65,17 @@ def repeat(tactic_fn):
         if not steps:
             return [goal], lambda ps: ps[0]
 
-        # Chain the compositions
-        def compose_all(proofs: list[ProofTerm]) -> ProofTerm:
+        # Chain the compositions: current is the remaining open subgoal
+        def compose_chain(proofs: list[ProofTerm], _steps=list(steps)) -> ProofTerm:
             result = proofs[0]
-            for compose in reversed(steps):
+            for compose in reversed(_steps):
                 result = compose([result])
             return result
 
-        return [current], compose_all
+        return [current], compose_chain
     return tactic
 
 
 def all_goals(tactic_fn):
     """Apply tactic_fn to each open subgoal (for use after a splitting tactic)."""
-    # This is a meta-tactic wrapper: when used in a by list after a splitter,
-    # the runner will call the returned tactic once per subgoal.
-    # For v0.1: all_goals is handled by the runner via _AllGoals sentinel.
     return _AllGoals(tactic_fn)
-
-
-class _AllGoals:
-    """Sentinel that tells the runner to apply tactic to all current subgoals."""
-    def __init__(self, tactic_fn):
-        self.tactic_fn = tactic_fn
-
-    def __call__(self, goal: Goal) -> TacticResult:
-        return self.tactic_fn(goal)

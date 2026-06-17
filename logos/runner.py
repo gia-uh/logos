@@ -12,25 +12,26 @@ class TacticFailed(Exception):
 TacticResult = ProofTerm | tuple[list[Goal], Callable[[list[ProofTerm]], ProofTerm]]
 
 
+class _AllGoals:
+    """Sentinel that tells the runner to apply tactic to all current subgoals."""
+    def __init__(self, tactic_fn):
+        self.tactic_fn = tactic_fn
+
+    def __call__(self, goal: Goal) -> TacticResult:
+        return self.tactic_fn(goal)
+
+
 def run(goal: Goal, by: list) -> ProofTerm:
     """Apply tactics in `by` to `goal`, returning a proof term."""
     return _Runner(list(by)).run(goal)
 
 
 class _Runner:
-    def __init__(self, tactics: list, subgoals_to_handle=None):
+    def __init__(self, tactics: list):
         self._tactics = tactics
         self._idx = 0
-        self._subgoals_to_handle = subgoals_to_handle or []
-        self._compose_fns = []
 
     def _take(self):
-        # If we're processing subgoals and hit a special case, handle it
-        if self._subgoals_to_handle and self._idx >= len(self._tactics):
-            # We've exhausted tactics but have subgoals waiting
-            # This is the signal that we need to process them
-            raise TacticFailed("No tactics left; no tactics remain to close open goal")
-
         if self._idx >= len(self._tactics):
             raise TacticFailed("No tactics left; no tactics remain to close open goal")
         item = self._tactics[self._idx]
@@ -44,8 +45,6 @@ class _Runner:
             # Nested list: fresh sub-runner for this goal only
             return _Runner(item).run(goal)
 
-        # Check if this is an _AllGoals sentinel
-        from logos.tactics.combinators import _AllGoals
         if isinstance(item, _AllGoals):
             # Apply the wrapped tactic to this goal
             result = item.tactic_fn(goal)
@@ -79,7 +78,6 @@ class _Runner:
         subgoals, compose = result
 
         # Peek ahead to see if next item is _AllGoals
-        from logos.tactics.combinators import _AllGoals
         next_idx = self._idx
         all_goals_tactic = None
         if next_idx < len(self._tactics):
