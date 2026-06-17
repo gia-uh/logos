@@ -215,9 +215,24 @@ def _farkas_contradiction(ineqs: list) -> bool:
             combined_coefs = {}
             for k, v in c1.items(): combined_coefs[k] = lam1 * v
             for k, v in c2.items(): combined_coefs[k] = combined_coefs.get(k, Fraction(0)) + lam2 * v
+            # Drop zero coefficients before emptiness check
+            combined_coefs = {k: v for k, v in combined_coefs.items() if v != 0}
             combined_bound = lam1 * b1 + lam2 * b2
             combined_strict = s1 or s2
             if not combined_coefs:
                 if combined_strict and combined_bound >= 0: return True
                 if not combined_strict and combined_bound > 0: return True
+
+    # Try triples: λ1*ineq1 + λ2*ineq2 + λ3*ineq3
+    for (c1, b1, s1), (c2, b2, s2), (c3, b3, s3) in combinations(ineqs, 3):
+        combined_coefs = {}
+        for k, v in c1.items(): combined_coefs[k] = v
+        for k, v in c2.items(): combined_coefs[k] = combined_coefs.get(k, Fraction(0)) + v
+        for k, v in c3.items(): combined_coefs[k] = combined_coefs.get(k, Fraction(0)) + v
+        combined_coefs = {k: v for k, v in combined_coefs.items() if v != 0}
+        combined_bound = b1 + b2 + b3
+        combined_strict = s1 or s2 or s3
+        if not combined_coefs:
+            if combined_strict and combined_bound >= 0: return True
+            if not combined_strict and combined_bound > 0: return True
     return False
