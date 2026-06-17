@@ -70,7 +70,10 @@ def apply(name: str):
     """Apply a named axiom/hypothesis. Unifies conclusion, generates premise subgoals."""
     def tactic(goal: Goal):
         ctx = goal.make_context()
-        stmt = ctx.lookup(name)
+        try:
+            stmt = ctx.lookup(name)
+        except KernelError as e:
+            raise TacticFailed(f"apply '{name}': {e}") from e
         if structural_eq(stmt, goal.statement):
             if name in ctx.hyps:
                 return HypRef(name)
@@ -124,6 +127,25 @@ def witness(val: Expr):
                 )
             case _:
                 raise TacticFailed(f"witness: expected Exists, got {goal.statement!r}")
+    return tactic
+
+
+def cases(hyp_name: str, case_name: str = "h"):
+    """Case analysis on a hypothesis A | B in context."""
+    def tactic(goal: Goal):
+        ctx_dict = goal.context
+        if hyp_name not in ctx_dict:
+            raise TacticFailed(f"cases '{hyp_name}': not in context")
+        stmt = ctx_dict[hyp_name]
+        match stmt:
+            case Or(left, right):
+                left_goal = goal.with_hyp(case_name, left)
+                right_goal = goal.with_hyp(case_name, right)
+                def compose(proofs):
+                    return CaseAnalysis(HypRef(hyp_name), case_name, proofs[0], proofs[1])
+                return [left_goal, right_goal], compose
+            case _:
+                raise TacticFailed(f"cases '{hyp_name}': expected A | B, got {stmt!r}")
     return tactic
 
 
