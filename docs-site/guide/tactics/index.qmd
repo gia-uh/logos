@@ -1,0 +1,117 @@
+---
+title: "Tactics Overview"
+---
+
+A **tactic** is a Python function that transforms a proof goal. Tactics are **untrusted** — they produce proof terms, and the kernel validates every term before the proof is accepted.
+
+## The Goal
+
+Every tactic receives a `Goal` object:
+
+```{python}
+import logos
+import logos.tactics as t
+from logos.goal import Goal
+from logos.expr import Var
+from logos.registry import clear_axioms; clear_axioms()
+import logos.builtins
+
+x = logos.var("x", int)
+goal = Goal(
+    context={"h": x > logos.lit(0)},    # hypotheses in scope
+    statement=x > logos.lit(0),          # what to prove
+)
+print("Statement:", goal.statement)
+print("Context:", goal.context)
+```
+
+## Tactic Protocol
+
+A tactic is a callable with signature:
+
+```python
+Goal → ProofTerm                          # closes the goal
+Goal → (list[Goal], compose_fn)           # splits into subgoals
+```
+
+- **Closing**: returns a `ProofTerm` directly. The proof is complete.
+- **Splitting**: returns `(subgoals, compose_fn)`. Each subgoal must be proved; `compose_fn` assembles the final proof from the subgoal proofs.
+
+## The Tactic Runner
+
+`logos.runner.run(goal, by)` drives the tactic list:
+
+```{python}
+from logos.runner import run, TacticFailed
+from logos.goal import Goal
+from logos.helpers import structural_eq
+
+x = logos.var("x", int)
+
+# A goal: prove x > 0 given h: x > 0
+goal = Goal({"h": x > logos.lit(0)}, x > logos.lit(0))
+proof = run(goal, [t.assumption()])
+
+from logos.kernel import infer, Context
+stmt = infer(proof, goal.make_context())
+print("Proved:", structural_eq(stmt, x > logos.lit(0)))  # True
+```
+
+## Nested Lists for Subgoals
+
+When a tactic produces multiple subgoals, wrap each subgoal's tactics in a nested list `[...]`:
+
+```{python}
+from logos.expr import And
+
+x, y = logos.vars("x y", int)
+goal = Goal(
+    {"hx": x > logos.lit(0), "hy": y > logos.lit(0)},
+    (x > logos.lit(0)) & (y > logos.lit(0)),
+)
+
+proof = run(goal, [
+    t.split(),            # produces 2 subgoals
+    [t.assumption()],     # handles subgoal 1: x > 0
+    [t.assumption()],     # handles subgoal 2: y > 0
+])
+print("Proved:", type(proof).__name__)   # AndIntro
+```
+
+## Tactic Categories
+
+| Category | Tactics |
+|----------|---------|
+| **Structural** | `intro`, `assumption`, `exact`, `apply`, `split`, `left`, `right`, `witness`, `contradiction` |
+| **Arithmetic** | `ring`, `linarith`, `decide` |
+| **Rewriting** | `unfold`, `refl`, `rewrite`, `rewrite_rev`, `eval_`, `norm_num` |
+| **Combinators** | `then`, `first`, `try_`, `repeat`, `all_goals` |
+
+See the sub-pages for detailed documentation on each category.
+
+## Writing Your Own Tactic
+
+Any Python function that follows the protocol is a valid tactic:
+
+```{python}
+from logos.goal import Goal
+from logos.kernel import Refl
+from logos.helpers import structural_eq
+from logos.runner import TacticFailed
+from logos.expr import Eq
+
+def my_refl(goal: Goal):
+    """Proves a == a by reflexivity."""
+    match goal.statement:
+        case Eq(lhs, rhs) if structural_eq(lhs, rhs):
+            return Refl(lhs)
+        case _:
+            raise TacticFailed("my_refl: goal is not a == a")
+
+x = logos.var("x", int)
+goal = Goal({}, x == x)
+proof = run(goal, [my_refl])
+print("Custom tactic worked:", type(proof).__name__)  # Refl
+```
+
+See [Writing Custom Tactics →](custom.qmd) for advanced patterns.

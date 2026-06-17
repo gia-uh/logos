@@ -1,0 +1,75 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "logos"
+  description: "A Lean-style proof kernel for Python"
+  site-url: "https://gia-uh.github.io/logos"
+  repo-url: "https://github.com/gia-uh/logos"
+  repo-actions: [edit, issue]
+  favicon: "favicon.ico"
+
+  navbar:
+    left:
+      - text: "Get Started"
+        file: index.qmd
+      - text: "Guide"
+        menu:
+          - text: "Expressions"
+            file: guide/expressions.qmd
+          - text: "Propositions"
+            file: guide/propositions.qmd
+          - text: "Defining Functions"
+            file: guide/defining.qmd
+          - text: "Proving Theorems"
+            file: guide/theorems.qmd
+          - text: "Tactics"
+            file: guide/tactics/index.qmd
+          - text: "Examples"
+            file: guide/examples/index.qmd
+      - text: "Reference"
+        file: reference/api.qmd
+    right:
+      - icon: github
+        href: "https://github.com/gia-uh/logos"
+
+  sidebar:
+    - title: "Guide"
+      contents:
+        - index.qmd
+        - guide/expressions.qmd
+        - guide/propositions.qmd
+        - guide/defining.qmd
+        - guide/theorems.qmd
+        - section: "Tactics"
+          contents:
+            - guide/tactics/index.qmd
+            - guide/tactics/structural.qmd
+            - guide/tactics/arithmetic.qmd
+            - guide/tactics/rewrite.qmd
+            - guide/tactics/combinators.qmd
+            - guide/tactics/custom.qmd
+        - section: "Examples"
+          contents:
+            - guide/examples/index.qmd
+            - guide/examples/number-theory.qmd
+            - guide/examples/data-structures.qmd
+        - reference/api.qmd
+
+format:
+  html:
+    theme:
+      light: flatly
+      dark: darkly
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    code-tools: true
+    highlight-style: github
+
+jupyter: python3
+
+execute:
+  freeze: false
+  cache: false

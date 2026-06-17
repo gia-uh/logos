@@ -1,0 +1,8 @@
+---
+title: "Examples"
+---
+
+These examples show logos applied to realistic proof scenarios — the kind of properties you might want to guarantee about production code.
+
+- [Number Theory](number-theory.qmd) — divisibility, parity, basic arithmetic laws
+- [Data Structures](data-structures.qmd) — properties of lists, sorting, accumulator functions

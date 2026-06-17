@@ -1,0 +1,212 @@
+---
+title: "Writing Custom Tactics"
+---
+
+Any Python function that follows the tactic protocol is a valid tactic. This page shows you how to build your own — from simple one-liners to full automation.
+
+```{python}
+import logos
+import logos.tactics as t
+from logos.goal import Goal
+from logos.runner import run, TacticFailed
+from logos.kernel import Refl, ProofTerm, AndIntro
+from logos.helpers import structural_eq
+from logos.registry import clear_axioms; clear_axioms()
+import logos.builtins
+```
+
+## The Protocol
+
+A tactic is a callable with one of two return shapes:
+
+```python
+# Close the goal — return a proof term
+def my_tactic(goal: Goal) -> ProofTerm:
+    ...
+
+# Split into subgoals — return (subgoals, compose_fn)
+def my_tactic(goal: Goal) -> tuple:
+    subgoals = [...]
+    compose = lambda proofs: ...
+    return subgoals, compose
+```
+
+Raise `TacticFailed` for any situation where the tactic can't proceed.
+
+## A Closing Tactic: `my_refl`
+
+The simplest tactic: close `a == a` by reflexivity.
+
+```{python}
+from logos.expr import Eq
+
+def my_refl(goal: Goal) -> ProofTerm:
+    match goal.statement:
+        case Eq(lhs, rhs) if structural_eq(lhs, rhs):
+            return Refl(lhs)
+        case _:
+            raise TacticFailed(f"my_refl: expected a == a, got {goal.statement!r}")
+
+x = logos.var("x", int)
+goal = Goal({}, x == x)
+proof = run(goal, [my_refl])
+print("Custom refl:", type(proof).__name__)  # Refl
+```
+
+## A Splitting Tactic: `my_split`
+
+A splitting tactic returns `(subgoals, compose_fn)`:
+
+```{python}
+from logos.expr import And
+from logos.kernel import AndIntro
+
+def my_split(goal: Goal):
+    match goal.statement:
+        case And(left, right):
+            subgoals = [
+                Goal(goal.context, left),
+                Goal(goal.context, right),
+            ]
+            compose = lambda proofs: AndIntro(proofs[0], proofs[1])
+            return subgoals, compose
+        case _:
+            raise TacticFailed("my_split: expected A & B")
+
+x, y = logos.vars("x y", int)
+goal = Goal({"hx": x == x, "hy": y == y}, (x == x) & (y == y))
+
+proof = run(goal, [
+    my_split,
+    [t.assumption()],
+    [t.assumption()],
+])
+print("Custom split:", type(proof).__name__)  # AndIntro
+```
+
+## A Parameterized Tactic
+
+Most tactics are **tactic factories** — functions that return a tactic. This lets them take arguments:
+
+```{python}
+def assert_context_has(name: str):
+    """Tactic: fail if `name` is not in the goal's context."""
+    def tactic(goal: Goal) -> ProofTerm:
+        if name not in goal.context:
+            raise TacticFailed(f"assert_context_has: '{name}' not in context {list(goal.context)}")
+        return goal.context[name]   # ← not a ProofTerm, just demonstrating the pattern
+    return tactic
+
+# Usage: assert_context_has("h") as a debugging tactic
+```
+
+## A Transforming Tactic: `normalize_goal`
+
+A tactic that rewrites the goal and returns a single new subgoal:
+
+```{python}
+from logos.helpers import substitute
+from logos.expr import Var, Lit
+
+def simplify_double(goal: Goal):
+    """Replace `x + x` with `2 * x` in the goal."""
+    from logos.expr import Add, Mul
+    def _simplify(expr):
+        match expr:
+            case Add(lhs, rhs) if structural_eq(lhs, rhs):
+                return Mul(Lit(2), lhs)
+            case _:
+                cls = type(expr)
+                if hasattr(cls, "__dataclass_fields__"):
+                    fields = [getattr(expr, f) for f in cls.__dataclass_fields__]
+                    new_fields = [_simplify(f) if hasattr(f, "__dataclass_fields__") or isinstance(f, type(logos.var("_", int))) else f for f in fields]
+                    return cls(*new_fields)
+                return expr
+
+    new_stmt = _simplify(goal.statement)
+    new_goal = Goal(goal.context, new_stmt)
+    return [new_goal], lambda proofs: proofs[0]
+```
+
+## Debugging Tactics: `trace`
+
+A utility tactic that prints the current goal without changing it:
+
+```{python}
+def trace(label: str = ""):
+    """Print the current goal for debugging."""
+    def tactic(goal: Goal):
+        print(f"[trace{' '+label if label else ''}] Context: {list(goal.context.keys())}")
+        print(f"[trace{' '+label if label else ''}] Goal: {goal.statement!r}")
+        # Return a no-op: 1 subgoal (same goal), identity compose
+        return [goal], lambda proofs: proofs[0]
+    return tactic
+
+x = logos.var("x", int)
+logos.prove(
+    logos.forall(int, lambda x: x + logos.lit(0) == x),
+    proof=[
+        trace("before intro"),
+        t.intro("x"),
+        trace("after intro"),
+        t.ring(),
+    ],
+)
+```
+
+## Combining Custom Tactics with Builtins
+
+Custom tactics plug in seamlessly with the built-in tactic library:
+
+```{python}
+from logos.expr import Var
+
+@logos.define
+def abs_val(x: Var) -> "Expr":
+    return logos.cases(
+        (x >= logos.lit(0), x),
+        (x < logos.lit(0), -x),
+    )
+
+# A reusable "unfold then arithmetic" pattern
+def unfold_and_solve(*names: str):
+    """Unfold the given function names then try ring and linarith."""
+    return t.then(
+        *[t.unfold(n) for n in names],
+        t.first(t.refl(), t.ring(), t.linarith()),
+    )
+
+x = logos.var("x", int)
+logos.prove(
+    logos.forall(int, int, lambda x, y: x + y == y + x),
+    proof=[t.intro("x", "y"), unfold_and_solve()],
+)
+print("unfold_and_solve worked")
+```
+
+## Introspecting the Context
+
+Custom tactics can read the context to make decisions:
+
+```{python}
+def find_equality(goal: Goal):
+    """Look for an equality hypothesis and try to rewrite with it."""
+    from logos.expr import Eq
+    for name, hyp in goal.context.items():
+        match hyp:
+            case Eq(lhs, rhs):
+                # Found one — try rewriting
+                from logos.tactics.rewrite import _replace_unify
+                new_stmt = _replace_unify(goal.statement, lhs, rhs, set())
+                if not structural_eq(new_stmt, goal.statement):
+                    new_goal = Goal(goal.context, new_stmt)
+                    return [new_goal], lambda ps: ps[0]
+    raise TacticFailed("find_equality: no usable equality in context")
+
+x = logos.var("x", int)
+eq_hyp = x == logos.lit(5)
+goal = Goal({"h": eq_hyp}, x + logos.lit(1) == logos.lit(6))
+
+proof = run(goal, [find_equality, t.norm_num()])
+print("find_equality worked:", type(proof).__name__)
+```

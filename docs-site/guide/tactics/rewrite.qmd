@@ -1,0 +1,153 @@
+---
+title: "Rewrite Tactics"
+---
+
+Rewrite tactics transform the goal by unfolding definitions, applying equational lemmas, or evaluating sub-expressions.
+
+```{python}
+import logos
+import logos.tactics as t
+from logos.expr import Var
+from logos.registry import clear_axioms; clear_axioms()
+import logos.builtins
+```
+
+## `refl()`
+
+Closes `a == a` goals — when both sides are structurally identical.
+
+```{python}
+x = logos.var("x", int)
+
+logos.prove(logos.forall(int, lambda x: x == x),
+            proof=[t.intro("x"), t.refl()])
+print("x = x ✓")
+
+# Also works on expressions
+logos.prove(
+    logos.forall(int, int, lambda x, y: x + y == x + y),
+    proof=[t.intro("x", "y"), t.refl()],
+)
+print("x + y = x + y ✓")
+```
+
+`refl` fails when the sides differ — even if they're equivalent:
+
+```{python}
+from logos.theorem import LogosProofError
+
+try:
+    logos.prove(logos.forall(int, int, lambda x, y: x + y == y + x),
+                proof=[t.intro("x", "y"), t.refl()])
+except LogosProofError:
+    print("refl cannot prove x + y = y + x (use ring instead)")
+```
+
+## `unfold(*names)`
+
+Replaces function applications with their definition bodies. Works with any function decorated with `@logos.define`.
+
+```{python}
+@logos.define
+def triple(x: Var) -> "Expr":
+    return x + x + x
+
+x = logos.var("x", int)
+
+# After unfold, triple(x) becomes x + x + x
+logos.theorem(
+    "triple_is_3x",
+    logos.forall(int, lambda x: triple(x) == logos.lit(3) * x),
+    proof=[t.intro("x"), t.unfold("triple"), t.ring()],
+)
+print("Proved: triple(x) = 3x")
+
+# Unfold multiple at once
+@logos.define
+def quad(x: Var) -> "Expr":
+    return triple(x) + x
+
+logos.theorem(
+    "quad_is_4x",
+    logos.forall(int, lambda x: quad(x) == logos.lit(4) * x),
+    proof=[t.intro("x"), t.unfold("quad"), t.unfold("triple"), t.ring()],
+)
+print("Proved: quad(x) = 4x")
+```
+
+## `rewrite(name)` / `rewrite_rev(name)`
+
+Rewrites the goal using a named equation. `rewrite` applies left-to-right; `rewrite_rev` applies right-to-left.
+
+```{python}
+x, y = logos.vars("x y", int)
+
+# Register a useful lemma
+logos.theorem(
+    "double_def",
+    logos.forall(int, lambda x: triple(x) == x + x + x),
+    proof=[t.intro("x"), t.unfold("triple"), t.refl()],
+)
+
+# Use it to rewrite inside another goal
+logos.prove(
+    logos.forall(int, lambda x: triple(x) + x == logos.lit(4) * x),
+    proof=[
+        t.intro("x"),
+        t.rewrite("double_def"),   # replaces triple(x) with x+x+x
+        t.ring(),
+    ],
+)
+print("Proved via rewrite")
+```
+
+## `eval_()`
+
+Evaluates ground arithmetic sub-expressions (no variables) within the goal.
+
+```{python}
+logos.prove(
+    logos.lit(2) + logos.lit(3) == logos.lit(5),
+    proof=[t.eval_()],
+)
+print("2 + 3 = 5 ✓ (via eval)")
+
+logos.prove(
+    logos.lit(10) - logos.lit(4) == logos.lit(6),
+    proof=[t.eval_()],
+)
+print("10 - 4 = 6 ✓")
+```
+
+## `norm_num()`
+
+Normalizes numeric expressions and closes numeric ground goals. Similar to `eval_` but more aggressive:
+
+```{python}
+logos.prove(logos.lit(6) == logos.lit(2) * logos.lit(3), proof=[t.norm_num()])
+print("6 = 2 * 3 ✓")
+
+logos.prove(logos.lit(100) == logos.lit(10) ** logos.lit(2), proof=[t.norm_num()])
+print("100 = 10² ✓")
+```
+
+## Chaining Rewrites
+
+Rewrite tactics can be chained to progressively transform a goal:
+
+```{python}
+@logos.define
+def square(x: Var) -> "Expr":
+    return x * x
+
+logos.theorem(
+    "sq_comm_example",
+    logos.forall(int, int, lambda x, y: square(x) + square(y) == square(y) + square(x)),
+    proof=[
+        t.intro("x", "y"),
+        t.unfold("square"),   # square(x) → x*x, square(y) → y*y
+        t.ring(),              # x*x + y*y = y*y + x*x (commutativity)
+    ],
+)
+print("Proved: x² + y² = y² + x²")
+```

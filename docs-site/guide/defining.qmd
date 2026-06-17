@@ -1,0 +1,150 @@
+---
+title: "Defining Functions"
+---
+
+`@logos.define` is how you introduce functions into the logos proof system. The function body runs in **expression-tree mode** — operators build trees instead of evaluating — and a definition axiom is auto-generated.
+
+## Basic Usage
+
+```{python}
+import logos
+import logos.tactics as t
+from logos.expr import Var
+from logos.registry import clear_axioms; clear_axioms()
+import logos.builtins
+
+@logos.define
+def double(x: Var) -> "Expr":
+    return x + x
+
+# The axiom generated is: Forall(x, double(x) == x + x)
+from logos.registry import get_all_axioms
+print("double" in get_all_axioms())  # True
+```
+
+## Dual Mode
+
+The same function works as a normal Python function and as a symbolic expression builder:
+
+```{python}
+x = logos.var("x", int)
+from logos.expr import App
+
+# Python mode — called with a concrete value
+print(double(5))    # 15... wait, double is x + x, so double(5) = 5 + 5 = 10
+print(double(7))    # 14
+
+# Symbolic mode — called with a Var
+result = double(x)
+print(type(result).__name__)   # App
+print(result.func_name)        # double
+print(result.args)             # [Var("x", int)]
+```
+
+## Proving About Defined Functions
+
+Use `t.unfold("name")` to replace `double(x)` with its definition body:
+
+```{python}
+logos.theorem(
+    "double_is_2x",
+    logos.forall(int, lambda x: double(x) == logos.lit(2) * x),
+    proof=[t.intro("x"), t.unfold("double"), t.ring()],
+)
+print("Proved: double(x) = 2x")
+```
+
+The proof trace is:
+1. `intro("x")` — introduce `x` from the `Forall`
+2. `unfold("double")` — replaces `double(x)` with `x + x` in the goal
+3. `ring()` — proves `x + x == 2 * x` by polynomial normalization
+
+## Composing Definitions
+
+Defined functions can call each other:
+
+```{python}
+@logos.define
+def square(x: Var) -> "Expr":
+    return x * x
+
+@logos.define
+def sum_of_squares(x: Var, y: Var) -> "Expr":
+    return square(x) + square(y)
+
+x, y = logos.vars("x y", int)
+
+logos.theorem(
+    "sos_symmetric",
+    logos.forall(int, int, lambda x, y: sum_of_squares(x, y) == sum_of_squares(y, x)),
+    proof=[
+        t.intro("x", "y"),
+        t.unfold("sum_of_squares"),
+        t.unfold("square"),
+        t.ring(),
+    ],
+)
+print("Proved: sum_of_squares is symmetric")
+```
+
+## Case Expressions
+
+Use `logos.cases()` for conditional definitions. Each branch is a `(condition, value)` pair:
+
+```{python}
+@logos.define
+def abs_val(x: Var) -> "Expr":
+    return logos.cases(
+        (x >= logos.lit(0),  x),
+        (x < logos.lit(0),  -x),
+    )
+
+# Python mode still works
+print(abs_val(-5))   # 5
+print(abs_val(3))    # 3
+```
+
+## External (Black-Box) Functions
+
+For functions logos can't inspect — C extensions, external APIs, database queries — declare them symbolically with `logos.extern` and axiomatize their properties:
+
+```{python}
+# Declare an external sorting function
+sorted_fn = logos.extern("my_sorted", [list], list)
+
+xs = logos.var("xs", list)
+
+# State what we know about it
+logos.axiom(
+    "sorted_returns_same_type",
+    logos.forall(list, lambda xs: sorted_fn(xs) == sorted_fn(xs)),
+)
+
+# Now we can use sorted_fn in propositions and proofs
+from logos.expr import App
+result = sorted_fn(xs)
+print(type(result).__name__)  # App
+print(result.func_name)       # my_sorted
+```
+
+::: {.callout-note}
+The extern approach is how logos reasons about library functions you can't redefine. You state the properties you need as axioms, then build proofs on top of them.
+:::
+
+## Multiple Parameters
+
+Definitions can take any number of parameters:
+
+```{python}
+@logos.define
+def clamp(x: Var, lo: Var, hi: Var) -> "Expr":
+    return logos.cases(
+        (x < lo, lo),
+        (x > hi, hi),
+        (logos.lit(True), x),   # default/else case
+    )
+
+print(clamp(-5, 0, 10))   # 0
+print(clamp(50, 0, 10))   # 10
+print(clamp(5, 0, 10))    # 5
+```

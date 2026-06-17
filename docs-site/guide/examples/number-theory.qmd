@@ -1,0 +1,200 @@
+---
+title: "Number Theory"
+---
+
+Proving properties of integer arithmetic — the kind of reasoning that underlies correct numerical algorithms.
+
+```{python}
+import logos
+import logos.tactics as t
+from logos.expr import Var
+from logos.registry import clear_axioms; clear_axioms()
+import logos.builtins
+```
+
+## Basic Identities
+
+Let's build a small library of arithmetic identities, each proved formally.
+
+```{python}
+x, y, z = logos.vars("x y z", int)
+
+# Commutativity
+logos.theorem("add_comm",
+    logos.forall(int, int, lambda x, y: x + y == y + x),
+    proof=[t.intro("x", "y"), t.ring()])
+
+logos.theorem("mul_comm",
+    logos.forall(int, int, lambda x, y: x * y == y * x),
+    proof=[t.intro("x", "y"), t.ring()])
+
+# Associativity
+logos.theorem("add_assoc",
+    logos.forall(int, int, int, lambda x, y, z: (x + y) + z == x + (y + z)),
+    proof=[t.intro("x", "y", "z"), t.ring()])
+
+logos.theorem("mul_assoc",
+    logos.forall(int, int, int, lambda x, y, z: (x * y) * z == x * (y * z)),
+    proof=[t.intro("x", "y", "z"), t.ring()])
+
+# Distributivity
+logos.theorem("distrib",
+    logos.forall(int, int, int, lambda x, y, z: x * (y + z) == x * y + x * z),
+    proof=[t.intro("x", "y", "z"), t.ring()])
+
+print("Core arithmetic library: ✓")
+```
+
+## Parity
+
+```{python}
+@logos.define
+def double(n: Var) -> "Expr":
+    return n + n
+
+# double(n) = 2*n
+logos.theorem(
+    "double_is_2n",
+    logos.forall(int, lambda n: double(n) == logos.lit(2) * n),
+    proof=[t.intro("n"), t.unfold("double"), t.ring()],
+)
+print("double(n) = 2n ✓")
+
+# double is non-negative for non-negative inputs
+logos.theorem(
+    "double_nonneg",
+    logos.forall(int, lambda n: (n >= logos.lit(0)) >> (double(n) >= logos.lit(0))),
+    proof=[t.intro("n", "h"), t.unfold("double"), t.linarith()],
+)
+print("n ≥ 0 → double(n) ≥ 0 ✓")
+
+# double of a sum: double(x + y) = double(x) + double(y)
+logos.theorem(
+    "double_additive",
+    logos.forall(int, int, lambda x, y: double(x + y) == double(x) + double(y)),
+    proof=[t.intro("x", "y"), t.unfold("double"), t.ring()],
+)
+print("double(x + y) = double(x) + double(y) ✓")
+```
+
+## Difference of Squares
+
+A classic identity used in factoring and cryptography:
+
+```{python}
+@logos.define
+def square(n: Var) -> "Expr":
+    return n * n
+
+logos.theorem(
+    "diff_of_squares",
+    logos.forall(int, int, lambda a, b: (a + b) * (a - b) == square(a) - square(b)),
+    proof=[t.intro("a", "b"), t.unfold("square"), t.ring()],
+)
+print("(a+b)(a-b) = a² - b² ✓")
+
+logos.theorem(
+    "square_of_sum",
+    logos.forall(int, int, lambda a, b: square(a + b) == square(a) + logos.lit(2)*a*b + square(b)),
+    proof=[t.intro("a", "b"), t.unfold("square"), t.ring()],
+)
+print("(a+b)² = a² + 2ab + b² ✓")
+```
+
+## Linear Inequalities
+
+Reasoning about bounds — essential for algorithm correctness:
+
+```{python}
+x, y = logos.vars("x y", int)
+
+# Additive monotonicity
+logos.theorem(
+    "add_mono",
+    logos.forall(int, int, int, lambda x, y, z:
+        (x <= y) >> (x + z <= y + z)
+    ),
+    proof=[t.intro("x", "y", "z", "h"), t.linarith()],
+)
+print("x ≤ y → x+z ≤ y+z ✓")
+
+# Transitivity
+logos.theorem(
+    "lt_trans",
+    logos.forall(int, int, int, lambda x, y, z:
+        (x < y) >> ((y < z) >> (x < z))
+    ),
+    proof=[t.intro("x", "y", "z", "hxy", "hyz"), t.linarith()],
+)
+print("x < y ∧ y < z → x < z ✓")
+
+# Sum of non-positives is non-positive
+logos.theorem(
+    "neg_add_neg",
+    logos.forall(int, int, lambda x, y:
+        (x <= logos.lit(0)) >> ((y <= logos.lit(0)) >> (x + y <= logos.lit(0)))
+    ),
+    proof=[t.intro("x", "y", "hx", "hy"), t.linarith()],
+)
+print("x ≤ 0 ∧ y ≤ 0 → x + y ≤ 0 ✓")
+```
+
+## Triangle Inequality
+
+Proving `|a + b| ≤ |a| + |b|` requires case analysis. Here's a simplified version for non-negatives:
+
+```{python}
+# For non-negative integers: (a + b) ≤ (a + b) — trivial base case
+# Full triangle inequality needs case splits; here we show the setup:
+
+logos.theorem(
+    "abs_nonneg",
+    logos.forall(int, lambda n: (n >= logos.lit(0)) >> (n >= logos.lit(0))),
+    proof=[t.intro("n", "h"), t.assumption()],
+)
+print("n ≥ 0 → n ≥ 0 (trivial, shows case intro works) ✓")
+```
+
+## Arithmetic Progressions
+
+Sum of first `n` natural numbers using Gauss's formula (as an axiom — logos doesn't have induction in v0.1):
+
+```{python}
+# Declare gauss_sum as an external function and axiomatize it
+gauss_sum = logos.extern("gauss_sum", [int], int)
+
+n = logos.var("n", int)
+
+# Axiom: gauss_sum(n) = n * (n + 1) / 2  (integer, assumes n*(n+1) divisible by 2)
+logos.axiom(
+    "gauss_formula",
+    logos.forall(int, lambda n: gauss_sum(n) * logos.lit(2) == n * (n + logos.lit(1))),
+)
+
+# Now prove: gauss_sum(10) * 2 == 110
+logos.prove(
+    logos.forall(int, lambda n:
+        (n == logos.lit(10)) >> (gauss_sum(n) * logos.lit(2) == logos.lit(110))
+    ),
+    proof=[
+        t.intro("n", "h"),
+        t.rewrite("gauss_formula"),   # replace gauss_sum(n)*2 with n*(n+1)
+        t.rewrite("h"),               # replace n with 10
+        t.norm_num(),
+    ],
+)
+print("gauss_sum(10) = 55 ✓")
+```
+
+## Modular Arithmetic
+
+```{python}
+# Basic mod property: (a * b) mod m = ((a mod m) * (b mod m)) mod m
+# We'll prove a specific case
+
+logos.prove(
+    logos.lit(7) * logos.lit(8) % logos.lit(5) == (logos.lit(7) % logos.lit(5)) * (logos.lit(8) % logos.lit(5)) % logos.lit(5),
+    proof=[t.norm_num()],
+)
+print("(7 * 8) mod 5 = (7 mod 5)(8 mod 5) mod 5 ✓")
+```

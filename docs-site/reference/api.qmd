@@ -1,0 +1,283 @@
+---
+title: "API Reference"
+---
+
+Complete reference for the logos public API.
+
+```{python}
+#| echo: false
+import logos
+import logos.tactics as t
+from logos.registry import clear_axioms; clear_axioms()
+import logos.builtins
+```
+
+## Top-Level (`logos`)
+
+### `logos.var(name, type_) → Var`
+
+Create a single symbolic variable.
+
+```{python}
+x = logos.var("x", int)
+print(x.name, x.type)   # x <class 'int'>
+```
+
+### `logos.vars(names, type_) → tuple[Var, ...]`
+
+Create multiple variables from a space-separated string.
+
+```{python}
+x, y, z = logos.vars("x y z", int)
+print([v.name for v in [x, y, z]])  # ['x', 'y', 'z']
+```
+
+### `logos.lit(value) → Lit`
+
+Wrap a Python literal as an expression node.
+
+```{python}
+from logos.expr import Lit
+zero = logos.lit(0)
+print(type(zero).__name__)   # Lit
+print(zero.value)            # 0
+```
+
+### `logos.forall(type_, ..., fn) → Expr`
+
+Create a universally quantified statement from a lambda.
+
+```{python}
+p = logos.forall(int, int, lambda x, y: x + y == y + x)
+from logos.expr import ForallNode
+print(type(p).__name__)  # ForallNode
+```
+
+### `logos.exists(type_, fn) → Expr`
+
+Create an existentially quantified statement from a lambda.
+
+```{python}
+p = logos.exists(int, lambda x: x > logos.lit(5))
+from logos.expr import ExistsNode
+print(type(p).__name__)  # ExistsNode
+```
+
+### `logos.theorem(name, statement, proof) → ProofTerm`
+
+Prove and register a named theorem. Raises `LogosProofError` if the proof fails.
+
+```{python}
+logos.theorem(
+    "example_comm",
+    logos.forall(int, int, lambda x, y: x + y == y + x),
+    proof=[t.intro("x", "y"), t.ring()],
+)
+```
+
+### `logos.prove(statement, proof) → ProofTerm`
+
+Prove a statement without registering it. Raises `LogosProofError` if the proof fails.
+
+```{python}
+term = logos.prove(
+    logos.forall(int, lambda x: x == x),
+    proof=[t.intro("x"), t.refl()],
+)
+print(type(term).__name__)  # ForallIntro
+```
+
+### `logos.axiom(name, statement)`
+
+Register an unproved axiom. Use sparingly — axioms are trusted without verification.
+
+```{python}
+logos.axiom("my_axiom", logos.forall(int, lambda x: x == x))
+```
+
+### `logos.define`
+
+Decorator that registers a symbolic function definition. See [Defining Functions](../guide/defining.qmd).
+
+```{python}
+from logos.expr import Var
+
+@logos.define
+def double(x: Var) -> "Expr":
+    return x + x
+
+print(double(5))          # 10  (Python mode)
+x = logos.var("x", int)
+print(type(double(x)).__name__)  # App  (symbolic mode)
+```
+
+### `logos.extern(name, arg_types, ret_type) → callable`
+
+Declare an external uninterpreted function symbol.
+
+```{python}
+my_fn = logos.extern("my_fn", [int], int)
+x = logos.var("x", int)
+from logos.expr import App
+result = my_fn(x)
+print(type(result).__name__)   # App
+```
+
+### `logos.cases(*branches) → Expr`
+
+Create a conditional expression for use inside `@logos.define` bodies.
+
+```{python}
+x = logos.var("x", int)
+expr = logos.cases(
+    (x >= logos.lit(0), x),
+    (x < logos.lit(0), -x),
+)
+from logos.expr import CaseExpr
+print(type(expr).__name__)   # CaseExpr
+```
+
+---
+
+## Expressions (`logos.expr`)
+
+| Class | Description | Example |
+|-------|-------------|---------|
+| `Var(name, type)` | Symbolic variable | `Var("x", int)` |
+| `Lit(value)` | Literal value | `Lit(42)` |
+| `Add(left, right)` | Addition | `x + y` |
+| `Sub(left, right)` | Subtraction | `x - y` |
+| `Mul(left, right)` | Multiplication | `x * y` |
+| `Div(left, right)` | Integer division | `x // y` |
+| `Mod(left, right)` | Modulo | `x % y` |
+| `Neg(operand)` | Negation | `-x` |
+| `Pow(base, exp)` | Power | `x ** 2` |
+| `Eq(left, right)` | Equality | `x == y` |
+| `Neq(left, right)` | Inequality | `x != y` |
+| `Lt(left, right)` | Less-than | `x < y` |
+| `Le(left, right)` | Less-or-equal | `x <= y` |
+| `Gt(left, right)` | Greater-than | `x > y` |
+| `Ge(left, right)` | Greater-or-equal | `x >= y` |
+| `And(left, right)` | Conjunction | `p & q` |
+| `Or(left, right)` | Disjunction | `p \| q` |
+| `Not(operand)` | Negation | `~p` |
+| `Implies(ant, cons)` | Implication | `p >> q` |
+| `ForallNode(var, body)` | Universal quantifier | `Forall(x, P)` |
+| `ExistsNode(var, body)` | Existential quantifier | `Exists(x, P)` |
+| `App(name, args)` | Function application | `double(x)` |
+| `CaseExpr(branches)` | Case expression | `logos.cases(...)` |
+
+---
+
+## Tactics (`logos.tactics`)
+
+### Structural
+
+| Tactic | Description |
+|--------|-------------|
+| `intro(*names)` | Strip `Forall`/`Implies`, add to context |
+| `assumption()` | Close if goal is in context |
+| `exact(term)` | Close with an explicit proof term |
+| `apply(name)` | Apply a named axiom/theorem |
+| `split()` | `A & B` → `[A, B]` |
+| `left(right_type)` | `A \| B` → prove `A` |
+| `right(left_type)` | `A \| B` → prove `B` |
+| `witness(val)` | `∃x.P(x)` → `P[x:=val]` |
+| `contradiction()` | Close via `P` and `~P` in context |
+
+### Arithmetic
+
+| Tactic | Description |
+|--------|-------------|
+| `ring()` | Polynomial ring identities |
+| `linarith()` | Linear arithmetic via Farkas |
+| `decide()` | Evaluate ground boolean propositions |
+
+### Rewriting
+
+| Tactic | Description |
+|--------|-------------|
+| `refl()` | Prove `a == a` |
+| `unfold(*names)` | Replace function calls with definition bodies |
+| `rewrite(name)` | Rewrite left-to-right using equation axiom |
+| `rewrite_rev(name)` | Rewrite right-to-left |
+| `eval_()` | Evaluate ground arithmetic sub-expressions |
+| `norm_num()` | Normalize and close numeric ground goals |
+
+### Combinators
+
+| Tactic | Description |
+|--------|-------------|
+| `then(*tactics)` | Sequence tactics as one |
+| `first(*tactics)` | Try each, succeed with first non-failing |
+| `try_(tactic)` | Apply if possible, silent on failure |
+| `repeat(tactic)` | Apply until failure |
+| `all_goals(tactic)` | Apply tactic to each open subgoal |
+
+---
+
+## Kernel (`logos.kernel`)
+
+The kernel is the only trusted code. Direct use is rare but available:
+
+### Proof Terms
+
+| Term | Proves |
+|------|--------|
+| `Refl(e)` | `e == e` |
+| `Symm(p)` | `b == a` (given `p: a==b`) |
+| `Trans(p, q)` | `a == c` (given `p: a==b`, `q: b==c`) |
+| `Subst(p, f)` | `f(a) == f(b)` (given `p: a==b`) |
+| `Axiom(name)` | The named axiom's statement |
+| `HypRef(name)` | The named hypothesis |
+| `ForallIntro(var, body)` | `∀x. P` |
+| `ForallElim(proof, val)` | `P[x:=val]` |
+| `ImpliesIntro(hyp, name, body)` | `P → Q` |
+| `ImpliesElim(pq, p)` | `Q` (modus ponens) |
+| `AndIntro(p, q)` | `A ∧ B` |
+| `AndElimL(p)` / `AndElimR(p)` | `A` / `B` |
+| `OrIntroL(p, right)` / `OrIntroR(left, p)` | `A ∨ B` |
+| `CaseAnalysis(or_proof, name, left, right)` | Case split |
+| `ExFalso(false_proof, conclusion)` | Ex falso quodlibet |
+
+### Kernel Functions
+
+```python
+from logos.kernel import infer, check, Context
+
+# infer: determine what statement a proof term proves
+stmt = infer(term, ctx)
+
+# check: validate that term proves expected_stmt (raises KernelError on mismatch)
+check(term, expected_stmt, ctx)
+```
+
+---
+
+## Helpers (`logos.helpers`)
+
+```python
+from logos.helpers import structural_eq, substitute, free_vars
+
+# structural_eq: recursively compare two expression trees
+structural_eq(x + y, x + y)     # True
+structural_eq(x + y, y + x)     # False
+
+# substitute: replace all free occurrences of var with val
+substitute(x + y, x, logos.lit(5))  # Lit(5) + y
+
+# free_vars: names of free variables in an expression
+free_vars(x + y)                 # {"x", "y"}
+free_vars(Forall(x, x + y))      # {"y"}  (x is bound)
+```
+
+---
+
+## Exceptions
+
+| Exception | When raised |
+|-----------|-------------|
+| `logos.theorem.LogosProofError` | Proof fails in `logos.prove` or `logos.theorem` |
+| `logos.runner.TacticFailed` | A tactic cannot proceed |
+| `logos.kernel.KernelError` | Kernel rejects an invalid proof term |
+| `logos.registry.ValueError` | Duplicate axiom registration |

@@ -1,0 +1,119 @@
+---
+title: "Propositions & Quantifiers"
+---
+
+A **proposition** in logos is any `Expr` that represents a truth claim — typically an equation, inequality, or logical combination. Quantifiers let you make universal and existential claims.
+
+## Universal Quantification
+
+`Forall` says "for all values of these variables, this holds."
+
+```{python}
+import logos
+from logos.expr import Var, Forall
+from logos.registry import clear_axioms; clear_axioms()
+import logos.builtins
+
+x, y, z = logos.vars("x y z", int)
+
+# Lambda form — most ergonomic
+p1 = logos.forall(int, int, lambda x, y: x + y == y + x)
+
+# Explicit form — useful when you have vars already
+p2 = Forall(x, y, x + y == y + x)
+
+# Nested Forall is sugar for multiple binders
+p3 = logos.forall(int, int, int, lambda x, y, z: (x + y) + z == x + (y + z))
+
+from logos.helpers import structural_eq
+print(structural_eq(p1, p2))   # True — same structure
+```
+
+## Existential Quantification
+
+`Exists` says "there is some value for which this holds."
+
+```{python}
+from logos.expr import Exists
+
+# There exists an integer greater than 5
+p = logos.exists(int, lambda x: x > logos.lit(5))
+
+# Prove it by providing a witness
+import logos.tactics as t
+
+logos.prove(
+    logos.exists(int, lambda x: x > logos.lit(5)),
+    proof=[t.witness(logos.lit(10)), t.decide()],
+)
+print("Proved: ∃x > 5")
+```
+
+## Implications
+
+The `>>` operator builds implications. `intro` in a proof strips the implication and adds the antecedent as a hypothesis:
+
+```{python}
+x = logos.var("x", int)
+
+# If x > 0, then x + 1 > 0
+p = (x > logos.lit(0)) >> (x + logos.lit(1) > logos.lit(0))
+
+logos.prove(
+    logos.forall(int, lambda x: (x > logos.lit(0)) >> (x + logos.lit(1) > logos.lit(0))),
+    proof=[t.intro("x", "h"), t.linarith()],
+)
+print("Proved: x > 0 → x + 1 > 0")
+```
+
+## Conjunctions and Disjunctions
+
+```{python}
+x, y = logos.vars("x y", int)
+
+# Prove both sides independently
+# Note: >> is left-associative in Python, so parenthesize for right-nesting
+logos.prove(
+    logos.forall(int, int, lambda x, y:
+        (x > logos.lit(0)) >> ((y > logos.lit(0)) >> ((x > logos.lit(0)) & (y > logos.lit(0))))
+    ),
+    proof=[
+        t.intro("x", "y", "hx", "hy"),
+        t.split(),
+        [t.assumption()],
+        [t.assumption()],
+    ],
+)
+print("Proved: hx ∧ hy")
+```
+
+## Composing Propositions
+
+Propositions are just `Expr` values — you can build helpers:
+
+```{python}
+def positive(v):
+    return v > logos.lit(0)
+
+def between(v, lo, hi):
+    return (v > lo) & (v < hi)
+
+x = logos.var("x", int)
+
+prop = logos.forall(int, lambda x: positive(x) >> between(x * logos.lit(2), logos.lit(0), logos.lit(100)))
+print("Proposition type:", type(prop).__name__)   # ForallNode
+```
+
+## Propositions as First-Class Values
+
+Propositions can be stored, passed around, and reused:
+
+```{python}
+commutativity_of_add = logos.forall(int, int, lambda x, y: x + y == y + x)
+associativity_of_add = logos.forall(int, int, int, lambda x, y, z: (x + y) + z == x + (y + z))
+
+for name, prop in [("comm", commutativity_of_add), ("assoc", associativity_of_add)]:
+    logos.theorem(name, prop, proof=[t.intro("x", "y") if "comm" in name
+                                      else t.intro("x", "y", "z"), t.ring()])
+    print(f"Proved: {name}")
+```

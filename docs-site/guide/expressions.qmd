@@ -1,0 +1,143 @@
+---
+title: "Expression Language"
+---
+
+Every logos proposition is built from **expression trees**. Instead of evaluating immediately, operators on `Var` and `Expr` objects build a tree that the kernel can inspect and manipulate symbolically.
+
+## Variables and Literals
+
+```{python}
+import logos
+from logos.expr import Var, Lit
+from logos.registry import clear_axioms; clear_axioms()
+import logos.builtins
+
+# Create variables — the building blocks of symbolic expressions
+x = logos.var("x", int)
+y = logos.var("y", int)
+
+# Or several at once
+a, b, c = logos.vars("a b c", int)
+
+print(type(x))    # <class 'logos.expr.Var'>
+print(x.name)     # x
+print(x.type)     # <class 'int'>
+
+# Literals are created by Lit() or auto-lifted from Python values
+from logos.expr import Lit
+zero = Lit(0)
+print(zero)       # Lit(value=0)
+```
+
+## Arithmetic Operators
+
+All Python arithmetic operators are overloaded to return `Expr` nodes rather than values. The right-hand side is **auto-lifted** from Python literals.
+
+```{python}
+x, y = logos.vars("x y", int)
+
+from logos.expr import Add, Sub, Mul, Neg, Lit
+
+e1 = x + y         # Add(x, y)
+e2 = x + 1         # Add(x, Lit(1))  ← literal auto-lifted
+e3 = 2 * x         # Mul(Lit(2), x)  ← __rmul__
+e4 = -x            # Neg(x)
+e5 = x ** 2        # Pow(x, Lit(2))
+e6 = x // y        # Div(x, y)
+e7 = x % 3         # Mod(x, Lit(3))
+
+print(type(e1).__name__)  # Add
+print(type(e2).__name__)  # Add
+print(e2.right)           # Lit(value=1)
+```
+
+## Comparison Operators
+
+Comparisons return `Expr[bool]` nodes — **not Python booleans**. This is the key design decision: `x == y` builds an `Eq` node, not `True` or `False`.
+
+```{python}
+from logos.expr import Eq, Lt, Le, Gt, Ge
+
+eq_expr  = x == y    # Eq(x, y)
+lt_expr  = x < 0     # Lt(x, Lit(0))
+le_expr  = x <= y    # Le(x, y)
+gt_expr  = x > 1     # Gt(x, Lit(1))
+ge_expr  = x >= 0    # Ge(x, Lit(0))
+
+print(type(eq_expr).__name__)   # Eq
+print(type(gt_expr).__name__)   # Gt
+```
+
+## Logical Connectives
+
+Python's `and`, `or`, and `not` can't be overloaded (they're keywords with short-circuit evaluation). Instead, use `&`, `|`, `~`, and `>>`.
+
+```{python}
+from logos.expr import And, Or, Not, Implies
+
+p = x > logos.lit(0)
+q = y > logos.lit(0)
+
+conj    = p & q          # And(p, q)
+disj    = p | q          # Or(p, q)
+neg     = ~p             # Not(p)
+impl    = p >> q         # Implies(p, q)
+
+print(type(conj).__name__)   # And
+print(type(impl).__name__)   # Implies
+```
+
+## The `__bool__` Guard
+
+If an `Expr` accidentally ends up in a Python `if` or `assert`, you get a clear error:
+
+```{python}
+import pytest
+
+try:
+    if x > 0:   # ← this would call bool() on an Expr
+        pass
+except TypeError as e:
+    print(f"Caught: {e}")
+```
+
+This protects you from silent bugs where symbolic expressions are accidentally evaluated as Python booleans.
+
+## Expression Trees Are Identity-Based
+
+Two expression objects are never `==` in Python (that returns an `Eq` node). Identity comparison uses `is` or `id()`. Structural equality is handled by `logos.helpers.structural_eq`:
+
+```{python}
+from logos.helpers import structural_eq
+
+e1 = x + y
+e2 = x + y   # different Python objects, same structure
+
+print(e1 == e2)                  # Eq(Add(x,y), Add(x,y)) — NOT bool!
+print(structural_eq(e1, e2))     # True  — structural comparison
+print(e1 is e2)                  # False — different objects
+```
+
+## Substitution
+
+`substitute(expr, var, val)` replaces all free occurrences of a variable:
+
+```{python}
+from logos.helpers import substitute
+
+e = x + y
+result = substitute(e, x, logos.lit(5))
+print(structural_eq(result, logos.lit(5) + y))  # True
+```
+
+Substitution is capture-avoiding — it won't replace a variable that's bound inside a `Forall`:
+
+```{python}
+from logos.expr import Forall
+
+# Forall(x, x + y) — x is bound, y is free
+e = Forall(x, x + y)
+result = substitute(e, x, logos.lit(99))
+# x inside the Forall is not replaced
+print(structural_eq(result, e))  # True — substitution stopped at the binder
+```

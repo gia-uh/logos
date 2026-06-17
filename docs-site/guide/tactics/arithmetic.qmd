@@ -1,0 +1,146 @@
+---
+title: "Arithmetic Tactics"
+---
+
+Arithmetic tactics prove numeric goals without requiring manual proof steps. They work by normalizing expressions and checking algebraic identities.
+
+```{python}
+import logos
+import logos.tactics as t
+from logos.registry import clear_axioms; clear_axioms()
+import logos.builtins
+```
+
+## `ring()`
+
+Proves polynomial ring identities over integers and rationals — commutativity, associativity, distributivity, and any combination. Internally normalizes both sides to a canonical sum-of-monomials form and checks equality.
+
+```{python}
+x, y, z = logos.vars("x y z", int)
+
+# Commutativity
+logos.prove(logos.forall(int, int, lambda x, y: x + y == y + x),
+            proof=[t.intro("x", "y"), t.ring()])
+print("x + y = y + x ✓")
+
+# Distributivity
+logos.prove(logos.forall(int, int, int, lambda x, y, z: x * (y + z) == x * y + x * z),
+            proof=[t.intro("x", "y", "z"), t.ring()])
+print("x(y+z) = xy+xz ✓")
+
+# Difference of squares
+logos.prove(
+    logos.forall(int, int, lambda x, y: (x + y) * (x - y) == x**2 - y**2),
+    proof=[t.intro("x", "y"), t.ring()],
+)
+print("(x+y)(x-y) = x²-y² ✓")
+
+# Constants fold automatically
+logos.prove(logos.forall(int, lambda x: logos.lit(3) * x + logos.lit(2) * x == logos.lit(5) * x),
+            proof=[t.intro("x"), t.ring()])
+print("3x + 2x = 5x ✓")
+```
+
+`ring` fails when the identity doesn't hold:
+
+```{python}
+from logos.theorem import LogosProofError
+
+try:
+    logos.prove(logos.forall(int, int, lambda x, y: x + y == x - y),
+                proof=[t.intro("x", "y"), t.ring()])
+except LogosProofError as e:
+    print(f"Correctly rejected: {e}")
+```
+
+## `linarith()`
+
+Proves linear arithmetic goals from linear hypotheses. It works by finding a non-negative linear combination of the hypotheses (Farkas' lemma) that implies the goal.
+
+```{python}
+x, y = logos.vars("x y", int)
+
+# Simple transitive inequality
+logos.prove(
+    logos.forall(int, int, lambda x, y:
+        (x > logos.lit(0)) >> ((y > x) >> (y > logos.lit(0)))
+    ),
+    proof=[t.intro("x", "y", "hx", "hxy"), t.linarith()],
+)
+print("x > 0 ∧ y > x → y > 0 ✓")
+
+# Linear combination
+logos.prove(
+    logos.forall(int, int, lambda x, y:
+        (x > logos.lit(2)) >> ((y > logos.lit(3)) >> (x + y > logos.lit(5)))
+    ),
+    proof=[t.intro("x", "y", "hx", "hy"), t.linarith()],
+)
+print("x > 2 ∧ y > 3 → x+y > 5 ✓")
+
+# Tighter bound derivation
+logos.prove(
+    logos.forall(int, lambda x:
+        (x > logos.lit(10)) >> (x > logos.lit(1))
+    ),
+    proof=[t.intro("x", "h"), t.linarith()],
+)
+print("x > 10 → x > 1 ✓")
+```
+
+::: {.callout-note}
+`linarith` uses a simplified Farkas-lemma approach. It handles most common linear reasoning but may not close all valid linear goals. For those cases, try `ring` or break the proof into smaller steps with `intro`/`split`.
+:::
+
+## `decide()`
+
+Evaluates a ground (variable-free) boolean proposition by computing its value. If it evaluates to `True`, the goal is closed.
+
+```{python}
+# Ground numeric comparisons
+logos.prove(logos.lit(5) > logos.lit(3),  proof=[t.decide()])
+print("5 > 3 ✓")
+
+logos.prove(logos.lit(2) * logos.lit(3) == logos.lit(6), proof=[t.decide()])
+print("2 * 3 = 6 ✓")
+
+logos.prove(logos.lit(10) >= logos.lit(10), proof=[t.decide()])
+print("10 ≥ 10 ✓")
+```
+
+`decide` is most useful after instantiating universally quantified variables to specific values:
+
+```{python}
+logos.prove(
+    logos.exists(int, lambda x: x * x == logos.lit(25)),
+    proof=[
+        t.witness(logos.lit(5)),   # x := 5
+        t.decide(),                 # verify 5 * 5 == 25
+    ],
+)
+print("∃x: x² = 25 ✓")
+```
+
+## Combining Arithmetic Tactics
+
+Real proofs often combine `ring` and `linarith`:
+
+```{python}
+from logos.expr import Var
+
+@logos.define
+def double(x: Var) -> "Expr":
+    return x + x
+
+# double(x) > x  when  x > 0
+logos.theorem(
+    "double_exceeds_input",
+    logos.forall(int, lambda x: (x > logos.lit(0)) >> (double(x) > x)),
+    proof=[
+        t.intro("x", "h"),
+        t.unfold("double"),   # double(x) → x + x
+        t.linarith(),         # x + x > x follows from x > 0
+    ],
+)
+print("Proved: double(x) > x when x > 0")
+```

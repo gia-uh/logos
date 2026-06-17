@@ -1,0 +1,180 @@
+---
+title: "Tactic Combinators"
+---
+
+Combinators compose tactics into more powerful ones. They let you sequence, branch, and repeat tactics without writing a new function.
+
+```{python}
+import logos
+import logos.tactics as t
+from logos.goal import Goal
+from logos.runner import run, TacticFailed
+from logos.registry import clear_axioms; clear_axioms()
+import logos.builtins
+```
+
+## `then(*tactics)`
+
+Sequences tactics as a single compound tactic. Equivalent to listing them separately, but usable anywhere a single tactic is expected.
+
+```{python}
+x, y = logos.vars("x y", int)
+
+# These are equivalent:
+logos.prove(
+    logos.forall(int, int, lambda x, y: x + y == y + x),
+    proof=[t.then(t.intro("x", "y"), t.ring())],   # single compound tactic
+)
+
+logos.prove(
+    logos.forall(int, int, lambda x, y: x + y == y + x),
+    proof=[t.intro("x", "y"), t.ring()],            # two separate tactics
+)
+print("Both work")
+```
+
+`then` is particularly useful when you need a single tactic for a subgoal:
+
+```{python}
+from logos.expr import Var
+
+@logos.define
+def double(x: Var) -> "Expr":
+    return x + x
+
+x, y = logos.vars("x y", int)
+
+logos.prove(
+    logos.forall(int, int, lambda x, y:
+        (x > logos.lit(0)) >> ((y > logos.lit(0)) >> ((double(x) > logos.lit(0)) & (double(y) > logos.lit(0))))
+    ),
+    proof=[
+        t.intro("x", "y", "hx", "hy"),
+        t.split(),
+        [t.then(t.unfold("double"), t.linarith())],  # subgoal 1 as a compound tactic
+        [t.then(t.unfold("double"), t.linarith())],  # subgoal 2
+    ],
+)
+print("Proved compound goal")
+```
+
+## `first(*tactics)`
+
+Tries each tactic in order and succeeds with the first one that doesn't raise `TacticFailed`. Useful for automation when multiple tactics might apply.
+
+```{python}
+x = logos.var("x", int)
+
+# refl works for x == x, ring works for x + 0 == x
+# first tries refl, then ring
+
+logos.prove(logos.forall(int, lambda x: x == x),
+            proof=[t.intro("x"), t.first(t.refl(), t.ring())])
+print("x = x via first(refl, ring)")
+
+logos.prove(logos.forall(int, lambda x: x + logos.lit(0) == x),
+            proof=[t.intro("x"), t.first(t.refl(), t.ring())])
+print("x + 0 = x via first(refl, ring)")
+```
+
+This pattern is useful in generic automation:
+
+```{python}
+# A "cheap auto" tactic that tries simple things first
+cheap_auto = t.first(t.refl(), t.assumption(), t.decide(), t.ring())
+
+logos.prove(logos.forall(int, lambda x: x == x),
+            proof=[t.intro("x"), cheap_auto])
+logos.prove(logos.lit(2) + logos.lit(2) == logos.lit(4),
+            proof=[cheap_auto])
+print("cheap_auto handles both")
+```
+
+## `try_(tactic)`
+
+Applies the tactic; if it fails, silently succeeds (the goal remains open for the next tactic). Never raises `TacticFailed`.
+
+```{python}
+x = logos.var("x", int)
+hyp = x > logos.lit(0)
+
+# try_(ring()) fails silently on a non-ring goal, then assumption() closes it
+logos.prove(
+    logos.forall(int, lambda x: (x > logos.lit(0)) >> (x > logos.lit(0))),
+    proof=[
+        t.intro("x", "h"),
+        t.try_(t.ring()),    # fails (not a ring goal), but doesn't raise
+        t.assumption(),      # closes the goal
+    ],
+)
+print("try_ worked correctly")
+```
+
+## `repeat(tactic)`
+
+Applies the tactic repeatedly until it fails. Useful for stripping multiple `Forall` binders one at a time or simplifying iteratively.
+
+```{python}
+x, y, z = logos.vars("x y z", int)
+
+# Strip all three Foralls one at a time, then ring
+logos.prove(
+    logos.forall(int, int, int, lambda x, y, z: x + y + z == z + y + x),
+    proof=[
+        t.repeat(t.intro("_")),   # strips x, y, z one at a time
+        t.ring(),
+    ],
+)
+print("repeat(intro) stripped all foralls")
+```
+
+## `all_goals(tactic)`
+
+Applies the tactic to the current goal (acts as the tactic itself). In a proof list after a splitting tactic, repeat it for each subgoal using separate nested lists, or use `t.first` to handle multiple cases:
+
+```{python}
+x, y = logos.vars("x y", int)
+
+# Use the same sub-tactic for each subgoal
+close_with_assumption = t.assumption()
+
+logos.prove(
+    logos.forall(int, int, lambda x, y:
+        (x > logos.lit(0)) >> ((y > logos.lit(0)) >> ((x > logos.lit(0)) & (y > logos.lit(0))))
+    ),
+    proof=[
+        t.intro("x", "y", "hx", "hy"),
+        t.split(),
+        [close_with_assumption],
+        [close_with_assumption],
+    ],
+)
+print("Both subgoals closed by same tactic")
+```
+
+## Building a Mini Automation
+
+Combinators let you compose a simple automation tactic without writing Python:
+
+```{python}
+# A mini "auto" that tries a battery of cheap tactics
+auto = t.first(
+    t.refl(),
+    t.assumption(),
+    t.decide(),
+    t.ring(),
+    t.linarith(),
+)
+
+# Now use it for simple goals without specifying which tactic applies
+x, y = logos.vars("x y", int)
+
+for stmt, by in [
+    (logos.forall(int, lambda x: x == x), [t.intro("x"), auto]),
+    (logos.lit(3) > logos.lit(2), [auto]),
+    (logos.forall(int, int, lambda x, y: x + y == y + x), [t.intro("x", "y"), auto]),
+]:
+    logos.prove(stmt, proof=by)
+
+print("mini-auto handled all three goals")
+```

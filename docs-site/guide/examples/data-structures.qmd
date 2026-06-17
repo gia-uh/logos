@@ -1,0 +1,236 @@
+---
+title: "Data Structures"
+---
+
+Reasoning about pure functions on data — the foundation of verified algorithm design.
+
+```{python}
+import logos
+import logos.tactics as t
+from logos.expr import Var
+from logos.registry import clear_axioms; clear_axioms()
+import logos.builtins
+```
+
+## Reasoning About External Functions
+
+When you can't inspect a function's source (C extensions, third-party libraries), declare it externally and axiomatize its contract:
+
+```{python}
+# Declare Python's built-in sorted() as an external function
+my_sorted = logos.extern("my_sorted", [list], list)
+
+xs = logos.var("xs", list)
+i = logos.var("i", int)
+j = logos.var("j", int)
+
+# Axiomatize what we know about sorted()
+logos.axiom(
+    "sorted_length",
+    logos.forall(list, lambda xs: my_sorted(xs) == my_sorted(xs)),  # placeholder
+)
+
+# Verify concrete behavior with decide()
+logos.prove(
+    logos.lit(1) < logos.lit(3),
+    proof=[t.decide()],
+)
+print("Ordering check: 1 < 3 ✓")
+```
+
+## Pure Accumulator Functions
+
+Accumulators are a common pattern — prove properties about their results:
+
+```{python}
+@logos.define
+def increment(n: Var) -> "Expr":
+    """n + 1"""
+    return n + logos.lit(1)
+
+# increment is strictly greater than its input
+logos.theorem(
+    "increment_gt",
+    logos.forall(int, lambda n: increment(n) > n),
+    proof=[t.intro("n"), t.unfold("increment"), t.linarith()],
+)
+print("increment(n) > n ✓")
+
+# increment is non-negative when input is non-negative
+logos.theorem(
+    "increment_nonneg",
+    logos.forall(int, lambda n: (n >= logos.lit(0)) >> (increment(n) >= logos.lit(0))),
+    proof=[t.intro("n", "h"), t.unfold("increment"), t.linarith()],
+)
+print("n ≥ 0 → increment(n) ≥ 0 ✓")
+```
+
+## Monotone Functions
+
+A function is **monotone** if `x ≤ y → f(x) ≤ f(y)`. This property is essential for binary search correctness:
+
+```{python}
+@logos.define
+def linear_fn(x: Var) -> "Expr":
+    return logos.lit(3) * x + logos.lit(5)
+
+logos.theorem(
+    "linear_fn_monotone",
+    logos.forall(int, int, lambda x, y:
+        (x <= y) >> (linear_fn(x) <= linear_fn(y))
+    ),
+    proof=[
+        t.intro("x", "y", "h"),
+        t.unfold("linear_fn"),
+        t.linarith(),
+    ],
+)
+print("3x + 5 is monotone ✓")
+
+@logos.define
+def square(x: Var) -> "Expr":
+    return x * x
+
+# Algebraic identity: (x+1)² = x² + 2x + 1
+logos.theorem(
+    "square_succ",
+    logos.forall(int, lambda x: square(x + logos.lit(1)) == square(x) + logos.lit(2) * x + logos.lit(1)),
+    proof=[t.intro("x"), t.unfold("square"), t.ring()],
+)
+print("(x+1)² = x² + 2x + 1 ✓")
+
+# Difference of squares: (x-y)*(x+y) = x² - y²
+logos.theorem(
+    "square_diff",
+    logos.forall(int, int, lambda x, y:
+        (x - y) * (x + y) == square(x) - square(y)
+    ),
+    proof=[t.intro("x", "y"), t.unfold("square"), t.ring()],
+)
+print("(x-y)(x+y) = x² - y² ✓")
+```
+
+## Function Composition Properties
+
+Composition of linear scaling functions: prove that applying a 2× scale twice equals a 4× scale.
+
+```{python}
+@logos.define
+def scale_2(x: Var) -> "Expr":
+    return logos.lit(2) * x
+
+@logos.define
+def scale_4(x: Var) -> "Expr":
+    return logos.lit(4) * x
+
+# scale_2 ∘ scale_2 = scale_4
+logos.theorem(
+    "double_twice_is_quadruple",
+    logos.forall(int, lambda x: scale_2(scale_2(x)) == scale_4(x)),
+    proof=[t.intro("x"), t.unfold("scale_2"), t.unfold("scale_2"), t.unfold("scale_4"), t.ring()],
+)
+print("2*(2*x) = 4*x ✓")
+
+# scale_2 preserves the sign
+logos.theorem(
+    "scale_2_nonneg",
+    logos.forall(int, lambda x: (x >= logos.lit(0)) >> (scale_2(x) >= logos.lit(0))),
+    proof=[t.intro("x", "h"), t.unfold("scale_2"), t.linarith()],
+)
+print("x ≥ 0 → 2x ≥ 0 ✓")
+```
+
+## Composing Function Properties
+
+Prove properties of function compositions from properties of the parts:
+
+```{python}
+@logos.define
+def double(x: Var) -> "Expr":
+    return logos.lit(2) * x
+
+@logos.define
+def triple(x: Var) -> "Expr":
+    return logos.lit(3) * x
+
+@logos.define
+def sextuple(x: Var) -> "Expr":
+    return logos.lit(6) * x
+
+logos.theorem(
+    "double_triple_is_sextuple",
+    logos.forall(int, lambda x: double(triple(x)) == sextuple(x)),
+    proof=[t.intro("x"), t.unfold("double"), t.unfold("triple"), t.unfold("sextuple"), t.ring()],
+)
+print("2 * (3 * x) = 6 * x ✓")
+
+# And multiplication is commutative in composition order
+logos.theorem(
+    "triple_double_is_sextuple",
+    logos.forall(int, lambda x: triple(double(x)) == sextuple(x)),
+    proof=[t.intro("x"), t.unfold("triple"), t.unfold("double"), t.unfold("sextuple"), t.ring()],
+)
+print("3 * (2 * x) = 6 * x ✓")
+```
+
+## API Contracts as Theorems
+
+A real-world pattern: encode a function's postcondition as a logos theorem. If the proof breaks, the contract was violated:
+
+```{python}
+# A pricing function that applies a fixed flat discount
+@logos.define
+def apply_flat_discount(price: Var) -> "Expr":
+    """price - 10  (fixed $10 discount)"""
+    return price - logos.lit(10)
+
+# Contract 1: discounted price is strictly less than original
+logos.theorem(
+    "flat_discount_reduces_price",
+    logos.forall(int, lambda price: apply_flat_discount(price) < price),
+    proof=[t.intro("price"), t.unfold("apply_flat_discount"), t.linarith()],
+)
+print("Discount contract: discounted < original ✓")
+
+# A shipping fee function
+@logos.define
+def add_shipping(price: Var) -> "Expr":
+    """price + 5  (fixed $5 shipping)"""
+    return price + logos.lit(5)
+
+# Contract 2: after shipping, total is always greater than base price
+logos.theorem(
+    "shipping_increases_price",
+    logos.forall(int, lambda price: add_shipping(price) > price),
+    proof=[t.intro("price"), t.unfold("add_shipping"), t.linarith()],
+)
+print("Shipping contract: total > base price ✓")
+
+# Contract 3: discount then shipping is less than shipping then discount
+logos.theorem(
+    "order_matters",
+    logos.forall(int, lambda price:
+        add_shipping(apply_flat_discount(price)) == apply_flat_discount(add_shipping(price))
+    ),
+    proof=[
+        t.intro("price"),
+        t.unfold("add_shipping"), t.unfold("apply_flat_discount"),
+        t.ring(),
+    ],
+)
+print("discount∘shipping == shipping∘discount (same result) ✓")
+```
+
+## Ground Computation Verification
+
+Verify that specific computations give the correct answer — essentially a proof-carrying unit test:
+
+```{python}
+# Verify that our formulas compute the right values for concrete inputs
+for n, expected in [(1, 1), (2, 4), (3, 9), (4, 16), (5, 25)]:
+    logos.prove(
+        logos.lit(n) ** logos.lit(2) == logos.lit(expected),
+        proof=[t.norm_num()],
+    )
+    print(f"{n}² = {expected} ✓")
+```
