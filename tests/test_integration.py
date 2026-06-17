@@ -91,3 +91,36 @@ def test_prove_wrong_tactic_raises(x, y):
     stmt = Forall(x, y, x + y == y + x)
     with pytest.raises(LogosProofError):
         prove(stmt, [ring()])  # ring() on Forall, not Eq
+
+
+# --- Public API integration tests ---
+
+import logos
+import logos.tactics as t
+from logos.registry import clear_axioms
+
+
+def test_full_double_proof():
+    clear_axioms()
+    logos.builtins._load()
+
+    @logos.define
+    def double(v: Var) -> "Expr":
+        return v + v
+
+    logos.theorem(
+        "double_eq_2x",
+        logos.forall(int, lambda v: double(v) == logos.lit(2) * v),
+        [t.intro("v"), t.unfold("double"), t.ring()],
+    )
+
+
+def test_full_abs_nonneg():
+    clear_axioms()
+    logos.builtins._load()
+
+    logos.theorem(
+        "zero_plus_zero",
+        logos.forall(int, lambda v: v + logos.lit(0) == v),
+        [t.intro("v"), t.ring()],
+    )
