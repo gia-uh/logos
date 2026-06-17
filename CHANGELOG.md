@@ -9,5 +9,5 @@
 - `logos.theorem` / `logos.prove` — proof validation at definition time
 - `logos.extern` — axiom declarations for external functions
 - Bundled tactics: `ring`, `linarith`, `decide`, `intro`, `assumption`, `exact`, `apply`, `split`, `left`, `right`, `witness`, `unfold`, `refl`, `rewrite`, `eval_`, `norm_num`
-- Tactic combinators: `then`, `first`, `try_`, `repeat`
+- Tactic combinators: `then`, `first`, `try_`, `repeat`, `all_goals`
 - Built-in ring axioms for integer arithmetic

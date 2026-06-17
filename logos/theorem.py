@@ -3,13 +3,14 @@ from logos.expr import Expr
 from logos.goal import Goal
 from logos.runner import run, TacticFailed
 from logos.registry import register_axiom
+from logos.kernel import ProofTerm
 
 
 class LogosProofError(Exception):
     pass
 
 
-def prove(statement: Expr, proof: list) -> object:
+def prove(statement: Expr, proof: list) -> ProofTerm:
     """Validate `proof` for `statement`. Returns the proof term or raises LogosProofError.
 
     Note (v0.1): kernel check is intentionally skipped — tactics like ring() and

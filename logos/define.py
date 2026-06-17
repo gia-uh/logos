@@ -1,6 +1,6 @@
 from __future__ import annotations
 import inspect
-from typing import Callable, Any
+from typing import Callable
 from logos.expr import Expr, Var, App, Forall, Eq
 from logos.registry import register_axiom
 

@@ -35,11 +35,13 @@ def test_try_succeeds_silently_on_fail(x, y):
     hyp = x > Lit(0)
     goal = Goal({"h": hyp}, hyp)
     proof = run(goal, [try_(refl()), assumption()])
+    assert isinstance(proof, ProofTerm)
 
 
 def test_all_goals_applies_to_each(x, y):
     goal = Goal({"hx": x == x, "hy": y == y}, (x == x) & (y == y))
     proof = run(goal, [split(), all_goals(assumption())])
+    assert isinstance(proof, ProofTerm)
 
 
 def test_repeat_runs_n_steps_then_stops(x):
