@@ -1,8 +1,8 @@
 # logos/tactics/rewrite.py
-from logos.expr import Expr, Lit, Var, Add, Sub, Mul, Div, Mod, Neg, Pow, Eq
+from logos.expr import Expr, Lit, Var, Add, Sub, Mul, Div, Mod, Neg, Pow, Eq, App, CaseExpr, ForallNode
 from logos.goal import Goal
 from logos.kernel import ProofTerm, Refl
-from logos.helpers import structural_eq, substitute
+from logos.helpers import structural_eq, substitute, try_unify, _merge_subs
 from logos.runner import TacticFailed
 
 
@@ -80,14 +80,16 @@ def unfold(*func_names: str):
     return tactic
 
 
-def _unfold_in(expr: Expr, fname: str, params: list[Var], body: Expr) -> Expr:
-    from logos.expr import App
+def _unfold_in(expr: Expr, fname: str, params: list, body: Expr) -> Expr:
     match expr:
         case App(n, args) if n == fname:
-            result = body
-            for param, arg in zip(params, args):
-                result = substitute(result, param, arg)
-            return result
+            subst_map = {param.name: arg for param, arg in zip(params, args)}
+            return _substitute_many(body, subst_map)
+        case App(n, args):
+            return App(n, [_unfold_in(a, fname, params, body) for a in args])
+        case CaseExpr(branches):
+            return CaseExpr([(_unfold_in(c, fname, params, body), _unfold_in(v, fname, params, body))
+                             for c, v in branches])
         case _:
             cls = type(expr)
             if not hasattr(cls, "__dataclass_fields__"):
@@ -100,16 +102,41 @@ def _unfold_in(expr: Expr, fname: str, params: list[Var], body: Expr) -> Expr:
             return cls(*new_fields)
 
 
+def _substitute_many(expr: Expr, subst_map: dict) -> Expr:
+    """Apply all substitutions simultaneously (avoids sequential capture)."""
+    match expr:
+        case Var(name, _) if name in subst_map:
+            return subst_map[name]
+        case Var() | Lit():
+            return expr
+        case App(n, args):
+            return App(n, [_substitute_many(a, subst_map) for a in args])
+        case CaseExpr(branches):
+            return CaseExpr([(_substitute_many(c, subst_map), _substitute_many(v, subst_map))
+                             for c, v in branches])
+        case _:
+            cls = type(expr)
+            if not hasattr(cls, "__dataclass_fields__"):
+                return expr
+            fields = [getattr(expr, f) for f in cls.__dataclass_fields__]
+            new_fields = [
+                _substitute_many(f, subst_map) if isinstance(f, Expr) else f
+                for f in fields
+            ]
+            return cls(*new_fields)
+
+
 def rewrite(axiom_name: str):
-    """Rewrite left-to-right using a named equation axiom."""
+    """Rewrite left-to-right using a named equation (handles forall-quantified lemmas)."""
     def tactic(goal: Goal):
         ctx = goal.make_context()
         eq_stmt = ctx.lookup(axiom_name)
-        match eq_stmt:
+        flex_vars, stmt = _strip_foralls(eq_stmt)
+        match stmt:
             case Eq(lhs, rhs):
-                new_stmt = _replace_in(goal.statement, lhs, rhs)
+                new_stmt = _replace_unify(goal.statement, lhs, rhs, flex_vars)
                 if structural_eq(new_stmt, goal.statement):
-                    raise TacticFailed(f"rewrite '{axiom_name}': no occurrence of {lhs!r} found")
+                    raise TacticFailed(f"rewrite '{axiom_name}': no matching occurrence found")
                 new_goal = goal.with_statement(new_stmt)
                 return [new_goal], lambda ps: ps[0]
             case _:
@@ -118,15 +145,16 @@ def rewrite(axiom_name: str):
 
 
 def rewrite_rev(axiom_name: str):
-    """Rewrite right-to-left using a named equation axiom."""
+    """Rewrite right-to-left using a named equation (handles forall-quantified lemmas)."""
     def tactic(goal: Goal):
         ctx = goal.make_context()
         eq_stmt = ctx.lookup(axiom_name)
-        match eq_stmt:
+        flex_vars, stmt = _strip_foralls(eq_stmt)
+        match stmt:
             case Eq(lhs, rhs):
-                new_stmt = _replace_in(goal.statement, rhs, lhs)
+                new_stmt = _replace_unify(goal.statement, rhs, lhs, flex_vars)
                 if structural_eq(new_stmt, goal.statement):
-                    raise TacticFailed(f"rewrite_rev '{axiom_name}': no occurrence found")
+                    raise TacticFailed(f"rewrite_rev '{axiom_name}': no matching occurrence found")
                 new_goal = goal.with_statement(new_stmt)
                 return [new_goal], lambda ps: ps[0]
             case _:
@@ -134,15 +162,33 @@ def rewrite_rev(axiom_name: str):
     return tactic
 
 
-def _replace_in(expr: Expr, pattern: Expr, replacement: Expr) -> Expr:
-    if structural_eq(expr, pattern):
-        return replacement
-    cls = type(expr)
-    if not hasattr(cls, "__dataclass_fields__"):
-        return expr
-    fields = [getattr(expr, f) for f in cls.__dataclass_fields__]
-    new_fields = [
-        _replace_in(f, pattern, replacement) if isinstance(f, Expr) else f
-        for f in fields
-    ]
-    return cls(*new_fields)
+def _strip_foralls(expr: Expr) -> tuple[set[str], Expr]:
+    """Strip ForallNode binders, returning (bound_var_names, inner_expr)."""
+    flex_vars: set[str] = set()
+    while isinstance(expr, ForallNode):
+        flex_vars.add(expr.var.name)
+        expr = expr.body
+    return flex_vars, expr
+
+
+def _replace_unify(expr: Expr, lhs: Expr, rhs: Expr, flex_vars: set) -> Expr:
+    """Replace all matches of lhs (with flex_vars unifiable) with rhs in expr."""
+    sub = try_unify(lhs, expr, flex_vars)
+    if sub is not None:
+        return _substitute_many(rhs, sub)
+    match expr:
+        case App(n, args):
+            return App(n, [_replace_unify(a, lhs, rhs, flex_vars) for a in args])
+        case CaseExpr(branches):
+            return CaseExpr([(_replace_unify(c, lhs, rhs, flex_vars), _replace_unify(v, lhs, rhs, flex_vars))
+                             for c, v in branches])
+        case _:
+            cls = type(expr)
+            if not hasattr(cls, "__dataclass_fields__"):
+                return expr
+            fields = [getattr(expr, f) for f in cls.__dataclass_fields__]
+            new_fields = [
+                _replace_unify(f, lhs, rhs, flex_vars) if isinstance(f, Expr) else f
+                for f in fields
+            ]
+            return cls(*new_fields)

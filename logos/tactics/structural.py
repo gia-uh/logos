@@ -11,7 +11,7 @@ from logos.kernel import (
     OrIntroL, OrIntroR, CaseAnalysis, ExFalso,
     ExistsIntro, Axiom,
 )
-from logos.helpers import substitute, structural_eq
+from logos.helpers import substitute, structural_eq, try_unify
 from logos.runner import TacticFailed
 
 
@@ -67,18 +67,40 @@ def exact(term: ProofTerm):
 
 
 def apply(name: str):
-    """Apply a named axiom/hypothesis. Unifies conclusion, generates premise subgoals."""
+    """Apply a named axiom/hypothesis, instantiating forall binders by unification."""
     def tactic(goal: Goal):
         ctx = goal.make_context()
         try:
             stmt = ctx.lookup(name)
         except KernelError as e:
             raise TacticFailed(f"apply '{name}': {e}") from e
+
+        # Direct structural match
         if structural_eq(stmt, goal.statement):
-            if name in ctx.hyps:
-                return HypRef(name)
-            return Axiom(name)
-        raise TacticFailed(f"apply '{name}': {stmt!r} does not match goal {goal.statement!r}")
+            return HypRef(name) if name in ctx.hyps else Axiom(name)
+
+        # Strip forall binders and unify
+        flex_ordered = []
+        inner = stmt
+        while isinstance(inner, ForallNode):
+            flex_ordered.append(inner.var)
+            inner = inner.body
+
+        if not flex_ordered:
+            raise TacticFailed(f"apply '{name}': {stmt!r} does not match goal {goal.statement!r}")
+
+        flex_names = {v.name for v in flex_ordered}
+        sub = try_unify(inner, goal.statement, flex_names)
+        if sub is None:
+            raise TacticFailed(f"apply '{name}': cannot unify {inner!r} with {goal.statement!r}")
+
+        base = HypRef(name) if name in ctx.hyps else Axiom(name)
+        result = base
+        for var in flex_ordered:
+            if var.name not in sub:
+                raise TacticFailed(f"apply '{name}': unconstrained variable {var.name!r}")
+            result = ForallElim(result, sub[var.name])
+        return result
     return tactic
 
 

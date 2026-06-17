@@ -149,6 +149,7 @@ def _parse_linear_ineq(expr: Expr):
             for k, v in coefs.items():  combined[k] = v
             for k, v in rcoefs.items(): combined[k] = combined.get(k, Fraction(0)) - v
             bound = -combined.pop("_const", Fraction(0))
+            combined = {k: v for k, v in combined.items() if v != 0}
             strict = isinstance(expr, (Gt, Lt))
             if isinstance(expr, (Lt, Le)):
                 combined = {k: -v for k, v in combined.items()}
@@ -198,41 +199,58 @@ def _negate_ineq(ineq):
 
 
 def _farkas_contradiction(ineqs: list) -> bool:
-    """
-    Try to find λ_i >= 0 such that sum(λ_i * ineq_i) derives 0 > 0 or 0 >= c > 0.
-    Simplified: try all pairs and unit combinations.
-    """
-    # Try each inequality as a standalone contradiction
+    """Find λ_i >= 0 such that sum(λ_i * ineq_i) yields 0 op c with c > 0 (contradiction)."""
+    from itertools import combinations
+
+    # Standalone constant contradictions
     for coefs, bound, strict in ineqs:
-        if not coefs:  # constant: "0 > bound" or "0 >= bound"
+        if not coefs:
             if strict and bound >= 0: return True
             if not strict and bound > 0: return True
 
-    # Try pairs: λ1 * ineq1 + λ2 * ineq2
-    from itertools import combinations
+    # Pair check with exact rational lambdas
     for (c1, b1, s1), (c2, b2, s2) in combinations(ineqs, 2):
-        for lam1, lam2 in [(1, 1), (1, 2), (2, 1), (1, Fraction(1, 2)), (Fraction(1, 2), 1)]:
-            combined_coefs = {}
-            for k, v in c1.items(): combined_coefs[k] = lam1 * v
-            for k, v in c2.items(): combined_coefs[k] = combined_coefs.get(k, Fraction(0)) + lam2 * v
-            # Drop zero coefficients before emptiness check
-            combined_coefs = {k: v for k, v in combined_coefs.items() if v != 0}
-            combined_bound = lam1 * b1 + lam2 * b2
-            combined_strict = s1 or s2
-            if not combined_coefs:
-                if combined_strict and combined_bound >= 0: return True
-                if not combined_strict and combined_bound > 0: return True
+        if _pair_contradiction(c1, b1, s1, c2, b2, s2):
+            return True
 
-    # Try triples: λ1*ineq1 + λ2*ineq2 + λ3*ineq3
-    for (c1, b1, s1), (c2, b2, s2), (c3, b3, s3) in combinations(ineqs, 3):
-        combined_coefs = {}
-        for k, v in c1.items(): combined_coefs[k] = v
-        for k, v in c2.items(): combined_coefs[k] = combined_coefs.get(k, Fraction(0)) + v
-        for k, v in c3.items(): combined_coefs[k] = combined_coefs.get(k, Fraction(0)) + v
-        combined_coefs = {k: v for k, v in combined_coefs.items() if v != 0}
-        combined_bound = b1 + b2 + b3
-        combined_strict = s1 or s2 or s3
-        if not combined_coefs:
-            if combined_strict and combined_bound >= 0: return True
-            if not combined_strict and combined_bound > 0: return True
+    # Triple check: pick a pivot ineq to scale against each pair
+    for i, (c0, b0, s0) in enumerate(ineqs):
+        rest = [(c, b, s) for j, (c, b, s) in enumerate(ineqs) if j != i]
+        for (c1, b1, s1), (c2, b2, s2) in combinations(rest, 2):
+            # Combine ineq0 + pair; try unit lambdas
+            for lam0, lam1, lam2 in [(1, 1, 1)]:
+                combined: dict = {}
+                for k, v in c0.items(): combined[k] = lam0 * v
+                for k, v in c1.items(): combined[k] = combined.get(k, Fraction(0)) + lam1 * v
+                for k, v in c2.items(): combined[k] = combined.get(k, Fraction(0)) + lam2 * v
+                combined = {k: v for k, v in combined.items() if v != 0}
+                combined_bound = lam0 * b0 + lam1 * b1 + lam2 * b2
+                combined_strict = s0 or s1 or s2
+                if not combined:
+                    if combined_strict and combined_bound >= 0: return True
+                    if not combined_strict and combined_bound > 0: return True
     return False
+
+
+def _pair_contradiction(c1, b1, s1, c2, b2, s2) -> bool:
+    """Find λ1, λ2 > 0 with λ1*c1 + λ2*c2 = 0 and resulting bound proving contradiction."""
+    all_vars = set(c1.keys()) | set(c2.keys())
+    if not all_vars:
+        cb = b1 + b2; cs = s1 or s2
+        return (cs and cb >= 0) or (not cs and cb > 0)
+
+    # Solve for ratio λ1/λ2 that makes all variable coefficients cancel
+    ratio: Fraction | None = None
+    for x in all_vars:
+        v1 = c1.get(x, Fraction(0))
+        v2 = c2.get(x, Fraction(0))
+        if v1 == 0 and v2 == 0: continue
+        if v1 == 0 or v2 == 0: return False
+        r = -v2 / v1
+        if r <= 0: return False
+        if ratio is None: ratio = r
+        elif ratio != r: return False
+
+    if ratio is None: return False
+    cb = ratio * b1 + b2; cs = s1 or s2
+    return (cs and cb >= 0) or (not cs and cb > 0)

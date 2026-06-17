@@ -70,6 +70,56 @@ def substitute(expr: Expr, var: Var, val: Expr) -> Expr:
             new_fields = [substitute(f, var, val) if isinstance(f, Expr) else f for f in fields]
             return cls(*new_fields)
 
+def try_unify(pattern: Expr, target: Expr, flex_vars: set) -> "dict | None":
+    """Match pattern against target with flex_vars as unifiable variables.
+    Returns substitution dict (possibly empty) or None on failure."""
+    if isinstance(pattern, Var) and pattern.name in flex_vars:
+        return {pattern.name: target}
+    if type(pattern) is not type(target):
+        return None
+    match pattern, target:
+        case Lit(v1), Lit(v2):
+            return {} if v1 == v2 else None
+        case Var(n1, t1), Var(n2, t2):
+            return {} if n1 == n2 and t1 is t2 else None
+        case App(f1, args1), App(f2, args2):
+            if f1 != f2 or len(args1) != len(args2):
+                return None
+            return _merge_subs([try_unify(a, b, flex_vars) for a, b in zip(args1, args2)])
+        case CaseExpr(branches1), CaseExpr(branches2):
+            if len(branches1) != len(branches2):
+                return None
+            subs = []
+            for (c1, v1), (c2, v2) in zip(branches1, branches2):
+                subs.extend([try_unify(c1, c2, flex_vars), try_unify(v1, v2, flex_vars)])
+            return _merge_subs(subs)
+        case _:
+            cls = type(pattern)
+            if not hasattr(cls, "__dataclass_fields__"):
+                return None
+            subs = []
+            for fname in cls.__dataclass_fields__:
+                pf = getattr(pattern, fname)
+                tf = getattr(target, fname)
+                if isinstance(pf, Expr):
+                    subs.append(try_unify(pf, tf, flex_vars))
+                elif pf != tf:
+                    return None
+            return _merge_subs(subs)
+
+
+def _merge_subs(subs: list) -> "dict | None":
+    result: dict = {}
+    for sub in subs:
+        if sub is None:
+            return None
+        for k, v in sub.items():
+            if k in result and not structural_eq(result[k], v):
+                return None
+            result[k] = v
+    return result
+
+
 def free_vars(expr: Expr) -> set[str]:
     match expr:
         case Var(name, _):    return {name}
