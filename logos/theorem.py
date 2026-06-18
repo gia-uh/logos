@@ -127,6 +127,19 @@ def check(thm):
     )
 
 
-def prove(statement: Expr, proof: list) -> _GroundProof:
-    """One-shot: create a _GroundProof. Pass to logos.check() to validate."""
-    return _GroundProof(statement, proof)
+def prove(thm_or_stmt, tactics=None, *, hints=None, depth: int = 5, timeout: float | None = None):
+    """Two modes:
+
+    logos.prove(stmt, [tactics])
+        One-shot anonymous proof — returns a _GroundProof, validate with logos.check().
+
+    logos.prove(thm)  /  logos.prove(thm, hints=[...], depth=N, timeout=T)
+        Auto-prove a Theorem using t.auto(). Equivalent to:
+            logos.check(thm.proof(t.auto(*hints, depth=N, timeout=T)))
+        Returns the certified Theorem or raises LogosProofError.
+    """
+    if isinstance(thm_or_stmt, Theorem):
+        from logos.tactics.auto import auto as _auto
+        return check(thm_or_stmt.proof(_auto(*(hints or []), depth=depth, timeout=timeout)))
+    # Expr + explicit tactics → _GroundProof
+    return _GroundProof(thm_or_stmt, tactics or [])

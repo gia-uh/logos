@@ -199,58 +199,51 @@ def _negate_ineq(ineq):
 
 
 def _farkas_contradiction(ineqs: list) -> bool:
-    """Find λ_i >= 0 such that sum(λ_i * ineq_i) yields 0 op c with c > 0 (contradiction)."""
-    from itertools import combinations
+    """Fourier-Motzkin elimination: detect if the linear inequality system is unsatisfiable.
 
-    # Standalone constant contradictions
-    for coefs, bound, strict in ineqs:
-        if not coefs:
-            if strict and bound >= 0: return True
-            if not strict and bound > 0: return True
+    Each ineq is (coefs: dict[str, Fraction], bound: Fraction, strict: bool)
+    meaning:  sum(coefs[v]*v) > bound  (strict)
+           or sum(coefs[v]*v) >= bound (not strict)
+    """
+    def _is_contradicted(system):
+        for coefs, bound, strict in system:
+            if not coefs:
+                if strict and bound >= 0: return True
+                if not strict and bound > 0: return True
+        return False
 
-    # Pair check with exact rational lambdas
-    for (c1, b1, s1), (c2, b2, s2) in combinations(ineqs, 2):
-        if _pair_contradiction(c1, b1, s1, c2, b2, s2):
+    def _elim(x, system):
+        pos, neg, zero = [], [], []
+        for coefs, bound, strict in system:
+            c = coefs.get(x, Fraction(0))
+            rest = {k: v for k, v in coefs.items() if k != x}
+            if c > 0:
+                pos.append((c, rest, bound, strict))
+            elif c < 0:
+                neg.append((c, rest, bound, strict))
+            else:
+                zero.append((rest, bound, strict))
+
+        new_sys = list(zero)
+        for alpha, r1, b1, s1 in pos:
+            for gamma_neg, r2, b2, s2 in neg:
+                gamma = -gamma_neg   # > 0
+                combined = {}
+                for k in set(r1.keys()) | set(r2.keys()):
+                    v = gamma * r1.get(k, Fraction(0)) + alpha * r2.get(k, Fraction(0))
+                    if v != 0:
+                        combined[k] = v
+                new_sys.append((combined, gamma * b1 + alpha * b2, s1 or s2))
+        return new_sys
+
+    # Collect all variables
+    all_vars: set[str] = set()
+    for coefs, _, _ in ineqs:
+        all_vars |= set(coefs.keys())
+
+    system = [(dict(c), Fraction(b), s) for c, b, s in ineqs]
+    for x in sorted(all_vars):       # deterministic variable order
+        if _is_contradicted(system):
             return True
-
-    # Triple check: pick a pivot ineq to scale against each pair
-    for i, (c0, b0, s0) in enumerate(ineqs):
-        rest = [(c, b, s) for j, (c, b, s) in enumerate(ineqs) if j != i]
-        for (c1, b1, s1), (c2, b2, s2) in combinations(rest, 2):
-            # Combine ineq0 + pair; try unit lambdas
-            for lam0, lam1, lam2 in [(1, 1, 1)]:
-                combined: dict = {}
-                for k, v in c0.items(): combined[k] = lam0 * v
-                for k, v in c1.items(): combined[k] = combined.get(k, Fraction(0)) + lam1 * v
-                for k, v in c2.items(): combined[k] = combined.get(k, Fraction(0)) + lam2 * v
-                combined = {k: v for k, v in combined.items() if v != 0}
-                combined_bound = lam0 * b0 + lam1 * b1 + lam2 * b2
-                combined_strict = s0 or s1 or s2
-                if not combined:
-                    if combined_strict and combined_bound >= 0: return True
-                    if not combined_strict and combined_bound > 0: return True
-    return False
-
-
-def _pair_contradiction(c1, b1, s1, c2, b2, s2) -> bool:
-    """Find λ1, λ2 > 0 with λ1*c1 + λ2*c2 = 0 and resulting bound proving contradiction."""
-    all_vars = set(c1.keys()) | set(c2.keys())
-    if not all_vars:
-        cb = b1 + b2; cs = s1 or s2
-        return (cs and cb >= 0) or (not cs and cb > 0)
-
-    # Solve for ratio λ1/λ2 that makes all variable coefficients cancel
-    ratio: Fraction | None = None
-    for x in all_vars:
-        v1 = c1.get(x, Fraction(0))
-        v2 = c2.get(x, Fraction(0))
-        if v1 == 0 and v2 == 0: continue
-        if v1 == 0 or v2 == 0: return False
-        r = -v2 / v1
-        if r <= 0: return False
-        if ratio is None: ratio = r
-        elif ratio != r: return False
-
-    if ratio is None: return False
-    cb = ratio * b1 + b2; cs = s1 or s2
-    return (cs and cb >= 0) or (not cs and cb > 0)
+        system = _elim(x, system)
+    return _is_contradicted(system)

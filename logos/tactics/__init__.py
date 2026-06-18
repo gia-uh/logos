@@ -6,3 +6,4 @@ from logos.tactics.rewrite import (
 )
 from logos.tactics.arithmetic import ring, linarith, decide
 from logos.tactics.combinators import then, first, try_, repeat, all_goals
+from logos.tactics.auto import auto
