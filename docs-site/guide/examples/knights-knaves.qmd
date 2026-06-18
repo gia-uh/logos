@@ -1,0 +1,242 @@
+---
+title: "Knights and Knaves"
+---
+
+The classic puzzles of Raymond Smullyan: an island where every inhabitant is either a *knight* (always tells the truth) or a *knave* (always lies). Given what the inhabitants say, deduce who is who.
+
+Logos can verify these deductions formally — you write the proof, logos checks it.
+
+```{python}
+import logos
+import logos.tactics as t
+```
+
+## Encoding
+
+Each inhabitant has two proposition variables:
+
+- `a_kn` — "A is a knight"
+- `a_kv` — "A is a knave"
+
+Every puzzle rests on four structural constraints shared by all inhabitants:
+
+1. **Exhaustivity**: everyone is a knight or a knave — `a_kn | a_kv`
+2. **Exclusivity**: no one is both — `a_kn >> ~a_kv`, `a_kv >> ~a_kn`
+3. **Knight rule**: if a person is a knight, their statement is true — `a_kn >> <statement>`
+4. **Knave rule**: if a person is a knave, their statement is false — `a_kv >> ~<statement>`
+
+Because Python's `>>` is left-associative — `A >> B >> C` parses as `(A >> B) >> C` — theorems with many premises use `logos.chain(h₁, h₂, ..., conclusion)`, which builds the correct right-associative chain `h₁ >> (h₂ >> ...)`.
+
+## Puzzle 1 — "We Are Both Knaves"
+
+A says: *"We are both knaves."*
+
+**Reasoning.** If A were a knight, the statement would be true — but then A would be a knave, a contradiction. So A must be a knave; the statement is false; not both are knaves; so B is a knight.
+
+```{python}
+@logos.theorem
+def puzzle1(a_kn: bool, a_kv: bool, b_kn: bool, b_kv: bool):
+    return logos.chain(
+        a_kn | a_kv,                  # A is knight or knave
+        b_kn | b_kv,                  # B is knight or knave
+        a_kn >> ~a_kv,                # exclusivity
+        a_kv >> ~a_kn,
+        b_kn >> ~b_kv,
+        b_kv >> ~b_kn,
+        a_kn >> (a_kv & b_kv),       # knight: "we're both knaves" is true
+        a_kv >> ~(a_kv & b_kv),      # knave: it's false
+        a_kv & b_kn,                  # conclusion: A=knave, B=knight
+    )
+```
+
+**Manual proof** — explicit case analysis with forward reasoning:
+
+```{python}
+logos.check(puzzle1.proof(
+    t.intro("a_kn", "a_kv", "b_kn", "b_kv",     # introduce bool variables
+            "h_a_ex", "h_b_ex",                   # exhaustivity premises
+            "h_akn_exc", "h_akv_exc",             # exclusivity
+            "h_bkn_exc", "h_bkv_exc",
+            "h_kn_says", "h_kv_says"),            # A's knight/knave rules
+
+    t.cases("h_a_ex", "h_a"),                     # split: is A a knight or knave?
+
+    # ── Case A = knight  (h_a : a_kn) ──────────────────────────────
+    [
+        t.have("h_both_kv", "h_kn_says", "h_a"), # h_both_kv : a_kv & b_kv
+        t.andL("h_both_kv", "h_akv"),             # h_akv     : a_kv
+        t.have("h_not_akv", "h_akn_exc", "h_a"), # h_not_akv : ~a_kv
+        t.contradiction(),                         # a_kv  and  ~a_kv
+    ],
+
+    # ── Case A = knave  (h_a : a_kv) ───────────────────────────────
+    [
+        t.have("h_not_both", "h_kv_says", "h_a"),# h_not_both : ~(a_kv & b_kv)
+        t.cases("h_b_ex", "h_b"),                 # split on B's type
+
+        # Sub-case B = knight  (h_b : b_kn)
+        [
+            t.split(),
+            [t.assumption()],   # a_kv  (= h_a)
+            [t.assumption()],   # b_kn  (= h_b)
+        ],
+
+        # Sub-case B = knave  (h_b : b_kv)
+        [
+            t.conj("h_a", "h_b", "h_both"),      # h_both : a_kv & b_kv
+            t.contradiction(),                     # ~(a_kv & b_kv) and  a_kv & b_kv
+        ],
+    ],
+))
+print("Puzzle 1: A=knave, B=knight ✓")
+```
+
+The tactics used here are all forward-reasoning primitives:
+
+| Tactic | What it does |
+|--------|-------------|
+| `t.cases(h, name)` | Split `h : A \| B`; subgoal 1 gets `name : A`, subgoal 2 gets `name : B` |
+| `t.have(new, h_impl, h_ant)` | Modus ponens: from `h_impl : A→B` and `h_ant : A`, add `new : B` |
+| `t.andL(h, name)` | From `h : A & B`, extract left component into `name : A` |
+| `t.andR(h, name)` | From `h : A & B`, extract right component into `name : B` |
+| `t.conj(h1, h2, name)` | From `h1 : A` and `h2 : B`, add `name : A & B` |
+| `t.contradiction()` | Close the goal when context contains `P` and `~P`, `~(A\|B)` with `A` or `B` present, or `~(A&B)` with both `A` and `B` present |
+
+## Puzzle 2 — "At Least One of Us Is a Knave"
+
+A says: *"At least one of us is a knave."*
+
+**Reasoning.** If A were a knave, the statement "at least one is a knave" would be false — so neither would be a knave. But that contradicts A being a knave. So A is a knight. The statement is true: `a_kv | b_kv`. Since A is a knight, `~a_kv`, so B must be the knave.
+
+```{python}
+@logos.theorem
+def puzzle2(a_kn: bool, a_kv: bool, b_kn: bool, b_kv: bool):
+    return logos.chain(
+        a_kn | a_kv,
+        b_kn | b_kv,
+        a_kn >> ~a_kv,
+        a_kv >> ~a_kn,
+        b_kn >> ~b_kv,
+        b_kv >> ~b_kn,
+        a_kn >> (a_kv | b_kv),       # knight: "at least one is a knave" is true
+        a_kv >> ~(a_kv | b_kv),      # knave: it's false — both would be knights
+        a_kn & b_kv,                  # conclusion: A=knight, B=knave
+    )
+```
+
+This time `logos.prove()` finds the proof automatically:
+
+```{python}
+logos.prove(puzzle2)
+print("Puzzle 2: A=knight, B=knave ✓  (auto)")
+```
+
+The auto tactic explores the proof space algorithmically at each step:
+
+1. Introduces all universally-quantified variables and premises into context
+2. Splits the conjunction goal (`a_kn & b_kv`) into two independent subgoals
+3. Case-analyses every disjunctive (`|`) hypothesis in context
+4. Applies forward reasoning — if `H : A→B` and `A` is known, derives `B`
+5. Closes with `contradiction` (including `~(A|B)` with `A` present) or `assumption`
+
+## Puzzle 3 — Three People
+
+A says: *"B is a knave."*
+B says: *"A and C are the same type"* (both knights or both knaves).
+C says: *"A is a knight."*
+
+**Reasoning.**
+
+- **If A = knight**: A says B=knave → B=knave. B=knave → B's statement is false → A and C are *different* types → C=knave (since A=knight). C=knave → C's statement is false → A=knave. Contradiction.
+- **If A = knave**: A says B=knave → false → B=knight. B=knight → B's statement is true: A and C are the same type. A=knave, so C=knave. C=knave → C's statement is false → A is not a knight. Consistent ✓
+
+**Conclusion:** A=knave, B=knight, C=knave.
+
+```{python}
+@logos.theorem
+def puzzle3(a_kn: bool, a_kv: bool,
+            b_kn: bool, b_kv: bool,
+            c_kn: bool, c_kv: bool):
+    b_says = (a_kn & c_kn) | (a_kv & c_kv)   # "A and C are the same type"
+    return logos.chain(
+        a_kn | a_kv,                 # exhaustivity
+        b_kn | b_kv,
+        c_kn | c_kv,
+        a_kn >> ~a_kv,               # exclusivity
+        a_kv >> ~a_kn,
+        b_kn >> ~b_kv,
+        b_kv >> ~b_kn,
+        c_kn >> ~c_kv,
+        c_kv >> ~c_kn,
+        a_kn >> b_kv,                # A=knight: "B is knave" is true
+        a_kv >> b_kn,                # A=knave:  "B is knave" is false
+        b_kn >> b_says,              # B=knight: "A,C same type" is true
+        b_kv >> ~b_says,             # B=knave:  "A,C same type" is false
+        c_kn >> a_kn,                # C=knight: "A is knight" is true
+        c_kv >> ~a_kn,               # C=knave:  "A is knight" is false
+        a_kv & b_kn & c_kv,         # conclusion: A=knave, B=knight, C=knave
+    )
+```
+
+```{python}
+logos.check(puzzle3.proof(
+    t.intro("a_kn", "a_kv", "b_kn", "b_kv", "c_kn", "c_kv",
+            "h_a_ex", "h_b_ex", "h_c_ex",
+            "h_akn_exc", "h_akv_exc",
+            "h_bkn_exc", "h_bkv_exc",
+            "h_ckn_exc", "h_ckv_exc",
+            "h_a_kn_says", "h_a_kv_says",
+            "h_b_kn_says", "h_b_kv_says",
+            "h_c_kn_says", "h_c_kv_says"),
+
+    t.cases("h_a_ex", "h_a"),
+
+    # ── Case A = knight  (h_a : a_kn) ──────────────────────────────────
+    # A=knight → B=knave.  B=knave → b_says is false.
+    # In either sub-case for C, we reach a contradiction.
+    [
+        t.have("h_bkv",      "h_a_kn_says", "h_a"),    # B is knave
+        t.have("h_not_bsays","h_b_kv_says", "h_bkv"),  # ~((a_kn&c_kn)|(a_kv&c_kv))
+        t.cases("h_c_ex", "h_c"),
+
+        # Sub-case C = knight  (h_c : c_kn)
+        # a_kn & c_kn satisfies the left disjunct of b_says → contradicts ~b_says
+        [
+            t.conj("h_a", "h_c", "h_ac"),    # h_ac : a_kn & c_kn
+            t.contradiction(),                 # ~(A|B) with A present
+        ],
+
+        # Sub-case C = knave  (h_c : c_kv)
+        # C=knave says "A is knight" is false → ~a_kn, contradicts h_a : a_kn
+        [
+            t.have("h_not_akn", "h_c_kv_says", "h_c"),
+            t.contradiction(),                 # a_kn and ~a_kn
+        ],
+    ],
+
+    # ── Case A = knave  (h_a : a_kv) ───────────────────────────────────
+    # A=knave → B=knight.  B=knight → b_says is true.
+    # C=knight sub-case leads to contradiction; C=knave is the solution.
+    [
+        t.have("h_bkn", "h_a_kv_says", "h_a"),    # B is knight
+        t.cases("h_c_ex", "h_c"),
+
+        # Sub-case C = knight  (h_c : c_kn)
+        # C=knight says A=knight → a_kn.  But h_a says a_kv.
+        # Exclusivity: a_kv → ~a_kn.  So a_kn and ~a_kn.
+        [
+            t.have("h_akn",     "h_c_kn_says", "h_c"),    # a_kn
+            t.have("h_not_akn", "h_akv_exc",   "h_a"),    # ~a_kn
+            t.contradiction(),
+        ],
+
+        # Sub-case C = knave  (h_c : c_kv)  — the solution
+        [
+            t.split(),
+            [t.split(), [t.assumption()], [t.assumption()]],  # a_kv & b_kn
+            [t.assumption()],                                   # c_kv
+        ],
+    ],
+))
+print("Puzzle 3: A=knave, B=knight, C=knave ✓")
+```

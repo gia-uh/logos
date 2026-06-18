@@ -1,5 +1,6 @@
 from logos.tactics.structural import (
-    intro, assumption, exact, apply, split, left, right, witness, contradiction,
+    intro, assumption, exact, apply, split, left, right, witness,
+    cases, contradiction, have, andL, andR, conj,
 )
 from logos.tactics.rewrite import (
     unfold, refl, rewrite, rewrite_rev, eval_, norm_num,

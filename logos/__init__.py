@@ -1,4 +1,4 @@
-from logos.expr import Var, Lit, Forall, Exists, Expr
+from logos.expr import Var, Lit, Forall, Exists, Expr, Implies
 from logos.define import define, extern, cases, if_
 from logos.theorem import theorem, axiom, check, prove, LogosProofError, Axiom, Theorem
 from logos import tactics
@@ -28,6 +28,18 @@ def forall(type_: type, *rest) -> Expr:
         body = fn(*vs)
         return Forall(*vs, body)
     raise TypeError("logos.forall: last argument must be a lambda")
+
+
+def chain(*props: Expr) -> Expr:
+    """Right-associative implication chain: chain(A, B, C) = A >> (B >> C).
+
+    Python's >> is left-associative, so a bare A >> B >> C gives (A >> B) >> C.
+    Use logos.chain when you have three or more top-level premises.
+    """
+    result = props[-1]
+    for p in reversed(props[:-1]):
+        result = Implies(p, result)
+    return result
 
 
 def exists(type_: type, fn) -> Expr:

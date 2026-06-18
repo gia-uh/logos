@@ -3,6 +3,7 @@ import time
 import itertools
 from logos.expr import ForallNode, Implies, And, Or, Not
 from logos.goal import Goal
+from logos.helpers import structural_eq
 from logos.kernel import ProofTerm
 from logos.runner import TacticFailed
 
@@ -33,7 +34,7 @@ def auto(*hints, depth: int = 5, timeout: float | None = None):
       4. apply hints:   apply(axiom_or_theorem) for each hint
       5. unfold hints:  unfold(fn) + recurse for each Function hint
     """
-    from logos.tactics.structural import intro, assumption, apply, split, left, right, contradiction
+    from logos.tactics.structural import intro, assumption, apply, split, left, right, contradiction, cases
     from logos.tactics.rewrite import refl, unfold, norm_num
     from logos.tactics.arithmetic import ring, linarith, decide
     from logos.define import Function
@@ -62,6 +63,23 @@ def auto(*hints, depth: int = 5, timeout: float | None = None):
     def _auto(goal: Goal, d: int) -> ProofTerm:
         _check_time()
 
+        # ── Preprocess: eagerly flatten And hypotheses ───────────────────
+        # Terminates because each And hyp is removed before the two parts are added.
+        ctx = dict(goal.context)
+        changed = True
+        while changed:
+            changed = False
+            for name, hyp in list(ctx.items()):
+                match hyp:
+                    case And(l, r):
+                        hl, hr = _fresh(), _fresh()
+                        del ctx[name]
+                        ctx[hl] = l
+                        ctx[hr] = r
+                        changed = True
+                        break
+        goal = Goal(ctx, goal.statement)
+
         # ── Level 0: cheap closers (no depth cost) ───────────────────────
         for closer in [refl, decide, norm_num, assumption, contradiction]:
             try:
@@ -83,7 +101,7 @@ def auto(*hints, depth: int = 5, timeout: float | None = None):
         if d <= 0:
             raise TacticFailed(f"auto: depth 0 reached, cannot close {goal.statement!r}")
 
-        # ── Level 2: structural decomposition ───────────────────────────
+        # ── Level 2: structural decomposition (goal-level) ──────────────
         stmt = goal.statement
 
         match stmt:
@@ -108,6 +126,31 @@ def auto(*hints, depth: int = 5, timeout: float | None = None):
                         return _try(branch_tac, goal, d - 1)
                     except TacticFailed:
                         pass
+
+        # ── Level 2b: case analysis on Or hypotheses (costs depth) ───────
+        for name, hyp in list(goal.context.items()):
+            match hyp:
+                case Or():
+                    h = _fresh()
+                    try:
+                        return _try(cases(name, h), goal, d - 1)
+                    except TacticFailed:
+                        pass
+
+        # ── Level 2c: forward implication application (costs depth) ──────
+        for impl_name, hyp in list(goal.context.items()):
+            match hyp:
+                case Implies(ant, cons):
+                    # Skip if the conclusion is already derivable in context
+                    if any(structural_eq(cons, v) for v in goal.context.values()):
+                        continue
+                    for ant_name, ant_hyp in list(goal.context.items()):
+                        if ant_name != impl_name and structural_eq(ant_hyp, ant):
+                            h = _fresh()
+                            try:
+                                return _auto(goal.with_hyp(h, cons), d - 1)
+                            except TacticFailed:
+                                pass
 
         # ── Level 3: tactic hints ────────────────────────────────────────
         for tac in tactic_hints:

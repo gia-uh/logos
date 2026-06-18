@@ -180,7 +180,10 @@ def witness(val: Expr):
 
 
 def cases(hyp_name: str, case_name: str = "h"):
-    """Case analysis on a hypothesis A | B in context."""
+    """Case analysis on a hypothesis A | B in context.
+
+    Removes the split hypothesis from subgoal contexts to prevent re-splitting.
+    """
     def tactic(goal: Goal):
         ctx_dict = goal.context
         if hyp_name not in ctx_dict:
@@ -188,8 +191,9 @@ def cases(hyp_name: str, case_name: str = "h"):
         stmt = ctx_dict[hyp_name]
         match stmt:
             case Or(left, right):
-                left_goal = goal.with_hyp(case_name, left)
-                right_goal = goal.with_hyp(case_name, right)
+                rest = {k: v for k, v in ctx_dict.items() if k != hyp_name}
+                left_goal  = Goal({**rest, case_name: left},  goal.statement)
+                right_goal = Goal({**rest, case_name: right}, goal.statement)
                 def compose(proofs):
                     return CaseAnalysis(HypRef(hyp_name), case_name, proofs[0], proofs[1])
                 return [left_goal, right_goal], compose
@@ -198,14 +202,91 @@ def cases(hyp_name: str, case_name: str = "h"):
     return tactic
 
 
+def have(new_name: str, impl_hyp: str, ant_hyp: str):
+    """Forward modus ponens: from impl_hyp: A→B and ant_hyp: A, add new_name: B."""
+    def tactic(goal: Goal):
+        if impl_hyp not in goal.context:
+            raise TacticFailed(f"have: '{impl_hyp}' not in context")
+        if ant_hyp not in goal.context:
+            raise TacticFailed(f"have: '{ant_hyp}' not in context")
+        match goal.context[impl_hyp]:
+            case Implies(ant, cons):
+                if not structural_eq(goal.context[ant_hyp], ant):
+                    raise TacticFailed(
+                        f"have: type of '{ant_hyp}' does not match antecedent of '{impl_hyp}'"
+                    )
+                return [goal.with_hyp(new_name, cons)], lambda ps: ps[0]
+            case other:
+                raise TacticFailed(
+                    f"have: '{impl_hyp}' has type {other!r}, expected an implication"
+                )
+    return tactic
+
+
+def andL(hyp_name: str, result_name: str):
+    """Extract left conjunct: from h: A & B, add result_name: A."""
+    def tactic(goal: Goal):
+        if hyp_name not in goal.context:
+            raise TacticFailed(f"andL: '{hyp_name}' not in context")
+        match goal.context[hyp_name]:
+            case And(left, _):
+                return [goal.with_hyp(result_name, left)], lambda ps: ps[0]
+            case other:
+                raise TacticFailed(f"andL: '{hyp_name}' has type {other!r}, expected A & B")
+    return tactic
+
+
+def andR(hyp_name: str, result_name: str):
+    """Extract right conjunct: from h: A & B, add result_name: B."""
+    def tactic(goal: Goal):
+        if hyp_name not in goal.context:
+            raise TacticFailed(f"andR: '{hyp_name}' not in context")
+        match goal.context[hyp_name]:
+            case And(_, right):
+                return [goal.with_hyp(result_name, right)], lambda ps: ps[0]
+            case other:
+                raise TacticFailed(f"andR: '{hyp_name}' has type {other!r}, expected A & B")
+    return tactic
+
+
+def conj(h1: str, h2: str, result_name: str):
+    """Conjunction intro: from h1: A and h2: B, add result_name: A & B."""
+    def tactic(goal: Goal):
+        if h1 not in goal.context:
+            raise TacticFailed(f"conj: '{h1}' not in context")
+        if h2 not in goal.context:
+            raise TacticFailed(f"conj: '{h2}' not in context")
+        combined = And(goal.context[h1], goal.context[h2])
+        return [goal.with_hyp(result_name, combined)], lambda ps: ps[0]
+    return tactic
+
+
 def contradiction():
     def tactic(goal: Goal) -> ProofTerm:
-        stmts = list(goal.context.values())
-        names = list(goal.context.keys())
+        ctx   = list(goal.context.items())
+        names = [k for k, _ in ctx]
+        stmts = [v for _, v in ctx]
+
+        # Direct P / ~P pairs
         for i, s in enumerate(stmts):
             for j, t in enumerate(stmts):
                 if i != j and (structural_eq(s, Not(t)) or structural_eq(Not(s), t)):
-                    # We have P and ~P in context
                     return ExFalso(HypRef(names[i]), goal.statement)
+
+        # ~(A | B) with A or B present in context
+        for i, s in enumerate(stmts):
+            match s:
+                case Not(Or(a, b)):
+                    if any(structural_eq(t, a) or structural_eq(t, b) for t in stmts):
+                        return ExFalso(HypRef(names[i]), goal.statement)
+
+        # ~(A & B) with both A and B present in context
+        for i, s in enumerate(stmts):
+            match s:
+                case Not(And(a, b)):
+                    if (any(structural_eq(t, a) for t in stmts) and
+                            any(structural_eq(t, b) for t in stmts)):
+                        return ExFalso(HypRef(names[i]), goal.statement)
+
         raise TacticFailed("contradiction: no contradictory hypotheses found")
     return tactic
