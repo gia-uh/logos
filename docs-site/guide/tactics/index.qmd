@@ -12,9 +12,6 @@ Every tactic receives a `Goal` object:
 import logos
 import logos.tactics as t
 from logos.goal import Goal
-from logos.expr import Var
-from logos.registry import clear_axioms; clear_axioms()
-import logos.builtins
 
 x = logos.var("x", int)
 goal = Goal(
@@ -51,10 +48,7 @@ x = logos.var("x", int)
 # A goal: prove x > 0 given h: x > 0
 goal = Goal({"h": x > logos.lit(0)}, x > logos.lit(0))
 proof = run(goal, [t.assumption()])
-
-from logos.kernel import infer, Context
-stmt = infer(proof, goal.make_context())
-print("Proved:", structural_eq(stmt, x > logos.lit(0)))  # True
+print("Proof term type:", type(proof).__name__)  # HypRef
 ```
 
 ## Nested Lists for Subgoals

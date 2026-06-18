@@ -8,29 +8,25 @@ subtitle: "A Lean-style proof kernel for Python"
 ```{python}
 import logos
 import logos.tactics as t
-from logos.registry import clear_axioms; clear_axioms()
-import logos.builtins
 
-x, y = logos.vars("x y", int)
+# Declare a theorem
+@logos.theorem
+def add_comm(x: int, y: int):
+    return x + y == y + x
 
-# Prove addition is commutative
-logos.theorem(
-    "add_comm",
-    logos.forall(int, int, lambda x, y: x + y == y + x),
-    proof=[t.intro("x", "y"), t.ring()],
-)
-
+# Attach proof and validate
+logos.check(add_comm.proof(t.intro("x", "y"), t.ring()))
 print("Proved: addition is commutative")
 ```
 
-If the proof is wrong, `LogosProofError` is raised immediately. If it passes, the theorem is registered as a trusted axiom you can build on.
+If the proof is wrong, `LogosProofError` is raised immediately. If it passes, `add_comm.certified` is `True` and you can build on it.
 
 ## How it works
 
 logos follows Lean's architecture:
 
 ```
-User layer       @logos.define · logos.theorem · operator expressions
+User layer       @logos.define · @logos.theorem · operator expressions
                            ↓
 Tactic layer     ring · linarith · intro · cases · ...  (untrusted)
                            ↓
@@ -52,32 +48,29 @@ pip install logos-ai
 ```{python}
 import logos
 import logos.tactics as t
-from logos.expr import Var
-from logos.registry import clear_axioms; clear_axioms()
-import logos.builtins
 
 # 1. Define a function symbolically
 @logos.define
-def double(x: Var) -> "Expr":
+def double(x: int):
     return x + x
 
 # 2. Calling with a real value evaluates normally
 assert double(7) == 14
 
 # 3. Prove a property: unfold the definition, then ring arithmetic
-logos.theorem(
-    "double_is_2x",
-    logos.forall(int, lambda x: double(x) == logos.lit(2) * x),
-    proof=[t.intro("x"), t.unfold("double"), t.ring()],
-)
+@logos.theorem
+def double_is_2x(x: int):
+    return double(x) == logos.lit(2) * x
+
+logos.check(double_is_2x.proof(t.intro("x"), t.unfold(double), t.ring()))
 print("Proved: double(x) = 2x")
 
 # 4. Linear arithmetic
-logos.theorem(
-    "double_exceeds_x",
-    logos.forall(int, lambda x: (x > logos.lit(0)) >> (double(x) > x)),
-    proof=[t.intro("x", "h"), t.unfold("double"), t.linarith()],
-)
+@logos.theorem
+def double_exceeds_x(x: int):
+    return (x > logos.lit(0)) >> (double(x) > x)
+
+logos.check(double_exceeds_x.proof(t.intro("x", "h"), t.unfold(double), t.linarith()))
 print("Proved: x > 0 → double(x) > x")
 ```
 

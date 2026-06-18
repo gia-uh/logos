@@ -10,9 +10,8 @@ A **proposition** in logos is any `Expr` that represents a truth claim — typic
 
 ```{python}
 import logos
+import logos.tactics as t
 from logos.expr import Var, Forall
-from logos.registry import clear_axioms; clear_axioms()
-import logos.builtins
 
 x, y, z = logos.vars("x y z", int)
 
@@ -40,12 +39,11 @@ from logos.expr import Exists
 p = logos.exists(int, lambda x: x > logos.lit(5))
 
 # Prove it by providing a witness
-import logos.tactics as t
-
-logos.prove(
+gp = logos.prove(
     logos.exists(int, lambda x: x > logos.lit(5)),
-    proof=[t.witness(logos.lit(10)), t.decide()],
+    [t.witness(logos.lit(10)), t.decide()],
 )
+logos.check(gp)
 print("Proved: ∃x > 5")
 ```
 
@@ -59,10 +57,11 @@ x = logos.var("x", int)
 # If x > 0, then x + 1 > 0
 p = (x > logos.lit(0)) >> (x + logos.lit(1) > logos.lit(0))
 
-logos.prove(
+gp = logos.prove(
     logos.forall(int, lambda x: (x > logos.lit(0)) >> (x + logos.lit(1) > logos.lit(0))),
-    proof=[t.intro("x", "h"), t.linarith()],
+    [t.intro("x", "h"), t.linarith()],
 )
+logos.check(gp)
 print("Proved: x > 0 → x + 1 > 0")
 ```
 
@@ -73,17 +72,18 @@ x, y = logos.vars("x y", int)
 
 # Prove both sides independently
 # Note: >> is left-associative in Python, so parenthesize for right-nesting
-logos.prove(
+gp = logos.prove(
     logos.forall(int, int, lambda x, y:
         (x > logos.lit(0)) >> ((y > logos.lit(0)) >> ((x > logos.lit(0)) & (y > logos.lit(0))))
     ),
-    proof=[
+    [
         t.intro("x", "y", "hx", "hy"),
         t.split(),
         [t.assumption()],
         [t.assumption()],
     ],
 )
+logos.check(gp)
 print("Proved: hx ∧ hy")
 ```
 
@@ -109,11 +109,16 @@ print("Proposition type:", type(prop).__name__)   # ForallNode
 Propositions can be stored, passed around, and reused:
 
 ```{python}
-commutativity_of_add = logos.forall(int, int, lambda x, y: x + y == y + x)
-associativity_of_add = logos.forall(int, int, int, lambda x, y, z: (x + y) + z == x + (y + z))
+@logos.theorem
+def commutativity_of_add(x: int, y: int):
+    return x + y == y + x
 
-for name, prop in [("comm", commutativity_of_add), ("assoc", associativity_of_add)]:
-    logos.theorem(name, prop, proof=[t.intro("x", "y") if "comm" in name
-                                      else t.intro("x", "y", "z"), t.ring()])
-    print(f"Proved: {name}")
+@logos.theorem
+def associativity_of_add(x: int, y: int, z: int):
+    return (x + y) + z == x + (y + z)
+
+logos.check(commutativity_of_add.proof(t.intro("x", "y"), t.ring()))
+logos.check(associativity_of_add.proof(t.intro("x", "y", "z"), t.ring()))
+
+print("Proved: commutativity and associativity")
 ```

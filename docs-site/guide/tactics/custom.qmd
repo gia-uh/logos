@@ -11,8 +11,6 @@ from logos.goal import Goal
 from logos.runner import run, TacticFailed
 from logos.kernel import Refl, ProofTerm, AndIntro
 from logos.helpers import structural_eq
-from logos.registry import clear_axioms; clear_axioms()
-import logos.builtins
 ```
 
 ## The Protocol
@@ -143,15 +141,15 @@ def trace(label: str = ""):
     return tactic
 
 x = logos.var("x", int)
-logos.prove(
+logos.check(logos.prove(
     logos.forall(int, lambda x: x + logos.lit(0) == x),
-    proof=[
+    [
         trace("before intro"),
         t.intro("x"),
         trace("after intro"),
         t.ring(),
     ],
-)
+))
 ```
 
 ## Combining Custom Tactics with Builtins
@@ -159,28 +157,26 @@ logos.prove(
 Custom tactics plug in seamlessly with the built-in tactic library:
 
 ```{python}
-from logos.expr import Var
-
 @logos.define
-def abs_val(x: Var) -> "Expr":
+def abs_val(x: int):
     return logos.cases(
         (x >= logos.lit(0), x),
         (x < logos.lit(0), -x),
     )
 
 # A reusable "unfold then arithmetic" pattern
-def unfold_and_solve(*names: str):
-    """Unfold the given function names then try ring and linarith."""
+def unfold_and_solve(*fns):
+    """Unfold the given Function objects then try ring and linarith."""
     return t.then(
-        *[t.unfold(n) for n in names],
+        *[t.unfold(fn) for fn in fns],
         t.first(t.refl(), t.ring(), t.linarith()),
     )
 
 x = logos.var("x", int)
-logos.prove(
+logos.check(logos.prove(
     logos.forall(int, int, lambda x, y: x + y == y + x),
-    proof=[t.intro("x", "y"), unfold_and_solve()],
-)
+    [t.intro("x", "y"), unfold_and_solve()],
+))
 print("unfold_and_solve worked")
 ```
 

@@ -9,7 +9,7 @@ from logos.kernel import (
     ImpliesIntro, ImpliesElim,
     AndIntro, AndElimL, AndElimR,
     OrIntroL, OrIntroR, CaseAnalysis, ExFalso,
-    ExistsIntro, Axiom,
+    ExistsIntro, Axiom as KernelAxiom,
 )
 from logos.helpers import substitute, structural_eq, try_unify
 from logos.runner import TacticFailed
@@ -66,18 +66,37 @@ def exact(term: ProofTerm):
     return tactic
 
 
-def apply(name: str):
-    """Apply a named axiom/hypothesis, instantiating forall binders by unification."""
+def apply(ref):
+    """Apply a theorem/axiom/hypothesis to close or transform the goal.
+
+    ref can be:
+    - str: local hypothesis name only
+    - Axiom or Theorem object: use ref.statement directly
+    """
     def tactic(goal: Goal):
-        ctx = goal.make_context()
-        try:
-            stmt = ctx.lookup(name)
-        except KernelError as e:
-            raise TacticFailed(f"apply '{name}': {e}") from e
+        from logos.theorem import Theorem, Axiom as LogosAxiom, check as logos_check, LogosProofError
+
+        if isinstance(ref, str):
+            # Local hypothesis only
+            if ref not in goal.context:
+                raise TacticFailed(f"apply '{ref}': not in local context")
+            stmt = goal.context[ref]
+            proof_base = HypRef(ref)
+        elif isinstance(ref, (LogosAxiom, Theorem)):
+            # Axiom or Theorem object — auto-check uncertified theorems
+            if isinstance(ref, Theorem) and not ref.certified:
+                try:
+                    logos_check(ref)
+                except LogosProofError as e:
+                    raise TacticFailed(f"apply: dependency '{ref.name}' failed: {e}") from e
+            stmt = ref.statement
+            proof_base = KernelAxiom(ref.name)
+        else:
+            raise TacticFailed(f"apply: expected str, Axiom, or Theorem, got {type(ref).__name__!r}")
 
         # Direct structural match
         if structural_eq(stmt, goal.statement):
-            return HypRef(name) if name in ctx.hyps else Axiom(name)
+            return proof_base
 
         # Strip forall binders and unify
         flex_ordered = []
@@ -87,18 +106,26 @@ def apply(name: str):
             inner = inner.body
 
         if not flex_ordered:
-            raise TacticFailed(f"apply '{name}': {stmt!r} does not match goal {goal.statement!r}")
+            raise TacticFailed(
+                f"apply '{getattr(ref, 'name', ref)}': "
+                f"{stmt!r} does not match goal {goal.statement!r}"
+            )
 
         flex_names = {v.name for v in flex_ordered}
         sub = try_unify(inner, goal.statement, flex_names)
         if sub is None:
-            raise TacticFailed(f"apply '{name}': cannot unify {inner!r} with {goal.statement!r}")
+            raise TacticFailed(
+                f"apply '{getattr(ref, 'name', ref)}': "
+                f"cannot unify {inner!r} with {goal.statement!r}"
+            )
 
-        base = HypRef(name) if name in ctx.hyps else Axiom(name)
-        result = base
+        result = proof_base
         for var in flex_ordered:
             if var.name not in sub:
-                raise TacticFailed(f"apply '{name}': unconstrained variable {var.name!r}")
+                raise TacticFailed(
+                    f"apply '{getattr(ref, 'name', ref)}': "
+                    f"unconstrained variable {var.name!r}"
+                )
             result = ForallElim(result, sub[var.name])
         return result
     return tactic

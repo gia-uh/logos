@@ -11,8 +11,6 @@ from logos.goal import Goal
 from logos.runner import run
 from logos.kernel import infer
 from logos.helpers import structural_eq
-from logos.registry import clear_axioms; clear_axioms()
-import logos.builtins
 ```
 
 ## `intro(*names)`
@@ -23,23 +21,23 @@ Strips leading `Forall` and `Implies` from the goal, adding the introduced items
 x, y = logos.vars("x y", int)
 
 # Introduce universally quantified variables
-logos.prove(
+logos.check(logos.prove(
     logos.forall(int, int, lambda x, y: x + y == y + x),
-    proof=[
+    [
         t.intro("x", "y"),   # strips Forall(x, Forall(y, ...)), adds x,y to context
         t.ring(),
     ],
-)
+))
 print("Proved with intro")
 
 # Introduce hypothesis from implication
-logos.prove(
+logos.check(logos.prove(
     logos.forall(int, lambda x: (x > logos.lit(0)) >> (x > logos.lit(0))),
-    proof=[
+    [
         t.intro("x", "h"),   # x from Forall, h: x>0 from Implies
         t.assumption(),       # close with h
     ],
-)
+))
 print("Proved implication with intro")
 ```
 
@@ -76,17 +74,17 @@ For conjunction goals `A & B` — splits into two subgoals, one for `A` and one 
 ```{python}
 x, y = logos.vars("x y", int)
 
-logos.prove(
+logos.check(logos.prove(
     logos.forall(int, int, lambda x, y:
         (x > logos.lit(0)) >> ((y > logos.lit(0)) >> ((x > logos.lit(0)) & (y > logos.lit(0))))
     ),
-    proof=[
+    [
         t.intro("x", "y", "hx", "hy"),
         t.split(),
         [t.assumption()],   # prove x > 0
         [t.assumption()],   # prove y > 0
     ],
-)
+))
 print("Proved conjunction")
 ```
 
@@ -98,16 +96,16 @@ For disjunction goals `A | B` — choose which side to prove.
 x = logos.var("x", int)
 
 # Prove "x > 0 or x > 0" by proving the left side
-logos.prove(
+logos.check(logos.prove(
     logos.forall(int, lambda x:
         (x > logos.lit(0)) >> ((x > logos.lit(0)) | (x > logos.lit(0)))
     ),
-    proof=[
+    [
         t.intro("x", "h"),
         t.left(x > logos.lit(0)),   # choose to prove left side; right_type = x > 0
         t.assumption(),
     ],
-)
+))
 print("Proved disjunction via left")
 ```
 
@@ -116,13 +114,13 @@ print("Proved disjunction via left")
 For existential goals `Exists(x, P(x))` — provide the witness value, reducing to `P[x:=val]`.
 
 ```{python}
-logos.prove(
+logos.check(logos.prove(
     logos.exists(int, lambda x: x > logos.lit(5)),
-    proof=[
+    [
         t.witness(logos.lit(10)),   # instantiate x := 10
         t.decide(),                  # verify 10 > 5
     ],
-)
+))
 print("Proved: ∃x > 5  (witness: 10)")
 ```
 
@@ -142,23 +140,33 @@ proof = run(goal, [t.contradiction()])
 print("Closed by contradiction:", type(proof).__name__)  # ExFalso
 ```
 
-## `apply(name)`
+## `apply(ref)`
 
-Applies a named axiom or hypothesis whose statement matches the current goal.
+Applies an Axiom/Theorem object (or a local hypothesis string) whose statement matches the current goal.
 
 ```{python}
 x, y = logos.vars("x y", int)
 
-# Register a theorem first
-logos.theorem(
-    "x_eq_x",
-    logos.forall(int, lambda x: x == x),
-    proof=[t.intro("x"), t.refl()],
-)
+# Declare and prove a theorem
+@logos.theorem
+def x_eq_x(x: int):
+    return x == x
 
-# Apply it inside another proof
+logos.check(x_eq_x.proof(t.intro("x"), t.refl()))
+
+# Apply it inside another proof using the object
 x_inst = logos.var("x", int)
 goal = Goal({}, x_inst == x_inst)
-proof = run(goal, [t.apply("x_eq_x")])
+proof = run(goal, [t.apply(x_eq_x)])
 print("Applied theorem:", type(proof).__name__)
+```
+
+You can also apply local hypotheses by name:
+
+```{python}
+x = logos.var("x", int)
+hyp = x > logos.lit(0)
+goal = Goal({"h": hyp}, hyp)
+proof = run(goal, [t.apply("h")])
+print("Applied hypothesis:", type(proof).__name__)
 ```

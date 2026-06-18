@@ -8,7 +8,6 @@ from logos.kernel import (
 )
 from logos.helpers import structural_eq
 from logos.runner import run, TacticFailed
-from logos.registry import register_axiom, clear_axioms
 from logos.tactics.structural import intro, assumption, exact, split, left, right, witness
 
 
@@ -94,3 +93,34 @@ def test_intro_multi(x, y):
     proof = run(goal, [intro("x", "y"), exact(Refl(Var("x", int)))])
     stmt = infer(proof, Context({}, {}))
     assert structural_eq(stmt, Forall(x, Forall(y, x == x)))
+
+
+def test_apply_axiom_object(x, y):
+    """apply() should accept Axiom objects."""
+    from logos.theorem import Axiom
+    from logos.tactics.structural import apply
+    from logos.expr import ForallNode
+
+    ax = Axiom(Forall(x, y, x + y == y + x), name="comm_test")
+    goal = Goal({}, x + y == y + x)
+    proof = run(goal, [apply(ax)])
+    assert proof is not None
+
+
+def test_apply_string_local_hyp(x):
+    """apply() with a string should look up local context."""
+    from logos.tactics.structural import apply
+
+    hyp = x > Lit(0)
+    goal = Goal({"h": hyp}, hyp)
+    proof = run(goal, [apply("h")])
+    assert proof is not None
+
+
+def test_apply_string_not_in_context(x):
+    """apply() with a string not in context raises TacticFailed."""
+    from logos.tactics.structural import apply
+
+    goal = Goal({}, x > Lit(0))
+    with pytest.raises(TacticFailed):
+        run(goal, [apply("missing")])

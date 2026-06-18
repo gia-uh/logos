@@ -7,9 +7,6 @@ Proving properties of integer arithmetic — the kind of reasoning that underlie
 ```{python}
 import logos
 import logos.tactics as t
-from logos.expr import Var
-from logos.registry import clear_axioms; clear_axioms()
-import logos.builtins
 ```
 
 ## Basic Identities
@@ -20,27 +17,33 @@ Let's build a small library of arithmetic identities, each proved formally.
 x, y, z = logos.vars("x y z", int)
 
 # Commutativity
-logos.theorem("add_comm",
-    logos.forall(int, int, lambda x, y: x + y == y + x),
-    proof=[t.intro("x", "y"), t.ring()])
+@logos.theorem
+def add_comm(x: int, y: int):
+    return x + y == y + x
 
-logos.theorem("mul_comm",
-    logos.forall(int, int, lambda x, y: x * y == y * x),
-    proof=[t.intro("x", "y"), t.ring()])
+@logos.theorem
+def mul_comm(x: int, y: int):
+    return x * y == y * x
 
 # Associativity
-logos.theorem("add_assoc",
-    logos.forall(int, int, int, lambda x, y, z: (x + y) + z == x + (y + z)),
-    proof=[t.intro("x", "y", "z"), t.ring()])
+@logos.theorem
+def add_assoc(x: int, y: int, z: int):
+    return (x + y) + z == x + (y + z)
 
-logos.theorem("mul_assoc",
-    logos.forall(int, int, int, lambda x, y, z: (x * y) * z == x * (y * z)),
-    proof=[t.intro("x", "y", "z"), t.ring()])
+@logos.theorem
+def mul_assoc(x: int, y: int, z: int):
+    return (x * y) * z == x * (y * z)
 
 # Distributivity
-logos.theorem("distrib",
-    logos.forall(int, int, int, lambda x, y, z: x * (y + z) == x * y + x * z),
-    proof=[t.intro("x", "y", "z"), t.ring()])
+@logos.theorem
+def distrib(x: int, y: int, z: int):
+    return x * (y + z) == x * y + x * z
+
+logos.check(add_comm.proof(t.intro("x", "y"), t.ring()))
+logos.check(mul_comm.proof(t.intro("x", "y"), t.ring()))
+logos.check(add_assoc.proof(t.intro("x", "y", "z"), t.ring()))
+logos.check(mul_assoc.proof(t.intro("x", "y", "z"), t.ring()))
+logos.check(distrib.proof(t.intro("x", "y", "z"), t.ring()))
 
 print("Core arithmetic library: ✓")
 ```
@@ -49,31 +52,31 @@ print("Core arithmetic library: ✓")
 
 ```{python}
 @logos.define
-def double(n: Var) -> "Expr":
+def double(n: int):
     return n + n
 
 # double(n) = 2*n
-logos.theorem(
-    "double_is_2n",
-    logos.forall(int, lambda n: double(n) == logos.lit(2) * n),
-    proof=[t.intro("n"), t.unfold("double"), t.ring()],
-)
+@logos.theorem
+def double_is_2n(n: int):
+    return double(n) == logos.lit(2) * n
+
+logos.check(double_is_2n.proof(t.intro("n"), t.unfold(double), t.ring()))
 print("double(n) = 2n ✓")
 
 # double is non-negative for non-negative inputs
-logos.theorem(
-    "double_nonneg",
-    logos.forall(int, lambda n: (n >= logos.lit(0)) >> (double(n) >= logos.lit(0))),
-    proof=[t.intro("n", "h"), t.unfold("double"), t.linarith()],
-)
+@logos.theorem
+def double_nonneg(n: int):
+    return (n >= logos.lit(0)) >> (double(n) >= logos.lit(0))
+
+logos.check(double_nonneg.proof(t.intro("n", "h"), t.unfold(double), t.linarith()))
 print("n ≥ 0 → double(n) ≥ 0 ✓")
 
 # double of a sum: double(x + y) = double(x) + double(y)
-logos.theorem(
-    "double_additive",
-    logos.forall(int, int, lambda x, y: double(x + y) == double(x) + double(y)),
-    proof=[t.intro("x", "y"), t.unfold("double"), t.ring()],
-)
+@logos.theorem
+def double_additive(x: int, y: int):
+    return double(x + y) == double(x) + double(y)
+
+logos.check(double_additive.proof(t.intro("x", "y"), t.unfold(double), t.ring()))
 print("double(x + y) = double(x) + double(y) ✓")
 ```
 
@@ -83,21 +86,21 @@ A classic identity used in factoring and cryptography:
 
 ```{python}
 @logos.define
-def square(n: Var) -> "Expr":
+def square(n: int):
     return n * n
 
-logos.theorem(
-    "diff_of_squares",
-    logos.forall(int, int, lambda a, b: (a + b) * (a - b) == square(a) - square(b)),
-    proof=[t.intro("a", "b"), t.unfold("square"), t.ring()],
-)
+@logos.theorem
+def diff_of_squares(a: int, b: int):
+    return (a + b) * (a - b) == square(a) - square(b)
+
+logos.check(diff_of_squares.proof(t.intro("a", "b"), t.unfold(square), t.ring()))
 print("(a+b)(a-b) = a² - b² ✓")
 
-logos.theorem(
-    "square_of_sum",
-    logos.forall(int, int, lambda a, b: square(a + b) == square(a) + logos.lit(2)*a*b + square(b)),
-    proof=[t.intro("a", "b"), t.unfold("square"), t.ring()],
-)
+@logos.theorem
+def square_of_sum(a: int, b: int):
+    return square(a + b) == square(a) + logos.lit(2)*a*b + square(b)
+
+logos.check(square_of_sum.proof(t.intro("a", "b"), t.unfold(square), t.ring()))
 print("(a+b)² = a² + 2ab + b² ✓")
 ```
 
@@ -109,33 +112,27 @@ Reasoning about bounds — essential for algorithm correctness:
 x, y = logos.vars("x y", int)
 
 # Additive monotonicity
-logos.theorem(
-    "add_mono",
-    logos.forall(int, int, int, lambda x, y, z:
-        (x <= y) >> (x + z <= y + z)
-    ),
-    proof=[t.intro("x", "y", "z", "h"), t.linarith()],
-)
+@logos.theorem
+def add_mono(x: int, y: int, z: int):
+    return (x <= y) >> (x + z <= y + z)
+
+logos.check(add_mono.proof(t.intro("x", "y", "z", "h"), t.linarith()))
 print("x ≤ y → x+z ≤ y+z ✓")
 
 # Transitivity
-logos.theorem(
-    "lt_trans",
-    logos.forall(int, int, int, lambda x, y, z:
-        (x < y) >> ((y < z) >> (x < z))
-    ),
-    proof=[t.intro("x", "y", "z", "hxy", "hyz"), t.linarith()],
-)
+@logos.theorem
+def lt_trans(x: int, y: int, z: int):
+    return (x < y) >> ((y < z) >> (x < z))
+
+logos.check(lt_trans.proof(t.intro("x", "y", "z", "hxy", "hyz"), t.linarith()))
 print("x < y ∧ y < z → x < z ✓")
 
 # Sum of non-positives is non-positive
-logos.theorem(
-    "neg_add_neg",
-    logos.forall(int, int, lambda x, y:
-        (x <= logos.lit(0)) >> ((y <= logos.lit(0)) >> (x + y <= logos.lit(0)))
-    ),
-    proof=[t.intro("x", "y", "hx", "hy"), t.linarith()],
-)
+@logos.theorem
+def neg_add_neg(x: int, y: int):
+    return (x <= logos.lit(0)) >> ((y <= logos.lit(0)) >> (x + y <= logos.lit(0)))
+
+logos.check(neg_add_neg.proof(t.intro("x", "y", "hx", "hy"), t.linarith()))
 print("x ≤ 0 ∧ y ≤ 0 → x + y ≤ 0 ✓")
 ```
 
@@ -147,17 +144,17 @@ Proving `|a + b| ≤ |a| + |b|` requires case analysis. Here's a simplified vers
 # For non-negative integers: (a + b) ≤ (a + b) — trivial base case
 # Full triangle inequality needs case splits; here we show the setup:
 
-logos.theorem(
-    "abs_nonneg",
-    logos.forall(int, lambda n: (n >= logos.lit(0)) >> (n >= logos.lit(0))),
-    proof=[t.intro("n", "h"), t.assumption()],
-)
+@logos.theorem
+def abs_nonneg(n: int):
+    return (n >= logos.lit(0)) >> (n >= logos.lit(0))
+
+logos.check(abs_nonneg.proof(t.intro("n", "h"), t.assumption()))
 print("n ≥ 0 → n ≥ 0 (trivial, shows case intro works) ✓")
 ```
 
 ## Arithmetic Progressions
 
-Sum of first `n` natural numbers using Gauss's formula (as an axiom — logos doesn't have induction in v0.1):
+Sum of first `n` natural numbers using Gauss's formula (as an axiom — logos doesn't have induction in v0.2):
 
 ```{python}
 # Declare gauss_sum as an external function and axiomatize it
@@ -165,25 +162,18 @@ gauss_sum = logos.extern("gauss_sum", [int], int)
 
 n = logos.var("n", int)
 
-# Axiom: gauss_sum(n) = n * (n + 1) / 2  (integer, assumes n*(n+1) divisible by 2)
-logos.axiom(
-    "gauss_formula",
-    logos.forall(int, lambda n: gauss_sum(n) * logos.lit(2) == n * (n + logos.lit(1))),
-)
+# Axiom: gauss_sum(n) * 2 = n * (n + 1)
+@logos.axiom
+def gauss_formula(n: int):
+    return gauss_sum(n) * logos.lit(2) == n * (n + logos.lit(1))
 
-# Now prove: gauss_sum(10) * 2 == 110
-logos.prove(
-    logos.forall(int, lambda n:
-        (n == logos.lit(10)) >> (gauss_sum(n) * logos.lit(2) == logos.lit(110))
-    ),
-    proof=[
-        t.intro("n", "h"),
-        t.rewrite("gauss_formula"),   # replace gauss_sum(n)*2 with n*(n+1)
-        t.rewrite("h"),               # replace n with 10
-        t.norm_num(),
-    ],
-)
-print("gauss_sum(10) = 55 ✓")
+# Use the axiom: from it and n > 0, we can derive gauss_sum(n) * 2 == n*(n+1)
+# Here we show applying the axiom in a forall proof
+logos.check(logos.prove(
+    logos.forall(int, lambda n: gauss_sum(n) * logos.lit(2) == n * (n + logos.lit(1))),
+    [t.intro("n"), t.apply(gauss_formula)],
+))
+print("gauss_sum(n) * 2 = n*(n+1) ✓")
 ```
 
 ## Modular Arithmetic
@@ -192,9 +182,9 @@ print("gauss_sum(10) = 55 ✓")
 # Basic mod property: (a * b) mod m = ((a mod m) * (b mod m)) mod m
 # We'll prove a specific case
 
-logos.prove(
+logos.check(logos.prove(
     logos.lit(7) * logos.lit(8) % logos.lit(5) == (logos.lit(7) % logos.lit(5)) * (logos.lit(8) % logos.lit(5)) % logos.lit(5),
-    proof=[t.norm_num()],
-)
+    [t.norm_num()],
+))
 print("(7 * 8) mod 5 = (7 mod 5)(8 mod 5) mod 5 ✓")
 ```

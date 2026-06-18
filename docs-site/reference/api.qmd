@@ -8,8 +8,6 @@ Complete reference for the logos public API.
 #| echo: false
 import logos
 import logos.tactics as t
-from logos.registry import clear_axioms; clear_axioms()
-import logos.builtins
 ```
 
 ## Top-Level (`logos`)
@@ -63,52 +61,80 @@ from logos.expr import ExistsNode
 print(type(p).__name__)  # ExistsNode
 ```
 
-### `logos.theorem(name, statement, proof) → ProofTerm`
+### `@logos.theorem` — declare a theorem
 
-Prove and register a named theorem. Raises `LogosProofError` if the proof fails.
+Decorator that creates a `Theorem` object. No proof runs at declaration time.
 
 ```{python}
-logos.theorem(
-    "example_comm",
-    logos.forall(int, int, lambda x, y: x + y == y + x),
-    proof=[t.intro("x", "y"), t.ring()],
-)
+@logos.theorem
+def example_comm(x: int, y: int):
+    return x + y == y + x
+
+print(example_comm)              # Theorem[unverified]('example_comm')
+print(example_comm.certified)   # False
 ```
 
-### `logos.prove(statement, proof) → ProofTerm`
+### `thm.proof(*tactics)` — attach a proof
 
-Prove a statement without registering it. Raises `LogosProofError` if the proof fails.
+Attach a proof spec and return `self` for chaining.
 
 ```{python}
-term = logos.prove(
+logos.check(example_comm.proof(t.intro("x", "y"), t.ring()))
+print(example_comm.certified)   # True
+```
+
+### `logos.check(thm) → thm`
+
+Run the kernel. Marks `thm.certified = True` or raises `LogosProofError`.
+
+```{python}
+@logos.theorem
+def refl_thm(x: int):
+    return x == x
+
+logos.check(refl_thm.proof(t.intro("x"), t.refl()))
+print(refl_thm.certified)   # True
+```
+
+### `logos.prove(statement, proof_list) → _GroundProof`
+
+Create a one-shot anonymous proof. Pass to `logos.check()` to validate.
+
+```{python}
+gp = logos.prove(
     logos.forall(int, lambda x: x == x),
-    proof=[t.intro("x"), t.refl()],
+    [t.intro("x"), t.refl()],
 )
-print(type(term).__name__)  # ForallIntro
+logos.check(gp)
+print(gp.certified)   # True
 ```
 
-### `logos.axiom(name, statement)`
+### `@logos.axiom` — declare a trusted axiom
 
-Register an unproved axiom. Use sparingly — axioms are trusted without verification.
+Decorator (or function call) that creates an `Axiom` object — trusted without proof.
 
 ```{python}
-logos.axiom("my_axiom", logos.forall(int, lambda x: x == x))
+@logos.axiom
+def my_axiom(x: int):
+    return x == x
+
+print(my_axiom)             # Axiom('my_axiom')
+print(my_axiom.certified)   # True
 ```
 
 ### `logos.define`
 
-Decorator that registers a symbolic function definition. See [Defining Functions](../guide/defining.qmd).
+Decorator that registers a symbolic function definition. Returns a `Function` object.
 
 ```{python}
-from logos.expr import Var
-
 @logos.define
-def double(x: Var) -> "Expr":
+def double(x: int):
     return x + x
 
 print(double(5))          # 10  (Python mode)
 x = logos.var("x", int)
 print(type(double(x)).__name__)  # App  (symbolic mode)
+print(double.name)               # double
 ```
 
 ### `logos.extern(name, arg_types, ret_type) → callable`
@@ -178,7 +204,7 @@ print(type(expr).__name__)   # CaseExpr
 | `intro(*names)` | Strip `Forall`/`Implies`, add to context |
 | `assumption()` | Close if goal is in context |
 | `exact(term)` | Close with an explicit proof term |
-| `apply(name)` | Apply a named axiom/theorem |
+| `apply(ref)` | Apply an Axiom/Theorem object or local hypothesis string |
 | `split()` | `A & B` → `[A, B]` |
 | `left(right_type)` | `A \| B` → prove `A` |
 | `right(left_type)` | `A \| B` → prove `B` |
@@ -198,9 +224,9 @@ print(type(expr).__name__)   # CaseExpr
 | Tactic | Description |
 |--------|-------------|
 | `refl()` | Prove `a == a` |
-| `unfold(*names)` | Replace function calls with definition bodies |
-| `rewrite(name)` | Rewrite left-to-right using equation axiom |
-| `rewrite_rev(name)` | Rewrite right-to-left |
+| `unfold(*refs)` | Replace function calls with definition bodies (accepts Function objects) |
+| `rewrite(ref)` | Rewrite left-to-right using Axiom/Theorem object |
+| `rewrite_rev(ref)` | Rewrite right-to-left |
 | `eval_()` | Evaluate ground arithmetic sub-expressions |
 | `norm_num()` | Normalize and close numeric ground goals |
 
@@ -277,7 +303,6 @@ free_vars(Forall(x, x + y))      # {"y"}  (x is bound)
 
 | Exception | When raised |
 |-----------|-------------|
-| `logos.theorem.LogosProofError` | Proof fails in `logos.prove` or `logos.theorem` |
+| `logos.theorem.LogosProofError` | Proof fails in `logos.check` |
 | `logos.runner.TacticFailed` | A tactic cannot proceed |
 | `logos.kernel.KernelError` | Kernel rejects an invalid proof term |
-| `logos.registry.ValueError` | Duplicate axiom registration |

@@ -2,62 +2,79 @@
 title: "Proving Theorems"
 ---
 
-`logos.theorem` and `logos.prove` are the two top-level entry points for proof checking.
+`@logos.theorem`, `logos.check`, and `logos.prove` are the top-level entry points for proof checking.
 
-## `logos.prove` — one-shot verification
+## `@logos.theorem` — declare a theorem
 
-`prove` validates a proof and returns the proof term. It does **not** register anything — useful for intermediate checks or anonymous proofs.
+`@logos.theorem` wraps a function to declare a `Theorem` object. No proof is run yet.
 
 ```{python}
 import logos
 import logos.tactics as t
-from logos.registry import clear_axioms; clear_axioms()
-import logos.builtins
 
-x = logos.var("x", int)
+@logos.theorem
+def add_zero(x: int):
+    return x + logos.lit(0) == x
 
-term = logos.prove(
-    logos.forall(int, lambda x: x + logos.lit(0) == x),
-    proof=[t.intro("x"), t.ring()],
-)
-print(type(term).__name__)   # ForallIntro (a kernel proof term)
+print(add_zero)             # Theorem[unverified]('add_zero')
+print(add_zero.certified)   # False — not yet checked
 ```
 
-## `logos.theorem` — named, registered proof
+## `.proof(...)` — attach a proof
 
-`theorem` validates and registers the result as a named axiom. Other proofs can then reference it by name.
+Attach the proof spec with `.proof(tactic1, tactic2, ...)`. Returns `self` for chaining:
 
 ```{python}
-logos.theorem(
-    "add_zero",
-    logos.forall(int, lambda x: x + logos.lit(0) == x),
-    proof=[t.intro("x"), t.ring()],
-)
+# Chain style
+logos.check(add_zero.proof(t.intro("x"), t.ring()))
+print(add_zero.certified)   # True
+```
 
-# Now "add_zero" is in the axiom registry
-from logos.registry import get_all_axioms
-print("add_zero" in get_all_axioms())  # True
+Or use the decorator form:
+
+```{python}
+@logos.theorem
+def add_zero_v2(x: int):
+    return x + logos.lit(0) == x
+
+@add_zero_v2.proof
+def _():
+    return [t.intro("x"), t.ring()]
+
+logos.check(add_zero_v2)
+print("Proved with decorator style")
+```
+
+## `logos.check` — the compute boundary
+
+`logos.check(thm)` runs the kernel. Nothing executes until this call:
+
+```{python}
+@logos.theorem
+def mul_comm(x: int, y: int):
+    return x * y == y * x
+
+mul_comm.proof(t.intro("x", "y"), t.ring())   # just attaches, doesn't run
+
+logos.check(mul_comm)   # NOW it runs
+print(mul_comm.certified)   # True
 ```
 
 ## The Proof List
 
-The `proof` argument is a list of tactics applied left-to-right. Each tactic operates on the **current goal** — the open proof obligation. When a tactic closes the goal, the list is exhausted. When a tactic produces subgoals, the next items handle them.
+The proof is a list of tactics applied left-to-right. When a tactic produces subgoals, the next items handle them.
 
 ```{python}
-x, y = logos.vars("x y", int)
+@logos.theorem
+def both_positive(x: int, y: int):
+    return (x > logos.lit(0)) >> ((y > logos.lit(0)) >> ((x > logos.lit(0)) & (y > logos.lit(0))))
 
-logos.theorem(
-    "both_positive",
-    logos.forall(int, int, lambda x, y:
-        (x > logos.lit(0)) >> ((y > logos.lit(0)) >> ((x > logos.lit(0)) & (y > logos.lit(0))))
-    ),
-    proof=[
-        t.intro("x", "y", "hx", "hy"),   # strip foralls and implications
-        t.split(),                          # A & B → two subgoals
-        [t.assumption()],                   # subgoal 1: x > 0  (in context as hx)
-        [t.assumption()],                   # subgoal 2: y > 0  (in context as hy)
-    ],
-)
+logos.check(both_positive.proof(
+    t.intro("x", "y", "hx", "hy"),   # strip foralls and implications
+    t.split(),                          # A & B → two subgoals
+    [t.assumption()],                   # subgoal 1: x > 0  (in context as hx)
+    [t.assumption()],                   # subgoal 2: y > 0  (in context as hy)
+))
 print("Proved")
 ```
 
@@ -68,68 +85,68 @@ print("Proved")
 ```{python}
 from logos.theorem import LogosProofError
 
+@logos.theorem
+def false_claim(x: int, y: int):
+    return x + y == x - y   # false!
+
 try:
-    logos.prove(
-        logos.forall(int, int, lambda x, y: x + y == x - y),  # false!
-        proof=[t.intro("x", "y"), t.ring()],
-    )
+    logos.check(false_claim.proof(t.intro("x", "y"), t.ring()))
 except LogosProofError as e:
     print(f"Proof failed: {e}")
 ```
 
-## Building on Proved Theorems
+## `logos.prove` — one-shot anonymous proof
 
-Once a theorem is registered, you can `apply` it or `rewrite` with it:
+`logos.prove(statement, proof_list)` creates a `_GroundProof` — pass it to `logos.check()`:
 
 ```{python}
-x, y, z = logos.vars("x y z", int)
+result = logos.check(logos.prove(
+    logos.forall(int, lambda x: x + logos.lit(0) == x),
+    [t.intro("x"), t.ring()],
+))
+print(result.certified)  # True
+```
 
-# First prove add_comm
-logos.theorem(
-    "add_comm_v2",
-    logos.forall(int, int, lambda x, y: x + y == y + x),
-    proof=[t.intro("x", "y"), t.ring()],
-)
+## Building on Proved Theorems
 
-# Then use it inside another proof via rewrite
-logos.theorem(
-    "reorder_sum",
-    logos.forall(int, int, int, lambda x, y, z: x + y + z == z + y + x),
-    proof=[t.intro("x", "y", "z"), t.ring()],   # ring handles it directly too
-)
+Once a theorem is certified, you can `apply` it in other proofs using the object directly:
+
+```{python}
+@logos.theorem
+def add_comm_v2(x: int, y: int):
+    return x + y == y + x
+
+logos.check(add_comm_v2.proof(t.intro("x", "y"), t.ring()))
+
+# Use add_comm_v2 as an axiom object in another proof
+@logos.theorem
+def reorder_sum(x: int, y: int, z: int):
+    return x + y + z == z + y + x
+
+logos.check(reorder_sum.proof(t.intro("x", "y", "z"), t.ring()))
 print("Proved")
 ```
 
 ## Module-Level Theorem Files
 
-A common pattern is a dedicated theorem file that's imported wherever needed. Since `logos.theorem` raises `LogosProofError` at import time if a proof is wrong, it acts like a compile-time check:
+A common pattern is a dedicated theorem file that's imported wherever needed. Since `logos.check` raises `LogosProofError` at check time if a proof is wrong, it acts like a compile-time check:
 
 ```python
 # theorems/arithmetic.py
 import logos
 import logos.tactics as t
 
-x, y, z = logos.vars("x y z", int)
+@logos.theorem
+def add_comm(x: int, y: int):
+    return x + y == y + x
 
-add_comm  = logos.theorem("add_comm",  logos.forall(int, int, lambda x, y: x + y == y + x),             [t.intro("x","y"), t.ring()])
-add_assoc = logos.theorem("add_assoc", logos.forall(int, int, int, lambda x, y, z: (x+y)+z == x+(y+z)), [t.intro("x","y","z"), t.ring()])
-mul_comm  = logos.theorem("mul_comm",  logos.forall(int, int, lambda x, y: x * y == y * x),             [t.intro("x","y"), t.ring()])
+logos.check(add_comm.proof(t.intro("x", "y"), t.ring()))
+
+@logos.theorem
+def mul_comm(x: int, y: int):
+    return x * y == y * x
+
+logos.check(mul_comm.proof(t.intro("x", "y"), t.ring()))
 
 # If any proof breaks, this module fails to import.
-```
-
-## The Proof Term
-
-`logos.prove` returns a `ProofTerm` — the actual proof object that the kernel validated. You can inspect it:
-
-```{python}
-from logos.kernel import ForallIntro, ImpliesIntro
-
-term = logos.prove(
-    logos.forall(int, lambda x: (x > logos.lit(0)) >> (x > logos.lit(0))),
-    proof=[t.intro("x", "h"), t.assumption()],
-)
-
-print(type(term).__name__)        # ForallIntro
-print(type(term.body).__name__)   # ImpliesIntro
 ```

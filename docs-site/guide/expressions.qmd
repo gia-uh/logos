@@ -9,8 +9,6 @@ Every logos proposition is built from **expression trees**. Instead of evaluatin
 ```{python}
 import logos
 from logos.expr import Var, Lit
-from logos.registry import clear_axioms; clear_axioms()
-import logos.builtins
 
 # Create variables — the building blocks of symbolic expressions
 x = logos.var("x", int)

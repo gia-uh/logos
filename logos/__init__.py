@@ -1,9 +1,8 @@
 from logos.expr import Var, Lit, Forall, Exists, Expr
 from logos.define import define, extern, cases, if_
-from logos.theorem import theorem, prove, LogosProofError
-from logos.registry import register_axiom as axiom
+from logos.theorem import theorem, axiom, check, prove, LogosProofError, Axiom, Theorem
 from logos import tactics
-import logos.builtins  # auto-load on import
+import logos.builtins  # ensure builtin Axiom objects are available
 
 
 def var(name: str, type_: type) -> Var:

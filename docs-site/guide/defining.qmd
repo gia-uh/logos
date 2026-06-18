@@ -2,24 +2,22 @@
 title: "Defining Functions"
 ---
 
-`@logos.define` is how you introduce functions into the logos proof system. The function body runs in **expression-tree mode** — operators build trees instead of evaluating — and a definition axiom is auto-generated.
+`@logos.define` is how you introduce functions into the logos proof system. The function body runs in **expression-tree mode** — operators build trees instead of evaluating — and the result is a `Function` object you can use in proofs.
 
 ## Basic Usage
 
 ```{python}
 import logos
 import logos.tactics as t
-from logos.expr import Var
-from logos.registry import clear_axioms; clear_axioms()
-import logos.builtins
 
 @logos.define
-def double(x: Var) -> "Expr":
+def double(x: int):
     return x + x
 
-# The axiom generated is: Forall(x, double(x) == x + x)
-from logos.registry import get_all_axioms
-print("double" in get_all_axioms())  # True
+# double is now a Function object
+print(type(double))        # <class 'logos.define.Function'>
+print(double.name)         # double
+print(double.params)       # [Var('x', int)]
 ```
 
 ## Dual Mode
@@ -31,7 +29,7 @@ x = logos.var("x", int)
 from logos.expr import App
 
 # Python mode — called with a concrete value
-print(double(5))    # 15... wait, double is x + x, so double(5) = 5 + 5 = 10
+print(double(5))    # 10 (= 5 + 5)
 print(double(7))    # 14
 
 # Symbolic mode — called with a Var
@@ -43,20 +41,20 @@ print(result.args)             # [Var("x", int)]
 
 ## Proving About Defined Functions
 
-Use `t.unfold("name")` to replace `double(x)` with its definition body:
+Use `t.unfold(double)` (the Function object) to replace `double(x)` with its definition body:
 
 ```{python}
-logos.theorem(
-    "double_is_2x",
-    logos.forall(int, lambda x: double(x) == logos.lit(2) * x),
-    proof=[t.intro("x"), t.unfold("double"), t.ring()],
-)
+@logos.theorem
+def double_is_2x(x: int):
+    return double(x) == logos.lit(2) * x
+
+logos.check(double_is_2x.proof(t.intro("x"), t.unfold(double), t.ring()))
 print("Proved: double(x) = 2x")
 ```
 
 The proof trace is:
 1. `intro("x")` — introduce `x` from the `Forall`
-2. `unfold("double")` — replaces `double(x)` with `x + x` in the goal
+2. `unfold(double)` — replaces `double(x)` with `x + x` in the goal
 3. `ring()` — proves `x + x == 2 * x` by polynomial normalization
 
 ## Composing Definitions
@@ -65,25 +63,23 @@ Defined functions can call each other:
 
 ```{python}
 @logos.define
-def square(x: Var) -> "Expr":
+def square(x: int):
     return x * x
 
 @logos.define
-def sum_of_squares(x: Var, y: Var) -> "Expr":
+def sum_of_squares(x: int, y: int):
     return square(x) + square(y)
 
-x, y = logos.vars("x y", int)
+@logos.theorem
+def sos_symmetric(x: int, y: int):
+    return sum_of_squares(x, y) == sum_of_squares(y, x)
 
-logos.theorem(
-    "sos_symmetric",
-    logos.forall(int, int, lambda x, y: sum_of_squares(x, y) == sum_of_squares(y, x)),
-    proof=[
-        t.intro("x", "y"),
-        t.unfold("sum_of_squares"),
-        t.unfold("square"),
-        t.ring(),
-    ],
-)
+logos.check(sos_symmetric.proof(
+    t.intro("x", "y"),
+    t.unfold(sum_of_squares),
+    t.unfold(square),
+    t.ring(),
+))
 print("Proved: sum_of_squares is symmetric")
 ```
 
@@ -93,7 +89,7 @@ Use `logos.cases()` for conditional definitions. Each branch is a `(condition, v
 
 ```{python}
 @logos.define
-def abs_val(x: Var) -> "Expr":
+def abs_val(x: int):
     return logos.cases(
         (x >= logos.lit(0),  x),
         (x < logos.lit(0),  -x),
@@ -115,10 +111,9 @@ sorted_fn = logos.extern("my_sorted", [list], list)
 xs = logos.var("xs", list)
 
 # State what we know about it
-logos.axiom(
-    "sorted_returns_same_type",
-    logos.forall(list, lambda xs: sorted_fn(xs) == sorted_fn(xs)),
-)
+@logos.axiom
+def sorted_returns_same_type(xs: list):
+    return sorted_fn(xs) == sorted_fn(xs)
 
 # Now we can use sorted_fn in propositions and proofs
 from logos.expr import App
@@ -137,7 +132,7 @@ Definitions can take any number of parameters:
 
 ```{python}
 @logos.define
-def clamp(x: Var, lo: Var, hi: Var) -> "Expr":
+def clamp(x: int, lo: int, hi: int):
     return logos.cases(
         (x < lo, lo),
         (x > hi, hi),

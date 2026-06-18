@@ -67,13 +67,26 @@ def _eval_ground(expr: Expr) -> int | float:
         case _:           raise ValueError(f"Cannot evaluate {expr!r}")
 
 
-def unfold(*func_names: str):
-    """Replace App(name, args) nodes with the function's definition body."""
+def unfold(*refs):
+    """Replace App(name, args) nodes with the function's definition body.
+
+    Each ref can be:
+    - A Function object (from @logos.define)
+    - A string name (backward compat via _definitions dict)
+    """
     def tactic(goal: Goal):
-        from logos.define import get_definition
         new_stmt = goal.statement
-        for name in func_names:
-            params, body = get_definition(name)
+        for ref in refs:
+            if hasattr(ref, 'params') and hasattr(ref, 'body') and hasattr(ref, 'name'):
+                # Function object
+                params = ref.params
+                body = ref.body
+                name = ref.name
+            else:
+                # String name (backward compat)
+                from logos.define import get_definition
+                name = ref
+                params, body = get_definition(name)
             new_stmt = _unfold_in(new_stmt, name, params, body)
         new_goal = goal.with_statement(new_stmt)
         return [new_goal], lambda ps: ps[0]
@@ -126,39 +139,54 @@ def _substitute_many(expr: Expr, subst_map: dict) -> Expr:
             return cls(*new_fields)
 
 
-def rewrite(axiom_name: str):
-    """Rewrite left-to-right using a named equation (handles forall-quantified lemmas)."""
+def _resolve_stmt(ref) -> Expr:
+    """Get the statement from an Axiom/Theorem object."""
+    if hasattr(ref, 'statement'):
+        return ref.statement
+    raise TacticFailed(
+        f"rewrite: expected Axiom or Theorem object, got {type(ref).__name__!r}"
+    )
+
+
+def rewrite(ref):
+    """Rewrite left-to-right using a named equation or Axiom/Theorem object."""
     def tactic(goal: Goal):
-        ctx = goal.make_context()
-        eq_stmt = ctx.lookup(axiom_name)
+        eq_stmt = _resolve_stmt(ref)
         flex_vars, stmt = _strip_foralls(eq_stmt)
         match stmt:
             case Eq(lhs, rhs):
                 new_stmt = _replace_unify(goal.statement, lhs, rhs, flex_vars)
                 if structural_eq(new_stmt, goal.statement):
-                    raise TacticFailed(f"rewrite '{axiom_name}': no matching occurrence found")
+                    raise TacticFailed(
+                        f"rewrite '{getattr(ref, 'name', ref)}': no matching occurrence found"
+                    )
                 new_goal = goal.with_statement(new_stmt)
                 return [new_goal], lambda ps: ps[0]
             case _:
-                raise TacticFailed(f"rewrite: '{axiom_name}' is not an equation")
+                raise TacticFailed(
+                    f"rewrite: '{getattr(ref, 'name', ref)}' is not an equation"
+                )
     return tactic
 
 
-def rewrite_rev(axiom_name: str):
-    """Rewrite right-to-left using a named equation (handles forall-quantified lemmas)."""
+def rewrite_rev(ref):
+    """Rewrite right-to-left using a named equation or Axiom/Theorem object."""
     def tactic(goal: Goal):
-        ctx = goal.make_context()
-        eq_stmt = ctx.lookup(axiom_name)
+        eq_stmt = _resolve_stmt(ref)
         flex_vars, stmt = _strip_foralls(eq_stmt)
         match stmt:
             case Eq(lhs, rhs):
                 new_stmt = _replace_unify(goal.statement, rhs, lhs, flex_vars)
                 if structural_eq(new_stmt, goal.statement):
-                    raise TacticFailed(f"rewrite_rev '{axiom_name}': no matching occurrence found")
+                    raise TacticFailed(
+                        f"rewrite_rev '{getattr(ref, 'name', ref)}': no matching occurrence found"
+                    )
                 new_goal = goal.with_statement(new_stmt)
                 return [new_goal], lambda ps: ps[0]
             case _:
-                raise TacticFailed(f"rewrite_rev: '{axiom_name}' is not an equation")
+                raise TacticFailed(
+                    f"rewrite_rev: '{getattr(ref, 'name', ref)}' is not an equation"
+                )
     return tactic
 
 
