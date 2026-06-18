@@ -107,6 +107,64 @@ result = logos.check(logos.prove(
 print(result.certified)  # True
 ```
 
+## `logos.prove(thm)` — automatic proof search
+
+When you pass a `Theorem` object to `logos.prove`, logos tries to prove it automatically using a cascade of decision procedures: ground computation, polynomial arithmetic, linear arithmetic, and structural decomposition.
+
+```{python}
+# No tactic list needed — logos figures it out
+@logos.theorem
+def add_comm_auto(x: int, y: int):
+    return x + y == y + x
+
+logos.prove(add_comm_auto)
+print(add_comm_auto.certified)   # True
+```
+
+This works for non-trivial goals too. Here is a chain with three quantified variables and two nested hypotheses — logos automatically introduces all variables, collects the hypotheses, and closes with linear arithmetic:
+
+```{python}
+@logos.theorem
+def le_trans(x: int, y: int, z: int):
+    return (x <= y) >> ((y <= z) >> (x <= z))
+
+logos.prove(le_trans)
+print("x ≤ y → y ≤ z → x ≤ z ✓")
+```
+
+For goals that need a conjunction proved, `auto` splits it and handles each branch separately:
+
+```{python}
+@logos.theorem
+def nonneg_increment(x: int):
+    return (x >= logos.lit(0)) >> ((x + logos.lit(1) >= logos.lit(0)) & (x + logos.lit(1) > x))
+
+logos.prove(nonneg_increment)
+print("x ≥ 0 → (x+1 ≥ 0) ∧ (x+1 > x) ✓")
+```
+
+Pass `hints` to help with defined functions — `auto` will try unfolding them and then apply arithmetic:
+
+```{python}
+@logos.define
+def double(n: int):
+    return n + n
+
+@logos.theorem
+def double_double(n: int):
+    return double(double(n)) == logos.lit(4) * n
+
+logos.prove(double_double, hints=[double])
+print("double(double(n)) = 4n ✓")
+```
+
+Control the search with `depth` and `timeout`:
+
+```python
+logos.prove(my_thm, depth=8)          # search deeper
+logos.prove(my_thm, timeout=2.0)      # give up after 2 seconds
+```
+
 ## Building on Proved Theorems
 
 Once a theorem is certified, you can `apply` it in other proofs using the object directly:

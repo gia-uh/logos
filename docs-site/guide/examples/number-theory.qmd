@@ -188,3 +188,42 @@ logos.check(logos.prove(
 ))
 print("(7 * 8) mod 5 = (7 mod 5)(8 mod 5) mod 5 ✓")
 ```
+
+## Automatic Proof Search
+
+`logos.prove(thm)` searches for a proof automatically. It handles multi-variable goals with nested hypotheses — no tactic list needed:
+
+```{python}
+# Three variables, two nested implications: logos figures out the intro chain
+# and closes with linear arithmetic
+@logos.theorem
+def sum_of_positives(x: int, y: int, z: int):
+    return (x > logos.lit(0)) >> ((y > logos.lit(0)) >> ((z > logos.lit(0)) >> (x + y + z > logos.lit(0))))
+
+logos.prove(sum_of_positives)
+print("x>0, y>0, z>0 → x+y+z>0 ✓ (auto)")
+```
+
+```{python}
+# Conjunction goals are split and each branch solved independently
+@logos.theorem
+def both_bounds(x: int):
+    return (x >= logos.lit(0)) >> ((x + logos.lit(1) >= logos.lit(0)) & (x + logos.lit(1) > x))
+
+logos.prove(both_bounds)
+print("x≥0 → (x+1≥0) ∧ (x+1>x) ✓ (auto)")
+```
+
+```{python}
+# Function definitions as hints: auto unfolds them and applies ring/linarith
+@logos.define
+def increment(n: int):
+    return n + logos.lit(1)
+
+@logos.theorem
+def increment_double(n: int):
+    return increment(increment(n)) == n + logos.lit(2)
+
+logos.prove(increment_double, hints=[increment])
+print("increment(increment(n)) = n+2 ✓ (auto with function hint)")
+```
