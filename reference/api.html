@@ -1,0 +1,1938 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>API Reference – logos</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../favicon.ico" rel="icon">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-dark-6b6957c917596b414ec0b78690761e87.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-814bcb4e0ebdb3c1af42547d9f864aab.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-d74f66e129107f86a04b57e06ae00b05.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-814bcb4e0ebdb3c1af42547d9f864aab.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../index.html">
+    <span class="navbar-title">logos</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link active" href="../index.html" aria-current="page"> 
+<span class="menu-text">Get Started</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-guide" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Guide</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-guide">    
+        <li>
+    <a class="dropdown-item" href="../guide/expressions.html">
+ <span class="dropdown-text">Expressions</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../guide/propositions.html">
+ <span class="dropdown-text">Propositions</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../guide/defining.html">
+ <span class="dropdown-text">Defining Functions</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../guide/theorems.html">
+ <span class="dropdown-text">Proving Theorems</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../guide/tactics/index.html">
+ <span class="dropdown-text">Tactics</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../guide/examples/index.html">
+ <span class="dropdown-text">Examples</span></a>
+  </li>  
+    </ul>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="../reference/api.html"> 
+<span class="menu-text">Reference</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/gia-uh/logos"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/api.html">API Reference</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">logos</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/expressions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Expression Language</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/propositions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Propositions &amp; Quantifiers</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/defining.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Defining Functions</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/theorems.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Proving Theorems</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Tactics</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/tactics/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tactics Overview</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/tactics/structural.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Structural Tactics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/tactics/arithmetic.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Arithmetic Tactics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/tactics/rewrite.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Rewrite Tactics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/tactics/combinators.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tactic Combinators</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/tactics/custom.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Writing Custom Tactics</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">Examples</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/examples/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Examples</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/examples/number-theory.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Number Theory</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/examples/knights-knaves.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Knights and Knaves</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../guide/examples/data-structures.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Data Structures</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/api.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">API Reference</span></a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#top-level-logos" id="toc-top-level-logos" class="nav-link active" data-scroll-target="#top-level-logos">Top-Level (<code>logos</code>)</a>
+  <ul class="collapse">
+  <li><a href="#logos.varname-type_-var" id="toc-logos.varname-type_-var" class="nav-link" data-scroll-target="#logos.varname-type_-var"><code>logos.var(name, type_) → Var</code></a></li>
+  <li><a href="#logos.varsnames-type_-tuplevar-..." id="toc-logos.varsnames-type_-tuplevar-..." class="nav-link" data-scroll-target="#logos.varsnames-type_-tuplevar-..."><code>logos.vars(names, type_) → tuple[Var, ...]</code></a></li>
+  <li><a href="#logos.litvalue-lit" id="toc-logos.litvalue-lit" class="nav-link" data-scroll-target="#logos.litvalue-lit"><code>logos.lit(value) → Lit</code></a></li>
+  <li><a href="#logos.foralltype_-...-fn-expr" id="toc-logos.foralltype_-...-fn-expr" class="nav-link" data-scroll-target="#logos.foralltype_-...-fn-expr"><code>logos.forall(type_, ..., fn) → Expr</code></a></li>
+  <li><a href="#logos.existstype_-fn-expr" id="toc-logos.existstype_-fn-expr" class="nav-link" data-scroll-target="#logos.existstype_-fn-expr"><code>logos.exists(type_, fn) → Expr</code></a></li>
+  <li><a href="#logos.theorem-declare-a-theorem" id="toc-logos.theorem-declare-a-theorem" class="nav-link" data-scroll-target="#logos.theorem-declare-a-theorem"><code>@logos.theorem</code> — declare a theorem</a></li>
+  <li><a href="#thm.prooftactics-attach-a-proof" id="toc-thm.prooftactics-attach-a-proof" class="nav-link" data-scroll-target="#thm.prooftactics-attach-a-proof"><code>thm.proof(*tactics)</code> — attach a proof</a></li>
+  <li><a href="#logos.checkthm-thm" id="toc-logos.checkthm-thm" class="nav-link" data-scroll-target="#logos.checkthm-thm"><code>logos.check(thm) → thm</code></a></li>
+  <li><a href="#logos.provestatement-proof_list-_groundproof" id="toc-logos.provestatement-proof_list-_groundproof" class="nav-link" data-scroll-target="#logos.provestatement-proof_list-_groundproof"><code>logos.prove(statement, proof_list) → _GroundProof</code></a></li>
+  <li><a href="#logos.axiom-declare-a-trusted-axiom" id="toc-logos.axiom-declare-a-trusted-axiom" class="nav-link" data-scroll-target="#logos.axiom-declare-a-trusted-axiom"><code>@logos.axiom</code> — declare a trusted axiom</a></li>
+  <li><a href="#logos.define" id="toc-logos.define" class="nav-link" data-scroll-target="#logos.define"><code>logos.define</code></a></li>
+  <li><a href="#logos.externname-arg_types-ret_type-callable" id="toc-logos.externname-arg_types-ret_type-callable" class="nav-link" data-scroll-target="#logos.externname-arg_types-ret_type-callable"><code>logos.extern(name, arg_types, ret_type) → callable</code></a></li>
+  <li><a href="#logos.casesbranches-expr" id="toc-logos.casesbranches-expr" class="nav-link" data-scroll-target="#logos.casesbranches-expr"><code>logos.cases(*branches) → Expr</code></a></li>
+  </ul></li>
+  <li><a href="#expressions-logos.expr" id="toc-expressions-logos.expr" class="nav-link" data-scroll-target="#expressions-logos.expr">Expressions (<code>logos.expr</code>)</a></li>
+  <li><a href="#tactics-logos.tactics" id="toc-tactics-logos.tactics" class="nav-link" data-scroll-target="#tactics-logos.tactics">Tactics (<code>logos.tactics</code>)</a>
+  <ul class="collapse">
+  <li><a href="#structural" id="toc-structural" class="nav-link" data-scroll-target="#structural">Structural</a></li>
+  <li><a href="#arithmetic" id="toc-arithmetic" class="nav-link" data-scroll-target="#arithmetic">Arithmetic</a></li>
+  <li><a href="#rewriting" id="toc-rewriting" class="nav-link" data-scroll-target="#rewriting">Rewriting</a></li>
+  <li><a href="#combinators" id="toc-combinators" class="nav-link" data-scroll-target="#combinators">Combinators</a></li>
+  </ul></li>
+  <li><a href="#kernel-logos.kernel" id="toc-kernel-logos.kernel" class="nav-link" data-scroll-target="#kernel-logos.kernel">Kernel (<code>logos.kernel</code>)</a>
+  <ul class="collapse">
+  <li><a href="#proof-terms" id="toc-proof-terms" class="nav-link" data-scroll-target="#proof-terms">Proof Terms</a></li>
+  <li><a href="#kernel-functions" id="toc-kernel-functions" class="nav-link" data-scroll-target="#kernel-functions">Kernel Functions</a></li>
+  </ul></li>
+  <li><a href="#helpers-logos.helpers" id="toc-helpers-logos.helpers" class="nav-link" data-scroll-target="#helpers-logos.helpers">Helpers (<code>logos.helpers</code>)</a></li>
+  <li><a href="#exceptions" id="toc-exceptions" class="nav-link" data-scroll-target="#exceptions">Exceptions</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/gia-uh/logos/edit/main/reference/api.qmd" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/gia-uh/logos/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<div class="quarto-title-block"><div><h1 class="title">API Reference</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>Complete reference for the logos public API.</p>
+<section id="top-level-logos" class="level2">
+<h2 class="anchored" data-anchor-id="top-level-logos">Top-Level (<code>logos</code>)</h2>
+<section id="logos.varname-type_-var" class="level3">
+<h3 class="anchored" data-anchor-id="logos.varname-type_-var"><code>logos.var(name, type_) → Var</code></h3>
+<p>Create a single symbolic variable.</p>
+<div id="1c6d7964" class="cell" data-execution_count="2">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> logos.var(<span class="st">"x"</span>, <span class="bu">int</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(x.name, x.<span class="bu">type</span>)   <span class="co"># x &lt;class 'int'&gt;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>x &lt;class 'int'&gt;</code></pre>
+</div>
+</div>
+</section>
+<section id="logos.varsnames-type_-tuplevar-..." class="level3">
+<h3 class="anchored" data-anchor-id="logos.varsnames-type_-tuplevar-..."><code>logos.vars(names, type_) → tuple[Var, ...]</code></h3>
+<p>Create multiple variables from a space-separated string.</p>
+<div id="9dfe6cc0" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>x, y, z <span class="op">=</span> logos.<span class="bu">vars</span>(<span class="st">"x y z"</span>, <span class="bu">int</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>([v.name <span class="cf">for</span> v <span class="kw">in</span> [x, y, z]])  <span class="co"># ['x', 'y', 'z']</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>['x', 'y', 'z']</code></pre>
+</div>
+</div>
+</section>
+<section id="logos.litvalue-lit" class="level3">
+<h3 class="anchored" data-anchor-id="logos.litvalue-lit"><code>logos.lit(value) → Lit</code></h3>
+<p>Wrap a Python literal as an expression node.</p>
+<div id="69a12f71" class="cell" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.expr <span class="im">import</span> Lit</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>zero <span class="op">=</span> logos.lit(<span class="dv">0</span>)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">type</span>(zero).<span class="va">__name__</span>)   <span class="co"># Lit</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(zero.value)            <span class="co"># 0</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Lit
+0</code></pre>
+</div>
+</div>
+</section>
+<section id="logos.foralltype_-...-fn-expr" class="level3">
+<h3 class="anchored" data-anchor-id="logos.foralltype_-...-fn-expr"><code>logos.forall(type_, ..., fn) → Expr</code></h3>
+<p>Create a universally quantified statement from a lambda.</p>
+<div id="89dc70a4" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>p <span class="op">=</span> logos.forall(<span class="bu">int</span>, <span class="bu">int</span>, <span class="kw">lambda</span> x, y: x <span class="op">+</span> y <span class="op">==</span> y <span class="op">+</span> x)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.expr <span class="im">import</span> ForallNode</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">type</span>(p).<span class="va">__name__</span>)  <span class="co"># ForallNode</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>ForallNode</code></pre>
+</div>
+</div>
+</section>
+<section id="logos.existstype_-fn-expr" class="level3">
+<h3 class="anchored" data-anchor-id="logos.existstype_-fn-expr"><code>logos.exists(type_, fn) → Expr</code></h3>
+<p>Create an existentially quantified statement from a lambda.</p>
+<div id="0676f20c" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>p <span class="op">=</span> logos.exists(<span class="bu">int</span>, <span class="kw">lambda</span> x: x <span class="op">&gt;</span> logos.lit(<span class="dv">5</span>))</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.expr <span class="im">import</span> ExistsNode</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">type</span>(p).<span class="va">__name__</span>)  <span class="co"># ExistsNode</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>ExistsNode</code></pre>
+</div>
+</div>
+</section>
+<section id="logos.theorem-declare-a-theorem" class="level3">
+<h3 class="anchored" data-anchor-id="logos.theorem-declare-a-theorem"><code>@logos.theorem</code> — declare a theorem</h3>
+<p>Decorator that creates a <code>Theorem</code> object. No proof runs at declaration time.</p>
+<div id="1c0348c6" class="cell" data-execution_count="7">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="at">@logos.theorem</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> example_comm(x: <span class="bu">int</span>, y: <span class="bu">int</span>):</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> x <span class="op">+</span> y <span class="op">==</span> y <span class="op">+</span> x</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(example_comm)              <span class="co"># Theorem[unverified]('example_comm')</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(example_comm.certified)   <span class="co"># False</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Theorem[unverified]('example_comm')
+False</code></pre>
+</div>
+</div>
+</section>
+<section id="thm.prooftactics-attach-a-proof" class="level3">
+<h3 class="anchored" data-anchor-id="thm.prooftactics-attach-a-proof"><code>thm.proof(*tactics)</code> — attach a proof</h3>
+<p>Attach a proof spec and return <code>self</code> for chaining.</p>
+<div id="742cb513" class="cell" data-execution_count="8">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>logos.check(example_comm.proof(t.intro(<span class="st">"x"</span>, <span class="st">"y"</span>), t.ring()))</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(example_comm.certified)   <span class="co"># True</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>True</code></pre>
+</div>
+</div>
+</section>
+<section id="logos.checkthm-thm" class="level3">
+<h3 class="anchored" data-anchor-id="logos.checkthm-thm"><code>logos.check(thm) → thm</code></h3>
+<p>Run the kernel. Marks <code>thm.certified = True</code> or raises <code>LogosProofError</code>.</p>
+<div id="1fa3706e" class="cell" data-execution_count="9">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="at">@logos.theorem</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> refl_thm(x: <span class="bu">int</span>):</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> x <span class="op">==</span> x</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>logos.check(refl_thm.proof(t.intro(<span class="st">"x"</span>), t.refl()))</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(refl_thm.certified)   <span class="co"># True</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>True</code></pre>
+</div>
+</div>
+</section>
+<section id="logos.provestatement-proof_list-_groundproof" class="level3">
+<h3 class="anchored" data-anchor-id="logos.provestatement-proof_list-_groundproof"><code>logos.prove(statement, proof_list) → _GroundProof</code></h3>
+<p>Create a one-shot anonymous proof. Pass to <code>logos.check()</code> to validate.</p>
+<div id="f9698a7c" class="cell" data-execution_count="10">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>gp <span class="op">=</span> logos.prove(</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    logos.forall(<span class="bu">int</span>, <span class="kw">lambda</span> x: x <span class="op">==</span> x),</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    [t.intro(<span class="st">"x"</span>), t.refl()],</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>logos.check(gp)</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(gp.certified)   <span class="co"># True</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>True</code></pre>
+</div>
+</div>
+</section>
+<section id="logos.axiom-declare-a-trusted-axiom" class="level3">
+<h3 class="anchored" data-anchor-id="logos.axiom-declare-a-trusted-axiom"><code>@logos.axiom</code> — declare a trusted axiom</h3>
+<p>Decorator (or function call) that creates an <code>Axiom</code> object — trusted without proof.</p>
+<div id="76c386d0" class="cell" data-execution_count="11">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="at">@logos.axiom</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_axiom(x: <span class="bu">int</span>):</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> x <span class="op">==</span> x</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(my_axiom)             <span class="co"># Axiom('my_axiom')</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(my_axiom.certified)   <span class="co"># True</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Axiom('my_axiom')
+True</code></pre>
+</div>
+</div>
+</section>
+<section id="logos.define" class="level3">
+<h3 class="anchored" data-anchor-id="logos.define"><code>logos.define</code></h3>
+<p>Decorator that registers a symbolic function definition. Returns a <code>Function</code> object.</p>
+<div id="e2794ba9" class="cell" data-execution_count="12">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="at">@logos.define</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> double(x: <span class="bu">int</span>):</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> x <span class="op">+</span> x</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(double(<span class="dv">5</span>))          <span class="co"># 10  (Python mode)</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> logos.var(<span class="st">"x"</span>, <span class="bu">int</span>)</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">type</span>(double(x)).<span class="va">__name__</span>)  <span class="co"># App  (symbolic mode)</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(double.name)               <span class="co"># double</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>10
+App
+double</code></pre>
+</div>
+</div>
+</section>
+<section id="logos.externname-arg_types-ret_type-callable" class="level3">
+<h3 class="anchored" data-anchor-id="logos.externname-arg_types-ret_type-callable"><code>logos.extern(name, arg_types, ret_type) → callable</code></h3>
+<p>Declare an external uninterpreted function symbol.</p>
+<div id="a166dd4e" class="cell" data-execution_count="13">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>my_fn <span class="op">=</span> logos.extern(<span class="st">"my_fn"</span>, [<span class="bu">int</span>], <span class="bu">int</span>)</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> logos.var(<span class="st">"x"</span>, <span class="bu">int</span>)</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.expr <span class="im">import</span> App</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> my_fn(x)</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">type</span>(result).<span class="va">__name__</span>)   <span class="co"># App</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>App</code></pre>
+</div>
+</div>
+</section>
+<section id="logos.casesbranches-expr" class="level3">
+<h3 class="anchored" data-anchor-id="logos.casesbranches-expr"><code>logos.cases(*branches) → Expr</code></h3>
+<p>Create a conditional expression for use inside <code>@logos.define</code> bodies.</p>
+<div id="050d118e" class="cell" data-execution_count="14">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> logos.var(<span class="st">"x"</span>, <span class="bu">int</span>)</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>expr <span class="op">=</span> logos.cases(</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    (x <span class="op">&gt;=</span> logos.lit(<span class="dv">0</span>), x),</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    (x <span class="op">&lt;</span> logos.lit(<span class="dv">0</span>), <span class="op">-</span>x),</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.expr <span class="im">import</span> CaseExpr</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">type</span>(expr).<span class="va">__name__</span>)   <span class="co"># CaseExpr</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>CaseExpr</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="expressions-logos.expr" class="level2">
+<h2 class="anchored" data-anchor-id="expressions-logos.expr">Expressions (<code>logos.expr</code>)</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Class</th>
+<th>Description</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Var(name, type)</code></td>
+<td>Symbolic variable</td>
+<td><code>Var("x", int)</code></td>
+</tr>
+<tr class="even">
+<td><code>Lit(value)</code></td>
+<td>Literal value</td>
+<td><code>Lit(42)</code></td>
+</tr>
+<tr class="odd">
+<td><code>Add(left, right)</code></td>
+<td>Addition</td>
+<td><code>x + y</code></td>
+</tr>
+<tr class="even">
+<td><code>Sub(left, right)</code></td>
+<td>Subtraction</td>
+<td><code>x - y</code></td>
+</tr>
+<tr class="odd">
+<td><code>Mul(left, right)</code></td>
+<td>Multiplication</td>
+<td><code>x * y</code></td>
+</tr>
+<tr class="even">
+<td><code>Div(left, right)</code></td>
+<td>Integer division</td>
+<td><code>x // y</code></td>
+</tr>
+<tr class="odd">
+<td><code>Mod(left, right)</code></td>
+<td>Modulo</td>
+<td><code>x % y</code></td>
+</tr>
+<tr class="even">
+<td><code>Neg(operand)</code></td>
+<td>Negation</td>
+<td><code>-x</code></td>
+</tr>
+<tr class="odd">
+<td><code>Pow(base, exp)</code></td>
+<td>Power</td>
+<td><code>x ** 2</code></td>
+</tr>
+<tr class="even">
+<td><code>Eq(left, right)</code></td>
+<td>Equality</td>
+<td><code>x == y</code></td>
+</tr>
+<tr class="odd">
+<td><code>Neq(left, right)</code></td>
+<td>Inequality</td>
+<td><code>x != y</code></td>
+</tr>
+<tr class="even">
+<td><code>Lt(left, right)</code></td>
+<td>Less-than</td>
+<td><code>x &lt; y</code></td>
+</tr>
+<tr class="odd">
+<td><code>Le(left, right)</code></td>
+<td>Less-or-equal</td>
+<td><code>x &lt;= y</code></td>
+</tr>
+<tr class="even">
+<td><code>Gt(left, right)</code></td>
+<td>Greater-than</td>
+<td><code>x &gt; y</code></td>
+</tr>
+<tr class="odd">
+<td><code>Ge(left, right)</code></td>
+<td>Greater-or-equal</td>
+<td><code>x &gt;= y</code></td>
+</tr>
+<tr class="even">
+<td><code>And(left, right)</code></td>
+<td>Conjunction</td>
+<td><code>p &amp; q</code></td>
+</tr>
+<tr class="odd">
+<td><code>Or(left, right)</code></td>
+<td>Disjunction</td>
+<td><code>p \| q</code></td>
+</tr>
+<tr class="even">
+<td><code>Not(operand)</code></td>
+<td>Negation</td>
+<td><code>~p</code></td>
+</tr>
+<tr class="odd">
+<td><code>Implies(ant, cons)</code></td>
+<td>Implication</td>
+<td><code>p &gt;&gt; q</code></td>
+</tr>
+<tr class="even">
+<td><code>ForallNode(var, body)</code></td>
+<td>Universal quantifier</td>
+<td><code>Forall(x, P)</code></td>
+</tr>
+<tr class="odd">
+<td><code>ExistsNode(var, body)</code></td>
+<td>Existential quantifier</td>
+<td><code>Exists(x, P)</code></td>
+</tr>
+<tr class="even">
+<td><code>App(name, args)</code></td>
+<td>Function application</td>
+<td><code>double(x)</code></td>
+</tr>
+<tr class="odd">
+<td><code>CaseExpr(branches)</code></td>
+<td>Case expression</td>
+<td><code>logos.cases(...)</code></td>
+</tr>
+</tbody>
+</table>
+<hr>
+</section>
+<section id="tactics-logos.tactics" class="level2">
+<h2 class="anchored" data-anchor-id="tactics-logos.tactics">Tactics (<code>logos.tactics</code>)</h2>
+<section id="structural" class="level3">
+<h3 class="anchored" data-anchor-id="structural">Structural</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Tactic</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>intro(*names)</code></td>
+<td>Strip <code>Forall</code>/<code>Implies</code>, add to context</td>
+</tr>
+<tr class="even">
+<td><code>assumption()</code></td>
+<td>Close if goal is in context</td>
+</tr>
+<tr class="odd">
+<td><code>exact(term)</code></td>
+<td>Close with an explicit proof term</td>
+</tr>
+<tr class="even">
+<td><code>apply(ref)</code></td>
+<td>Apply an Axiom/Theorem object or local hypothesis string</td>
+</tr>
+<tr class="odd">
+<td><code>split()</code></td>
+<td><code>A &amp; B</code> → <code>[A, B]</code></td>
+</tr>
+<tr class="even">
+<td><code>left(right_type)</code></td>
+<td><code>A \| B</code> → prove <code>A</code></td>
+</tr>
+<tr class="odd">
+<td><code>right(left_type)</code></td>
+<td><code>A \| B</code> → prove <code>B</code></td>
+</tr>
+<tr class="even">
+<td><code>witness(val)</code></td>
+<td><code>∃x.P(x)</code> → <code>P[x:=val]</code></td>
+</tr>
+<tr class="odd">
+<td><code>contradiction()</code></td>
+<td>Close via <code>P</code> and <code>~P</code> in context</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="arithmetic" class="level3">
+<h3 class="anchored" data-anchor-id="arithmetic">Arithmetic</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Tactic</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>ring()</code></td>
+<td>Polynomial ring identities</td>
+</tr>
+<tr class="even">
+<td><code>linarith()</code></td>
+<td>Linear arithmetic via Farkas</td>
+</tr>
+<tr class="odd">
+<td><code>decide()</code></td>
+<td>Evaluate ground boolean propositions</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="rewriting" class="level3">
+<h3 class="anchored" data-anchor-id="rewriting">Rewriting</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Tactic</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>refl()</code></td>
+<td>Prove <code>a == a</code></td>
+</tr>
+<tr class="even">
+<td><code>unfold(*refs)</code></td>
+<td>Replace function calls with definition bodies (accepts Function objects)</td>
+</tr>
+<tr class="odd">
+<td><code>rewrite(ref)</code></td>
+<td>Rewrite left-to-right using Axiom/Theorem object</td>
+</tr>
+<tr class="even">
+<td><code>rewrite_rev(ref)</code></td>
+<td>Rewrite right-to-left</td>
+</tr>
+<tr class="odd">
+<td><code>eval_()</code></td>
+<td>Evaluate ground arithmetic sub-expressions</td>
+</tr>
+<tr class="even">
+<td><code>norm_num()</code></td>
+<td>Normalize and close numeric ground goals</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="combinators" class="level3">
+<h3 class="anchored" data-anchor-id="combinators">Combinators</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Tactic</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>then(*tactics)</code></td>
+<td>Sequence tactics as one</td>
+</tr>
+<tr class="even">
+<td><code>first(*tactics)</code></td>
+<td>Try each, succeed with first non-failing</td>
+</tr>
+<tr class="odd">
+<td><code>try_(tactic)</code></td>
+<td>Apply if possible, silent on failure</td>
+</tr>
+<tr class="even">
+<td><code>repeat(tactic)</code></td>
+<td>Apply until failure</td>
+</tr>
+<tr class="odd">
+<td><code>all_goals(tactic)</code></td>
+<td>Apply tactic to each open subgoal</td>
+</tr>
+</tbody>
+</table>
+<hr>
+</section>
+</section>
+<section id="kernel-logos.kernel" class="level2">
+<h2 class="anchored" data-anchor-id="kernel-logos.kernel">Kernel (<code>logos.kernel</code>)</h2>
+<p>The kernel is the only trusted code. Direct use is rare but available:</p>
+<section id="proof-terms" class="level3">
+<h3 class="anchored" data-anchor-id="proof-terms">Proof Terms</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Term</th>
+<th>Proves</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Refl(e)</code></td>
+<td><code>e == e</code></td>
+</tr>
+<tr class="even">
+<td><code>Symm(p)</code></td>
+<td><code>b == a</code> (given <code>p: a==b</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>Trans(p, q)</code></td>
+<td><code>a == c</code> (given <code>p: a==b</code>, <code>q: b==c</code>)</td>
+</tr>
+<tr class="even">
+<td><code>Subst(p, f)</code></td>
+<td><code>f(a) == f(b)</code> (given <code>p: a==b</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>Axiom(name)</code></td>
+<td>The named axiom’s statement</td>
+</tr>
+<tr class="even">
+<td><code>HypRef(name)</code></td>
+<td>The named hypothesis</td>
+</tr>
+<tr class="odd">
+<td><code>ForallIntro(var, body)</code></td>
+<td><code>∀x. P</code></td>
+</tr>
+<tr class="even">
+<td><code>ForallElim(proof, val)</code></td>
+<td><code>P[x:=val]</code></td>
+</tr>
+<tr class="odd">
+<td><code>ImpliesIntro(hyp, name, body)</code></td>
+<td><code>P → Q</code></td>
+</tr>
+<tr class="even">
+<td><code>ImpliesElim(pq, p)</code></td>
+<td><code>Q</code> (modus ponens)</td>
+</tr>
+<tr class="odd">
+<td><code>AndIntro(p, q)</code></td>
+<td><code>A ∧ B</code></td>
+</tr>
+<tr class="even">
+<td><code>AndElimL(p)</code> / <code>AndElimR(p)</code></td>
+<td><code>A</code> / <code>B</code></td>
+</tr>
+<tr class="odd">
+<td><code>OrIntroL(p, right)</code> / <code>OrIntroR(left, p)</code></td>
+<td><code>A ∨ B</code></td>
+</tr>
+<tr class="even">
+<td><code>CaseAnalysis(or_proof, name, left, right)</code></td>
+<td>Case split</td>
+</tr>
+<tr class="odd">
+<td><code>ExFalso(false_proof, conclusion)</code></td>
+<td>Ex falso quodlibet</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="kernel-functions" class="level3">
+<h3 class="anchored" data-anchor-id="kernel-functions">Kernel Functions</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.kernel <span class="im">import</span> infer, check, Context</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="co"># infer: determine what statement a proof term proves</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>stmt <span class="op">=</span> infer(term, ctx)</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="co"># check: validate that term proves expected_stmt (raises KernelError on mismatch)</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>check(term, expected_stmt, ctx)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<hr>
+</section>
+</section>
+<section id="helpers-logos.helpers" class="level2">
+<h2 class="anchored" data-anchor-id="helpers-logos.helpers">Helpers (<code>logos.helpers</code>)</h2>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.helpers <span class="im">import</span> structural_eq, substitute, free_vars</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="co"># structural_eq: recursively compare two expression trees</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>structural_eq(x <span class="op">+</span> y, x <span class="op">+</span> y)     <span class="co"># True</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>structural_eq(x <span class="op">+</span> y, y <span class="op">+</span> x)     <span class="co"># False</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="co"># substitute: replace all free occurrences of var with val</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>substitute(x <span class="op">+</span> y, x, logos.lit(<span class="dv">5</span>))  <span class="co"># Lit(5) + y</span></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a><span class="co"># free_vars: names of free variables in an expression</span></span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>free_vars(x <span class="op">+</span> y)                 <span class="co"># {"x", "y"}</span></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>free_vars(Forall(x, x <span class="op">+</span> y))      <span class="co"># {"y"}  (x is bound)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<hr>
+</section>
+<section id="exceptions" class="level2">
+<h2 class="anchored" data-anchor-id="exceptions">Exceptions</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Exception</th>
+<th>When raised</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>logos.theorem.LogosProofError</code></td>
+<td>Proof fails in <code>logos.check</code></td>
+</tr>
+<tr class="even">
+<td><code>logos.runner.TacticFailed</code></td>
+<td>A tactic cannot proceed</td>
+</tr>
+<tr class="odd">
+<td><code>logos.kernel.KernelError</code></td>
+<td>Kernel rejects an invalid proof term</td>
+</tr>
+</tbody>
+</table>
+
+
+<!-- -->
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+    const viewSource = window.document.getElementById('quarto-view-source') ||
+                       window.document.getElementById('quarto-code-tools-source');
+    if (viewSource) {
+      const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+      viewSource.addEventListener("click", function(e) {
+        if (sourceUrl) {
+          // rstudio viewer pane
+          if (/\bcapabilities=\b/.test(window.location)) {
+            window.open(sourceUrl);
+          } else {
+            window.location.href = sourceUrl;
+          }
+        } else {
+          const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+          modal.show();
+        }
+        return false;
+      });
+    }
+    function toggleCodeHandler(show) {
+      return function(e) {
+        const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+        for (let i=0; i<detailsSrc.length; i++) {
+          const details = detailsSrc[i].parentElement;
+          if (show) {
+            details.open = true;
+          } else {
+            details.removeAttribute("open");
+          }
+        }
+        const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+        const fromCls = show ? "hidden" : "unhidden";
+        const toCls = show ? "unhidden" : "hidden";
+        for (let i=0; i<cellCodeDivs.length; i++) {
+          const codeDiv = cellCodeDivs[i];
+          if (codeDiv.classList.contains(fromCls)) {
+            codeDiv.classList.remove(fromCls);
+            codeDiv.classList.add(toCls);
+          } 
+        }
+        return false;
+      }
+    }
+    const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+    if (hideAllCode) {
+      hideAllCode.addEventListener("click", toggleCodeHandler(false));
+    }
+    const showAllCode = window.document.getElementById("quarto-show-all-code");
+    if (showAllCode) {
+      showAllCode.addEventListener("click", toggleCodeHandler(true));
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/gia-uh\.github\.io\/logos");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "API Reference"</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>Complete reference for the logos public API.</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> logos</span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> logos.tactics <span class="im">as</span> t</span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a><span class="fu">## Top-Level (`logos`)</span></span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a><span class="fu">### `logos.var(name, type_) → Var`</span></span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a>Create a single symbolic variable.</span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-23"><a href="#cb29-23" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-24"><a href="#cb29-24" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> logos.var(<span class="st">"x"</span>, <span class="bu">int</span>)</span>
+<span id="cb29-25"><a href="#cb29-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(x.name, x.<span class="bu">type</span>)   <span class="co"># x &lt;class 'int'&gt;</span></span>
+<span id="cb29-26"><a href="#cb29-26" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-27"><a href="#cb29-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-28"><a href="#cb29-28" aria-hidden="true" tabindex="-1"></a><span class="fu">### `logos.vars(names, type_) → tuple[Var, ...]`</span></span>
+<span id="cb29-29"><a href="#cb29-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-30"><a href="#cb29-30" aria-hidden="true" tabindex="-1"></a>Create multiple variables from a space-separated string.</span>
+<span id="cb29-31"><a href="#cb29-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-34"><a href="#cb29-34" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-35"><a href="#cb29-35" aria-hidden="true" tabindex="-1"></a>x, y, z <span class="op">=</span> logos.<span class="bu">vars</span>(<span class="st">"x y z"</span>, <span class="bu">int</span>)</span>
+<span id="cb29-36"><a href="#cb29-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>([v.name <span class="cf">for</span> v <span class="kw">in</span> [x, y, z]])  <span class="co"># ['x', 'y', 'z']</span></span>
+<span id="cb29-37"><a href="#cb29-37" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-38"><a href="#cb29-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-39"><a href="#cb29-39" aria-hidden="true" tabindex="-1"></a><span class="fu">### `logos.lit(value) → Lit`</span></span>
+<span id="cb29-40"><a href="#cb29-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-41"><a href="#cb29-41" aria-hidden="true" tabindex="-1"></a>Wrap a Python literal as an expression node.</span>
+<span id="cb29-42"><a href="#cb29-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-45"><a href="#cb29-45" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-46"><a href="#cb29-46" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.expr <span class="im">import</span> Lit</span>
+<span id="cb29-47"><a href="#cb29-47" aria-hidden="true" tabindex="-1"></a>zero <span class="op">=</span> logos.lit(<span class="dv">0</span>)</span>
+<span id="cb29-48"><a href="#cb29-48" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">type</span>(zero).<span class="va">__name__</span>)   <span class="co"># Lit</span></span>
+<span id="cb29-49"><a href="#cb29-49" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(zero.value)            <span class="co"># 0</span></span>
+<span id="cb29-50"><a href="#cb29-50" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-51"><a href="#cb29-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-52"><a href="#cb29-52" aria-hidden="true" tabindex="-1"></a><span class="fu">### `logos.forall(type_, ..., fn) → Expr`</span></span>
+<span id="cb29-53"><a href="#cb29-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-54"><a href="#cb29-54" aria-hidden="true" tabindex="-1"></a>Create a universally quantified statement from a lambda.</span>
+<span id="cb29-55"><a href="#cb29-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-58"><a href="#cb29-58" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-59"><a href="#cb29-59" aria-hidden="true" tabindex="-1"></a>p <span class="op">=</span> logos.forall(<span class="bu">int</span>, <span class="bu">int</span>, <span class="kw">lambda</span> x, y: x <span class="op">+</span> y <span class="op">==</span> y <span class="op">+</span> x)</span>
+<span id="cb29-60"><a href="#cb29-60" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.expr <span class="im">import</span> ForallNode</span>
+<span id="cb29-61"><a href="#cb29-61" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">type</span>(p).<span class="va">__name__</span>)  <span class="co"># ForallNode</span></span>
+<span id="cb29-62"><a href="#cb29-62" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-63"><a href="#cb29-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-64"><a href="#cb29-64" aria-hidden="true" tabindex="-1"></a><span class="fu">### `logos.exists(type_, fn) → Expr`</span></span>
+<span id="cb29-65"><a href="#cb29-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-66"><a href="#cb29-66" aria-hidden="true" tabindex="-1"></a>Create an existentially quantified statement from a lambda.</span>
+<span id="cb29-67"><a href="#cb29-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-70"><a href="#cb29-70" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-71"><a href="#cb29-71" aria-hidden="true" tabindex="-1"></a>p <span class="op">=</span> logos.exists(<span class="bu">int</span>, <span class="kw">lambda</span> x: x <span class="op">&gt;</span> logos.lit(<span class="dv">5</span>))</span>
+<span id="cb29-72"><a href="#cb29-72" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.expr <span class="im">import</span> ExistsNode</span>
+<span id="cb29-73"><a href="#cb29-73" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">type</span>(p).<span class="va">__name__</span>)  <span class="co"># ExistsNode</span></span>
+<span id="cb29-74"><a href="#cb29-74" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-75"><a href="#cb29-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-76"><a href="#cb29-76" aria-hidden="true" tabindex="-1"></a><span class="fu">### `@logos.theorem` — declare a theorem</span></span>
+<span id="cb29-77"><a href="#cb29-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-78"><a href="#cb29-78" aria-hidden="true" tabindex="-1"></a>Decorator that creates a <span class="in">`Theorem`</span> object. No proof runs at declaration time.</span>
+<span id="cb29-79"><a href="#cb29-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-82"><a href="#cb29-82" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-83"><a href="#cb29-83" aria-hidden="true" tabindex="-1"></a><span class="at">@logos.theorem</span></span>
+<span id="cb29-84"><a href="#cb29-84" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> example_comm(x: <span class="bu">int</span>, y: <span class="bu">int</span>):</span>
+<span id="cb29-85"><a href="#cb29-85" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> x <span class="op">+</span> y <span class="op">==</span> y <span class="op">+</span> x</span>
+<span id="cb29-86"><a href="#cb29-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-87"><a href="#cb29-87" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(example_comm)              <span class="co"># Theorem[unverified]('example_comm')</span></span>
+<span id="cb29-88"><a href="#cb29-88" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(example_comm.certified)   <span class="co"># False</span></span>
+<span id="cb29-89"><a href="#cb29-89" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-90"><a href="#cb29-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-91"><a href="#cb29-91" aria-hidden="true" tabindex="-1"></a><span class="fu">### `thm.proof(*tactics)` — attach a proof</span></span>
+<span id="cb29-92"><a href="#cb29-92" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-93"><a href="#cb29-93" aria-hidden="true" tabindex="-1"></a>Attach a proof spec and return <span class="in">`self`</span> for chaining.</span>
+<span id="cb29-94"><a href="#cb29-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-97"><a href="#cb29-97" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-98"><a href="#cb29-98" aria-hidden="true" tabindex="-1"></a>logos.check(example_comm.proof(t.intro(<span class="st">"x"</span>, <span class="st">"y"</span>), t.ring()))</span>
+<span id="cb29-99"><a href="#cb29-99" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(example_comm.certified)   <span class="co"># True</span></span>
+<span id="cb29-100"><a href="#cb29-100" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-101"><a href="#cb29-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-102"><a href="#cb29-102" aria-hidden="true" tabindex="-1"></a><span class="fu">### `logos.check(thm) → thm`</span></span>
+<span id="cb29-103"><a href="#cb29-103" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-104"><a href="#cb29-104" aria-hidden="true" tabindex="-1"></a>Run the kernel. Marks <span class="in">`thm.certified = True`</span> or raises <span class="in">`LogosProofError`</span>.</span>
+<span id="cb29-105"><a href="#cb29-105" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-108"><a href="#cb29-108" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-109"><a href="#cb29-109" aria-hidden="true" tabindex="-1"></a><span class="at">@logos.theorem</span></span>
+<span id="cb29-110"><a href="#cb29-110" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> refl_thm(x: <span class="bu">int</span>):</span>
+<span id="cb29-111"><a href="#cb29-111" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> x <span class="op">==</span> x</span>
+<span id="cb29-112"><a href="#cb29-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-113"><a href="#cb29-113" aria-hidden="true" tabindex="-1"></a>logos.check(refl_thm.proof(t.intro(<span class="st">"x"</span>), t.refl()))</span>
+<span id="cb29-114"><a href="#cb29-114" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(refl_thm.certified)   <span class="co"># True</span></span>
+<span id="cb29-115"><a href="#cb29-115" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-116"><a href="#cb29-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-117"><a href="#cb29-117" aria-hidden="true" tabindex="-1"></a><span class="fu">### `logos.prove(statement, proof_list) → _GroundProof`</span></span>
+<span id="cb29-118"><a href="#cb29-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-119"><a href="#cb29-119" aria-hidden="true" tabindex="-1"></a>Create a one-shot anonymous proof. Pass to <span class="in">`logos.check()`</span> to validate.</span>
+<span id="cb29-120"><a href="#cb29-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-123"><a href="#cb29-123" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-124"><a href="#cb29-124" aria-hidden="true" tabindex="-1"></a>gp <span class="op">=</span> logos.prove(</span>
+<span id="cb29-125"><a href="#cb29-125" aria-hidden="true" tabindex="-1"></a>    logos.forall(<span class="bu">int</span>, <span class="kw">lambda</span> x: x <span class="op">==</span> x),</span>
+<span id="cb29-126"><a href="#cb29-126" aria-hidden="true" tabindex="-1"></a>    [t.intro(<span class="st">"x"</span>), t.refl()],</span>
+<span id="cb29-127"><a href="#cb29-127" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb29-128"><a href="#cb29-128" aria-hidden="true" tabindex="-1"></a>logos.check(gp)</span>
+<span id="cb29-129"><a href="#cb29-129" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(gp.certified)   <span class="co"># True</span></span>
+<span id="cb29-130"><a href="#cb29-130" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-131"><a href="#cb29-131" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-132"><a href="#cb29-132" aria-hidden="true" tabindex="-1"></a><span class="fu">### `@logos.axiom` — declare a trusted axiom</span></span>
+<span id="cb29-133"><a href="#cb29-133" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-134"><a href="#cb29-134" aria-hidden="true" tabindex="-1"></a>Decorator (or function call) that creates an <span class="in">`Axiom`</span> object — trusted without proof.</span>
+<span id="cb29-135"><a href="#cb29-135" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-138"><a href="#cb29-138" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-139"><a href="#cb29-139" aria-hidden="true" tabindex="-1"></a><span class="at">@logos.axiom</span></span>
+<span id="cb29-140"><a href="#cb29-140" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_axiom(x: <span class="bu">int</span>):</span>
+<span id="cb29-141"><a href="#cb29-141" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> x <span class="op">==</span> x</span>
+<span id="cb29-142"><a href="#cb29-142" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-143"><a href="#cb29-143" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(my_axiom)             <span class="co"># Axiom('my_axiom')</span></span>
+<span id="cb29-144"><a href="#cb29-144" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(my_axiom.certified)   <span class="co"># True</span></span>
+<span id="cb29-145"><a href="#cb29-145" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-146"><a href="#cb29-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-147"><a href="#cb29-147" aria-hidden="true" tabindex="-1"></a><span class="fu">### `logos.define`</span></span>
+<span id="cb29-148"><a href="#cb29-148" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-149"><a href="#cb29-149" aria-hidden="true" tabindex="-1"></a>Decorator that registers a symbolic function definition. Returns a <span class="in">`Function`</span> object.</span>
+<span id="cb29-150"><a href="#cb29-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-153"><a href="#cb29-153" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-154"><a href="#cb29-154" aria-hidden="true" tabindex="-1"></a><span class="at">@logos.define</span></span>
+<span id="cb29-155"><a href="#cb29-155" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> double(x: <span class="bu">int</span>):</span>
+<span id="cb29-156"><a href="#cb29-156" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> x <span class="op">+</span> x</span>
+<span id="cb29-157"><a href="#cb29-157" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-158"><a href="#cb29-158" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(double(<span class="dv">5</span>))          <span class="co"># 10  (Python mode)</span></span>
+<span id="cb29-159"><a href="#cb29-159" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> logos.var(<span class="st">"x"</span>, <span class="bu">int</span>)</span>
+<span id="cb29-160"><a href="#cb29-160" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">type</span>(double(x)).<span class="va">__name__</span>)  <span class="co"># App  (symbolic mode)</span></span>
+<span id="cb29-161"><a href="#cb29-161" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(double.name)               <span class="co"># double</span></span>
+<span id="cb29-162"><a href="#cb29-162" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-163"><a href="#cb29-163" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-164"><a href="#cb29-164" aria-hidden="true" tabindex="-1"></a><span class="fu">### `logos.extern(name, arg_types, ret_type) → callable`</span></span>
+<span id="cb29-165"><a href="#cb29-165" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-166"><a href="#cb29-166" aria-hidden="true" tabindex="-1"></a>Declare an external uninterpreted function symbol.</span>
+<span id="cb29-167"><a href="#cb29-167" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-170"><a href="#cb29-170" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-171"><a href="#cb29-171" aria-hidden="true" tabindex="-1"></a>my_fn <span class="op">=</span> logos.extern(<span class="st">"my_fn"</span>, [<span class="bu">int</span>], <span class="bu">int</span>)</span>
+<span id="cb29-172"><a href="#cb29-172" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> logos.var(<span class="st">"x"</span>, <span class="bu">int</span>)</span>
+<span id="cb29-173"><a href="#cb29-173" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.expr <span class="im">import</span> App</span>
+<span id="cb29-174"><a href="#cb29-174" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> my_fn(x)</span>
+<span id="cb29-175"><a href="#cb29-175" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">type</span>(result).<span class="va">__name__</span>)   <span class="co"># App</span></span>
+<span id="cb29-176"><a href="#cb29-176" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-177"><a href="#cb29-177" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-178"><a href="#cb29-178" aria-hidden="true" tabindex="-1"></a><span class="fu">### `logos.cases(*branches) → Expr`</span></span>
+<span id="cb29-179"><a href="#cb29-179" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-180"><a href="#cb29-180" aria-hidden="true" tabindex="-1"></a>Create a conditional expression for use inside <span class="in">`@logos.define`</span> bodies.</span>
+<span id="cb29-181"><a href="#cb29-181" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-184"><a href="#cb29-184" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb29-185"><a href="#cb29-185" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> logos.var(<span class="st">"x"</span>, <span class="bu">int</span>)</span>
+<span id="cb29-186"><a href="#cb29-186" aria-hidden="true" tabindex="-1"></a>expr <span class="op">=</span> logos.cases(</span>
+<span id="cb29-187"><a href="#cb29-187" aria-hidden="true" tabindex="-1"></a>    (x <span class="op">&gt;=</span> logos.lit(<span class="dv">0</span>), x),</span>
+<span id="cb29-188"><a href="#cb29-188" aria-hidden="true" tabindex="-1"></a>    (x <span class="op">&lt;</span> logos.lit(<span class="dv">0</span>), <span class="op">-</span>x),</span>
+<span id="cb29-189"><a href="#cb29-189" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb29-190"><a href="#cb29-190" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.expr <span class="im">import</span> CaseExpr</span>
+<span id="cb29-191"><a href="#cb29-191" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">type</span>(expr).<span class="va">__name__</span>)   <span class="co"># CaseExpr</span></span>
+<span id="cb29-192"><a href="#cb29-192" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-193"><a href="#cb29-193" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-194"><a href="#cb29-194" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb29-195"><a href="#cb29-195" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-196"><a href="#cb29-196" aria-hidden="true" tabindex="-1"></a><span class="fu">## Expressions (`logos.expr`)</span></span>
+<span id="cb29-197"><a href="#cb29-197" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-198"><a href="#cb29-198" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Class <span class="pp">|</span> Description <span class="pp">|</span> Example <span class="pp">|</span></span>
+<span id="cb29-199"><a href="#cb29-199" aria-hidden="true" tabindex="-1"></a><span class="pp">|-------|-------------|---------|</span></span>
+<span id="cb29-200"><a href="#cb29-200" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Var(name, type)`</span> <span class="pp">|</span> Symbolic variable <span class="pp">|</span> <span class="in">`Var("x", int)`</span> <span class="pp">|</span></span>
+<span id="cb29-201"><a href="#cb29-201" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Lit(value)`</span> <span class="pp">|</span> Literal value <span class="pp">|</span> <span class="in">`Lit(42)`</span> <span class="pp">|</span></span>
+<span id="cb29-202"><a href="#cb29-202" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Add(left, right)`</span> <span class="pp">|</span> Addition <span class="pp">|</span> <span class="in">`x + y`</span> <span class="pp">|</span></span>
+<span id="cb29-203"><a href="#cb29-203" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Sub(left, right)`</span> <span class="pp">|</span> Subtraction <span class="pp">|</span> <span class="in">`x - y`</span> <span class="pp">|</span></span>
+<span id="cb29-204"><a href="#cb29-204" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Mul(left, right)`</span> <span class="pp">|</span> Multiplication <span class="pp">|</span> <span class="in">`x * y`</span> <span class="pp">|</span></span>
+<span id="cb29-205"><a href="#cb29-205" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Div(left, right)`</span> <span class="pp">|</span> Integer division <span class="pp">|</span> <span class="in">`x // y`</span> <span class="pp">|</span></span>
+<span id="cb29-206"><a href="#cb29-206" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Mod(left, right)`</span> <span class="pp">|</span> Modulo <span class="pp">|</span> <span class="in">`x % y`</span> <span class="pp">|</span></span>
+<span id="cb29-207"><a href="#cb29-207" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Neg(operand)`</span> <span class="pp">|</span> Negation <span class="pp">|</span> <span class="in">`-x`</span> <span class="pp">|</span></span>
+<span id="cb29-208"><a href="#cb29-208" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Pow(base, exp)`</span> <span class="pp">|</span> Power <span class="pp">|</span> <span class="in">`x ** 2`</span> <span class="pp">|</span></span>
+<span id="cb29-209"><a href="#cb29-209" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Eq(left, right)`</span> <span class="pp">|</span> Equality <span class="pp">|</span> <span class="in">`x == y`</span> <span class="pp">|</span></span>
+<span id="cb29-210"><a href="#cb29-210" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Neq(left, right)`</span> <span class="pp">|</span> Inequality <span class="pp">|</span> <span class="in">`x != y`</span> <span class="pp">|</span></span>
+<span id="cb29-211"><a href="#cb29-211" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Lt(left, right)`</span> <span class="pp">|</span> Less-than <span class="pp">|</span> <span class="in">`x &lt; y`</span> <span class="pp">|</span></span>
+<span id="cb29-212"><a href="#cb29-212" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Le(left, right)`</span> <span class="pp">|</span> Less-or-equal <span class="pp">|</span> <span class="in">`x &lt;= y`</span> <span class="pp">|</span></span>
+<span id="cb29-213"><a href="#cb29-213" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Gt(left, right)`</span> <span class="pp">|</span> Greater-than <span class="pp">|</span> <span class="in">`x &gt; y`</span> <span class="pp">|</span></span>
+<span id="cb29-214"><a href="#cb29-214" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Ge(left, right)`</span> <span class="pp">|</span> Greater-or-equal <span class="pp">|</span> <span class="in">`x &gt;= y`</span> <span class="pp">|</span></span>
+<span id="cb29-215"><a href="#cb29-215" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`And(left, right)`</span> <span class="pp">|</span> Conjunction <span class="pp">|</span> <span class="in">`p &amp; q`</span> <span class="pp">|</span></span>
+<span id="cb29-216"><a href="#cb29-216" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Or(left, right)`</span> <span class="pp">|</span> Disjunction <span class="pp">|</span> <span class="in">`p \| q`</span> <span class="pp">|</span></span>
+<span id="cb29-217"><a href="#cb29-217" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Not(operand)`</span> <span class="pp">|</span> Negation <span class="pp">|</span> <span class="in">`~p`</span> <span class="pp">|</span></span>
+<span id="cb29-218"><a href="#cb29-218" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Implies(ant, cons)`</span> <span class="pp">|</span> Implication <span class="pp">|</span> <span class="in">`p &gt;&gt; q`</span> <span class="pp">|</span></span>
+<span id="cb29-219"><a href="#cb29-219" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`ForallNode(var, body)`</span> <span class="pp">|</span> Universal quantifier <span class="pp">|</span> <span class="in">`Forall(x, P)`</span> <span class="pp">|</span></span>
+<span id="cb29-220"><a href="#cb29-220" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`ExistsNode(var, body)`</span> <span class="pp">|</span> Existential quantifier <span class="pp">|</span> <span class="in">`Exists(x, P)`</span> <span class="pp">|</span></span>
+<span id="cb29-221"><a href="#cb29-221" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`App(name, args)`</span> <span class="pp">|</span> Function application <span class="pp">|</span> <span class="in">`double(x)`</span> <span class="pp">|</span></span>
+<span id="cb29-222"><a href="#cb29-222" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`CaseExpr(branches)`</span> <span class="pp">|</span> Case expression <span class="pp">|</span> <span class="in">`logos.cases(...)`</span> <span class="pp">|</span></span>
+<span id="cb29-223"><a href="#cb29-223" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-224"><a href="#cb29-224" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb29-225"><a href="#cb29-225" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-226"><a href="#cb29-226" aria-hidden="true" tabindex="-1"></a><span class="fu">## Tactics (`logos.tactics`)</span></span>
+<span id="cb29-227"><a href="#cb29-227" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-228"><a href="#cb29-228" aria-hidden="true" tabindex="-1"></a><span class="fu">### Structural</span></span>
+<span id="cb29-229"><a href="#cb29-229" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-230"><a href="#cb29-230" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Tactic <span class="pp">|</span> Description <span class="pp">|</span></span>
+<span id="cb29-231"><a href="#cb29-231" aria-hidden="true" tabindex="-1"></a><span class="pp">|--------|-------------|</span></span>
+<span id="cb29-232"><a href="#cb29-232" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`intro(*names)`</span> <span class="pp">|</span> Strip <span class="in">`Forall`</span>/<span class="in">`Implies`</span>, add to context <span class="pp">|</span></span>
+<span id="cb29-233"><a href="#cb29-233" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`assumption()`</span> <span class="pp">|</span> Close if goal is in context <span class="pp">|</span></span>
+<span id="cb29-234"><a href="#cb29-234" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`exact(term)`</span> <span class="pp">|</span> Close with an explicit proof term <span class="pp">|</span></span>
+<span id="cb29-235"><a href="#cb29-235" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`apply(ref)`</span> <span class="pp">|</span> Apply an Axiom/Theorem object or local hypothesis string <span class="pp">|</span></span>
+<span id="cb29-236"><a href="#cb29-236" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`split()`</span> <span class="pp">|</span> <span class="in">`A &amp; B`</span> → <span class="in">`[A, B]`</span> <span class="pp">|</span></span>
+<span id="cb29-237"><a href="#cb29-237" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`left(right_type)`</span> <span class="pp">|</span> <span class="in">`A \| B`</span> → prove <span class="in">`A`</span> <span class="pp">|</span></span>
+<span id="cb29-238"><a href="#cb29-238" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`right(left_type)`</span> <span class="pp">|</span> <span class="in">`A \| B`</span> → prove <span class="in">`B`</span> <span class="pp">|</span></span>
+<span id="cb29-239"><a href="#cb29-239" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`witness(val)`</span> <span class="pp">|</span> <span class="in">`∃x.P(x)`</span> → <span class="in">`P[x:=val]`</span> <span class="pp">|</span></span>
+<span id="cb29-240"><a href="#cb29-240" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`contradiction()`</span> <span class="pp">|</span> Close via <span class="in">`P`</span> and <span class="in">`~P`</span> in context <span class="pp">|</span></span>
+<span id="cb29-241"><a href="#cb29-241" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-242"><a href="#cb29-242" aria-hidden="true" tabindex="-1"></a><span class="fu">### Arithmetic</span></span>
+<span id="cb29-243"><a href="#cb29-243" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-244"><a href="#cb29-244" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Tactic <span class="pp">|</span> Description <span class="pp">|</span></span>
+<span id="cb29-245"><a href="#cb29-245" aria-hidden="true" tabindex="-1"></a><span class="pp">|--------|-------------|</span></span>
+<span id="cb29-246"><a href="#cb29-246" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`ring()`</span> <span class="pp">|</span> Polynomial ring identities <span class="pp">|</span></span>
+<span id="cb29-247"><a href="#cb29-247" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`linarith()`</span> <span class="pp">|</span> Linear arithmetic via Farkas <span class="pp">|</span></span>
+<span id="cb29-248"><a href="#cb29-248" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`decide()`</span> <span class="pp">|</span> Evaluate ground boolean propositions <span class="pp">|</span></span>
+<span id="cb29-249"><a href="#cb29-249" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-250"><a href="#cb29-250" aria-hidden="true" tabindex="-1"></a><span class="fu">### Rewriting</span></span>
+<span id="cb29-251"><a href="#cb29-251" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-252"><a href="#cb29-252" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Tactic <span class="pp">|</span> Description <span class="pp">|</span></span>
+<span id="cb29-253"><a href="#cb29-253" aria-hidden="true" tabindex="-1"></a><span class="pp">|--------|-------------|</span></span>
+<span id="cb29-254"><a href="#cb29-254" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`refl()`</span> <span class="pp">|</span> Prove <span class="in">`a == a`</span> <span class="pp">|</span></span>
+<span id="cb29-255"><a href="#cb29-255" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`unfold(*refs)`</span> <span class="pp">|</span> Replace function calls with definition bodies (accepts Function objects) <span class="pp">|</span></span>
+<span id="cb29-256"><a href="#cb29-256" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`rewrite(ref)`</span> <span class="pp">|</span> Rewrite left-to-right using Axiom/Theorem object <span class="pp">|</span></span>
+<span id="cb29-257"><a href="#cb29-257" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`rewrite_rev(ref)`</span> <span class="pp">|</span> Rewrite right-to-left <span class="pp">|</span></span>
+<span id="cb29-258"><a href="#cb29-258" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`eval_()`</span> <span class="pp">|</span> Evaluate ground arithmetic sub-expressions <span class="pp">|</span></span>
+<span id="cb29-259"><a href="#cb29-259" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`norm_num()`</span> <span class="pp">|</span> Normalize and close numeric ground goals <span class="pp">|</span></span>
+<span id="cb29-260"><a href="#cb29-260" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-261"><a href="#cb29-261" aria-hidden="true" tabindex="-1"></a><span class="fu">### Combinators</span></span>
+<span id="cb29-262"><a href="#cb29-262" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-263"><a href="#cb29-263" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Tactic <span class="pp">|</span> Description <span class="pp">|</span></span>
+<span id="cb29-264"><a href="#cb29-264" aria-hidden="true" tabindex="-1"></a><span class="pp">|--------|-------------|</span></span>
+<span id="cb29-265"><a href="#cb29-265" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`then(*tactics)`</span> <span class="pp">|</span> Sequence tactics as one <span class="pp">|</span></span>
+<span id="cb29-266"><a href="#cb29-266" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`first(*tactics)`</span> <span class="pp">|</span> Try each, succeed with first non-failing <span class="pp">|</span></span>
+<span id="cb29-267"><a href="#cb29-267" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`try_(tactic)`</span> <span class="pp">|</span> Apply if possible, silent on failure <span class="pp">|</span></span>
+<span id="cb29-268"><a href="#cb29-268" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`repeat(tactic)`</span> <span class="pp">|</span> Apply until failure <span class="pp">|</span></span>
+<span id="cb29-269"><a href="#cb29-269" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`all_goals(tactic)`</span> <span class="pp">|</span> Apply tactic to each open subgoal <span class="pp">|</span></span>
+<span id="cb29-270"><a href="#cb29-270" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-271"><a href="#cb29-271" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb29-272"><a href="#cb29-272" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-273"><a href="#cb29-273" aria-hidden="true" tabindex="-1"></a><span class="fu">## Kernel (`logos.kernel`)</span></span>
+<span id="cb29-274"><a href="#cb29-274" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-275"><a href="#cb29-275" aria-hidden="true" tabindex="-1"></a>The kernel is the only trusted code. Direct use is rare but available:</span>
+<span id="cb29-276"><a href="#cb29-276" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-277"><a href="#cb29-277" aria-hidden="true" tabindex="-1"></a><span class="fu">### Proof Terms</span></span>
+<span id="cb29-278"><a href="#cb29-278" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-279"><a href="#cb29-279" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Term <span class="pp">|</span> Proves <span class="pp">|</span></span>
+<span id="cb29-280"><a href="#cb29-280" aria-hidden="true" tabindex="-1"></a><span class="pp">|------|--------|</span></span>
+<span id="cb29-281"><a href="#cb29-281" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Refl(e)`</span> <span class="pp">|</span> <span class="in">`e == e`</span> <span class="pp">|</span></span>
+<span id="cb29-282"><a href="#cb29-282" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Symm(p)`</span> <span class="pp">|</span> <span class="in">`b == a`</span> (given <span class="in">`p: a==b`</span>) <span class="pp">|</span></span>
+<span id="cb29-283"><a href="#cb29-283" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Trans(p, q)`</span> <span class="pp">|</span> <span class="in">`a == c`</span> (given <span class="in">`p: a==b`</span>, <span class="in">`q: b==c`</span>) <span class="pp">|</span></span>
+<span id="cb29-284"><a href="#cb29-284" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Subst(p, f)`</span> <span class="pp">|</span> <span class="in">`f(a) == f(b)`</span> (given <span class="in">`p: a==b`</span>) <span class="pp">|</span></span>
+<span id="cb29-285"><a href="#cb29-285" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`Axiom(name)`</span> <span class="pp">|</span> The named axiom's statement <span class="pp">|</span></span>
+<span id="cb29-286"><a href="#cb29-286" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`HypRef(name)`</span> <span class="pp">|</span> The named hypothesis <span class="pp">|</span></span>
+<span id="cb29-287"><a href="#cb29-287" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`ForallIntro(var, body)`</span> <span class="pp">|</span> <span class="in">`∀x. P`</span> <span class="pp">|</span></span>
+<span id="cb29-288"><a href="#cb29-288" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`ForallElim(proof, val)`</span> <span class="pp">|</span> <span class="in">`P[x:=val]`</span> <span class="pp">|</span></span>
+<span id="cb29-289"><a href="#cb29-289" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`ImpliesIntro(hyp, name, body)`</span> <span class="pp">|</span> <span class="in">`P → Q`</span> <span class="pp">|</span></span>
+<span id="cb29-290"><a href="#cb29-290" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`ImpliesElim(pq, p)`</span> <span class="pp">|</span> <span class="in">`Q`</span> (modus ponens) <span class="pp">|</span></span>
+<span id="cb29-291"><a href="#cb29-291" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`AndIntro(p, q)`</span> <span class="pp">|</span> <span class="in">`A ∧ B`</span> <span class="pp">|</span></span>
+<span id="cb29-292"><a href="#cb29-292" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`AndElimL(p)`</span> / <span class="in">`AndElimR(p)`</span> <span class="pp">|</span> <span class="in">`A`</span> / <span class="in">`B`</span> <span class="pp">|</span></span>
+<span id="cb29-293"><a href="#cb29-293" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`OrIntroL(p, right)`</span> / <span class="in">`OrIntroR(left, p)`</span> <span class="pp">|</span> <span class="in">`A ∨ B`</span> <span class="pp">|</span></span>
+<span id="cb29-294"><a href="#cb29-294" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`CaseAnalysis(or_proof, name, left, right)`</span> <span class="pp">|</span> Case split <span class="pp">|</span></span>
+<span id="cb29-295"><a href="#cb29-295" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`ExFalso(false_proof, conclusion)`</span> <span class="pp">|</span> Ex falso quodlibet <span class="pp">|</span></span>
+<span id="cb29-296"><a href="#cb29-296" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-297"><a href="#cb29-297" aria-hidden="true" tabindex="-1"></a><span class="fu">### Kernel Functions</span></span>
+<span id="cb29-298"><a href="#cb29-298" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-299"><a href="#cb29-299" aria-hidden="true" tabindex="-1"></a><span class="in">```python</span></span>
+<span id="cb29-300"><a href="#cb29-300" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.kernel <span class="im">import</span> infer, check, Context</span>
+<span id="cb29-301"><a href="#cb29-301" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-302"><a href="#cb29-302" aria-hidden="true" tabindex="-1"></a><span class="co"># infer: determine what statement a proof term proves</span></span>
+<span id="cb29-303"><a href="#cb29-303" aria-hidden="true" tabindex="-1"></a>stmt <span class="op">=</span> infer(term, ctx)</span>
+<span id="cb29-304"><a href="#cb29-304" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-305"><a href="#cb29-305" aria-hidden="true" tabindex="-1"></a><span class="co"># check: validate that term proves expected_stmt (raises KernelError on mismatch)</span></span>
+<span id="cb29-306"><a href="#cb29-306" aria-hidden="true" tabindex="-1"></a>check(term, expected_stmt, ctx)</span>
+<span id="cb29-307"><a href="#cb29-307" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-308"><a href="#cb29-308" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-309"><a href="#cb29-309" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb29-310"><a href="#cb29-310" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-311"><a href="#cb29-311" aria-hidden="true" tabindex="-1"></a><span class="fu">## Helpers (`logos.helpers`)</span></span>
+<span id="cb29-312"><a href="#cb29-312" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-313"><a href="#cb29-313" aria-hidden="true" tabindex="-1"></a><span class="in">```python</span></span>
+<span id="cb29-314"><a href="#cb29-314" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logos.helpers <span class="im">import</span> structural_eq, substitute, free_vars</span>
+<span id="cb29-315"><a href="#cb29-315" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-316"><a href="#cb29-316" aria-hidden="true" tabindex="-1"></a><span class="co"># structural_eq: recursively compare two expression trees</span></span>
+<span id="cb29-317"><a href="#cb29-317" aria-hidden="true" tabindex="-1"></a>structural_eq(x <span class="op">+</span> y, x <span class="op">+</span> y)     <span class="co"># True</span></span>
+<span id="cb29-318"><a href="#cb29-318" aria-hidden="true" tabindex="-1"></a>structural_eq(x <span class="op">+</span> y, y <span class="op">+</span> x)     <span class="co"># False</span></span>
+<span id="cb29-319"><a href="#cb29-319" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-320"><a href="#cb29-320" aria-hidden="true" tabindex="-1"></a><span class="co"># substitute: replace all free occurrences of var with val</span></span>
+<span id="cb29-321"><a href="#cb29-321" aria-hidden="true" tabindex="-1"></a>substitute(x <span class="op">+</span> y, x, logos.lit(<span class="dv">5</span>))  <span class="co"># Lit(5) + y</span></span>
+<span id="cb29-322"><a href="#cb29-322" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-323"><a href="#cb29-323" aria-hidden="true" tabindex="-1"></a><span class="co"># free_vars: names of free variables in an expression</span></span>
+<span id="cb29-324"><a href="#cb29-324" aria-hidden="true" tabindex="-1"></a>free_vars(x <span class="op">+</span> y)                 <span class="co"># {"x", "y"}</span></span>
+<span id="cb29-325"><a href="#cb29-325" aria-hidden="true" tabindex="-1"></a>free_vars(Forall(x, x <span class="op">+</span> y))      <span class="co"># {"y"}  (x is bound)</span></span>
+<span id="cb29-326"><a href="#cb29-326" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-327"><a href="#cb29-327" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-328"><a href="#cb29-328" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb29-329"><a href="#cb29-329" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-330"><a href="#cb29-330" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exceptions</span></span>
+<span id="cb29-331"><a href="#cb29-331" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-332"><a href="#cb29-332" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Exception <span class="pp">|</span> When raised <span class="pp">|</span></span>
+<span id="cb29-333"><a href="#cb29-333" aria-hidden="true" tabindex="-1"></a><span class="pp">|-----------|-------------|</span></span>
+<span id="cb29-334"><a href="#cb29-334" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`logos.theorem.LogosProofError`</span> <span class="pp">|</span> Proof fails in <span class="in">`logos.check`</span> <span class="pp">|</span></span>
+<span id="cb29-335"><a href="#cb29-335" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`logos.runner.TacticFailed`</span> <span class="pp">|</span> A tactic cannot proceed <span class="pp">|</span></span>
+<span id="cb29-336"><a href="#cb29-336" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> <span class="in">`logos.kernel.KernelError`</span> <span class="pp">|</span> Kernel rejects an invalid proof term <span class="pp">|</span></span>
+</code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
+</div></div></div></div></div>
+</div> <!-- /content -->
+
+
+
+
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/gia-uh/logos/edit/main/reference/api.qmd" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/gia-uh/logos/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>

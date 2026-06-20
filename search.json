@@ -1,0 +1,1301 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "logos",
+    "section": "",
+    "text": "logos lets you prove properties of your Python code using a composable tactic system backed by a small trusted kernel. Write propositions as Python expressions, then discharge them with tactics — or with an LLM oracle whose output the kernel validates.\nimport logos\nimport logos.tactics as t\n\n# Declare a theorem\n@logos.theorem\ndef add_comm(x: int, y: int):\n    return x + y == y + x\n\n# Attach proof and validate\nlogos.check(add_comm.proof(t.intro(\"x\", \"y\"), t.ring()))\nprint(\"Proved: addition is commutative\")\n\nProved: addition is commutative\nIf the proof is wrong, LogosProofError is raised immediately. If it passes, add_comm.certified is True and you can build on it.",
+    "crumbs": [
+      "Get Started",
+      "logos"
+    ]
+  },
+  {
+    "objectID": "index.html#how-it-works",
+    "href": "index.html#how-it-works",
+    "title": "logos",
+    "section": "How it works",
+    "text": "How it works\nlogos follows Lean’s architecture:\nUser layer       @logos.define · @logos.theorem · operator expressions\n                           ↓\nTactic layer     ring · linarith · intro · cases · ...  (untrusted)\n                           ↓\nProof terms      Refl · Trans · Subst · ForallIntro · ...\n                           ↓\nKernel (~200 ln) infer() / check()  ←  the only trusted code\nThe kernel is the only trusted code (~200 lines). Tactics are arbitrary Python that produce proof terms — the kernel checks every term structurally. A tactic can even call an LLM: if the LLM produces an invalid proof, the kernel rejects it.",
+    "crumbs": [
+      "Get Started",
+      "logos"
+    ]
+  },
+  {
+    "objectID": "index.html#install",
+    "href": "index.html#install",
+    "title": "logos",
+    "section": "Install",
+    "text": "Install\npip install logos-ai",
+    "crumbs": [
+      "Get Started",
+      "logos"
+    ]
+  },
+  {
+    "objectID": "index.html#a-taste-of-what-you-can-prove",
+    "href": "index.html#a-taste-of-what-you-can-prove",
+    "title": "logos",
+    "section": "A taste of what you can prove",
+    "text": "A taste of what you can prove\n\nimport logos\nimport logos.tactics as t\n\n# 1. Define a function symbolically\n@logos.define\ndef double(x: int):\n    return x + x\n\n# 2. Calling with a real value evaluates normally\nassert double(7) == 14\n\n# 3. Prove a property: unfold the definition, then ring arithmetic\n@logos.theorem\ndef double_is_2x(x: int):\n    return double(x) == logos.lit(2) * x\n\nlogos.check(double_is_2x.proof(t.intro(\"x\"), t.unfold(double), t.ring()))\nprint(\"Proved: double(x) = 2x\")\n\n# 4. Linear arithmetic\n@logos.theorem\ndef double_exceeds_x(x: int):\n    return (x &gt; logos.lit(0)) &gt;&gt; (double(x) &gt; x)\n\nlogos.check(double_exceeds_x.proof(t.intro(\"x\", \"h\"), t.unfold(double), t.linarith()))\nprint(\"Proved: x &gt; 0 → double(x) &gt; x\")\n\nProved: double(x) = 2x\nProved: x &gt; 0 → double(x) &gt; x",
+    "crumbs": [
+      "Get Started",
+      "logos"
+    ]
+  },
+  {
+    "objectID": "index.html#next-steps",
+    "href": "index.html#next-steps",
+    "title": "logos",
+    "section": "Next steps",
+    "text": "Next steps\n\nExpressions → — how the expression language works\nTactics → — the full tactic library\nExamples → — real-world proof scenarios",
+    "crumbs": [
+      "Get Started",
+      "logos"
+    ]
+  },
+  {
+    "objectID": "guide/examples/index.html",
+    "href": "guide/examples/index.html",
+    "title": "Examples",
+    "section": "",
+    "text": "These examples show logos applied to realistic proof scenarios — the kind of properties you might want to guarantee about production code.\n\nNumber Theory — divisibility, parity, basic arithmetic laws\nData Structures — properties of lists, sorting, accumulator functions",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Examples"
+    ]
+  },
+  {
+    "objectID": "guide/examples/knights-knaves.html",
+    "href": "guide/examples/knights-knaves.html",
+    "title": "Knights and Knaves",
+    "section": "",
+    "text": "The classic puzzles of Raymond Smullyan: an island where every inhabitant is either a knight (always tells the truth) or a knave (always lies). Given what the inhabitants say, deduce who is who.\nLogos can verify these deductions formally — you write the proof, logos checks it.\nimport logos\nimport logos.tactics as t",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Knights and Knaves"
+    ]
+  },
+  {
+    "objectID": "guide/examples/knights-knaves.html#encoding",
+    "href": "guide/examples/knights-knaves.html#encoding",
+    "title": "Knights and Knaves",
+    "section": "Encoding",
+    "text": "Encoding\nEach inhabitant has two proposition variables:\n\na_kn — “A is a knight”\na_kv — “A is a knave”\n\nEvery puzzle rests on four structural constraints shared by all inhabitants:\n\nExhaustivity: everyone is a knight or a knave — a_kn | a_kv\nExclusivity: no one is both — a_kn &gt;&gt; ~a_kv, a_kv &gt;&gt; ~a_kn\nKnight rule: if a person is a knight, their statement is true — a_kn &gt;&gt; &lt;statement&gt;\nKnave rule: if a person is a knave, their statement is false — a_kv &gt;&gt; ~&lt;statement&gt;\n\nBecause Python’s &gt;&gt; is left-associative — A &gt;&gt; B &gt;&gt; C parses as (A &gt;&gt; B) &gt;&gt; C — theorems with many premises use logos.chain(h₁, h₂, ..., conclusion), which builds the correct right-associative chain h₁ &gt;&gt; (h₂ &gt;&gt; ...).",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Knights and Knaves"
+    ]
+  },
+  {
+    "objectID": "guide/examples/knights-knaves.html#puzzle-1-we-are-both-knaves",
+    "href": "guide/examples/knights-knaves.html#puzzle-1-we-are-both-knaves",
+    "title": "Knights and Knaves",
+    "section": "Puzzle 1 — “We Are Both Knaves”",
+    "text": "Puzzle 1 — “We Are Both Knaves”\nA says: “We are both knaves.”\nReasoning. If A were a knight, the statement would be true — but then A would be a knave, a contradiction. So A must be a knave; the statement is false; not both are knaves; so B is a knight.\n\n@logos.theorem\ndef puzzle1(a_kn: bool, a_kv: bool, b_kn: bool, b_kv: bool):\n    return logos.chain(\n        a_kn | a_kv,                  # A is knight or knave\n        b_kn | b_kv,                  # B is knight or knave\n        a_kn &gt;&gt; ~a_kv,                # exclusivity\n        a_kv &gt;&gt; ~a_kn,\n        b_kn &gt;&gt; ~b_kv,\n        b_kv &gt;&gt; ~b_kn,\n        a_kn &gt;&gt; (a_kv & b_kv),       # knight: \"we're both knaves\" is true\n        a_kv &gt;&gt; ~(a_kv & b_kv),      # knave: it's false\n        a_kv & b_kn,                  # conclusion: A=knave, B=knight\n    )\n\nManual proof — explicit case analysis with forward reasoning:\n\nlogos.check(puzzle1.proof(\n    t.intro(\"a_kn\", \"a_kv\", \"b_kn\", \"b_kv\",     # introduce bool variables\n            \"h_a_ex\", \"h_b_ex\",                   # exhaustivity premises\n            \"h_akn_exc\", \"h_akv_exc\",             # exclusivity\n            \"h_bkn_exc\", \"h_bkv_exc\",\n            \"h_kn_says\", \"h_kv_says\"),            # A's knight/knave rules\n\n    t.cases(\"h_a_ex\", \"h_a\"),                     # split: is A a knight or knave?\n\n    # ── Case A = knight  (h_a : a_kn) ──────────────────────────────\n    [\n        t.have(\"h_both_kv\", \"h_kn_says\", \"h_a\"), # h_both_kv : a_kv & b_kv\n        t.andL(\"h_both_kv\", \"h_akv\"),             # h_akv     : a_kv\n        t.have(\"h_not_akv\", \"h_akn_exc\", \"h_a\"), # h_not_akv : ~a_kv\n        t.contradiction(),                         # a_kv  and  ~a_kv\n    ],\n\n    # ── Case A = knave  (h_a : a_kv) ───────────────────────────────\n    [\n        t.have(\"h_not_both\", \"h_kv_says\", \"h_a\"),# h_not_both : ~(a_kv & b_kv)\n        t.cases(\"h_b_ex\", \"h_b\"),                 # split on B's type\n\n        # Sub-case B = knight  (h_b : b_kn)\n        [\n            t.split(),\n            [t.assumption()],   # a_kv  (= h_a)\n            [t.assumption()],   # b_kn  (= h_b)\n        ],\n\n        # Sub-case B = knave  (h_b : b_kv)\n        [\n            t.conj(\"h_a\", \"h_b\", \"h_both\"),      # h_both : a_kv & b_kv\n            t.contradiction(),                     # ~(a_kv & b_kv) and  a_kv & b_kv\n        ],\n    ],\n))\nprint(\"Puzzle 1: A=knave, B=knight ✓\")\n\nPuzzle 1: A=knave, B=knight ✓\n\n\nThe tactics used here are all forward-reasoning primitives:\n\n\n\n\n\n\n\nTactic\nWhat it does\n\n\n\n\nt.cases(h, name)\nSplit h : A \\| B; subgoal 1 gets name : A, subgoal 2 gets name : B\n\n\nt.have(new, h_impl, h_ant)\nModus ponens: from h_impl : A→B and h_ant : A, add new : B\n\n\nt.andL(h, name)\nFrom h : A & B, extract left component into name : A\n\n\nt.andR(h, name)\nFrom h : A & B, extract right component into name : B\n\n\nt.conj(h1, h2, name)\nFrom h1 : A and h2 : B, add name : A & B\n\n\nt.contradiction()\nClose the goal when context contains P and ~P, ~(A\\|B) with A or B present, or ~(A&B) with both A and B present",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Knights and Knaves"
+    ]
+  },
+  {
+    "objectID": "guide/examples/knights-knaves.html#puzzle-2-at-least-one-of-us-is-a-knave",
+    "href": "guide/examples/knights-knaves.html#puzzle-2-at-least-one-of-us-is-a-knave",
+    "title": "Knights and Knaves",
+    "section": "Puzzle 2 — “At Least One of Us Is a Knave”",
+    "text": "Puzzle 2 — “At Least One of Us Is a Knave”\nA says: “At least one of us is a knave.”\nReasoning. If A were a knave, the statement “at least one is a knave” would be false — so neither would be a knave. But that contradicts A being a knave. So A is a knight. The statement is true: a_kv | b_kv. Since A is a knight, ~a_kv, so B must be the knave.\n\n@logos.theorem\ndef puzzle2(a_kn: bool, a_kv: bool, b_kn: bool, b_kv: bool):\n    return logos.chain(\n        a_kn | a_kv,\n        b_kn | b_kv,\n        a_kn &gt;&gt; ~a_kv,\n        a_kv &gt;&gt; ~a_kn,\n        b_kn &gt;&gt; ~b_kv,\n        b_kv &gt;&gt; ~b_kn,\n        a_kn &gt;&gt; (a_kv | b_kv),       # knight: \"at least one is a knave\" is true\n        a_kv &gt;&gt; ~(a_kv | b_kv),      # knave: it's false — both would be knights\n        a_kn & b_kv,                  # conclusion: A=knight, B=knave\n    )\n\nThis time logos.prove() finds the proof automatically:\n\nlogos.prove(puzzle2)\nprint(\"Puzzle 2: A=knight, B=knave ✓  (auto)\")\n\nPuzzle 2: A=knight, B=knave ✓  (auto)\n\n\nThe auto tactic explores the proof space algorithmically at each step:\n\nIntroduces all universally-quantified variables and premises into context\nSplits the conjunction goal (a_kn & b_kv) into two independent subgoals\nCase-analyses every disjunctive (|) hypothesis in context\nApplies forward reasoning — if H : A→B and A is known, derives B\nCloses with contradiction (including ~(A|B) with A present) or assumption",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Knights and Knaves"
+    ]
+  },
+  {
+    "objectID": "guide/examples/knights-knaves.html#puzzle-3-three-people",
+    "href": "guide/examples/knights-knaves.html#puzzle-3-three-people",
+    "title": "Knights and Knaves",
+    "section": "Puzzle 3 — Three People",
+    "text": "Puzzle 3 — Three People\nA says: “B is a knave.” B says: “A and C are the same type” (both knights or both knaves). C says: “A is a knight.”\nReasoning.\n\nIf A = knight: A says B=knave → B=knave. B=knave → B’s statement is false → A and C are different types → C=knave (since A=knight). C=knave → C’s statement is false → A=knave. Contradiction.\nIf A = knave: A says B=knave → false → B=knight. B=knight → B’s statement is true: A and C are the same type. A=knave, so C=knave. C=knave → C’s statement is false → A is not a knight. Consistent ✓\n\nConclusion: A=knave, B=knight, C=knave.\n\n@logos.theorem\ndef puzzle3(a_kn: bool, a_kv: bool,\n            b_kn: bool, b_kv: bool,\n            c_kn: bool, c_kv: bool):\n    b_says = (a_kn & c_kn) | (a_kv & c_kv)   # \"A and C are the same type\"\n    return logos.chain(\n        a_kn | a_kv,                 # exhaustivity\n        b_kn | b_kv,\n        c_kn | c_kv,\n        a_kn &gt;&gt; ~a_kv,               # exclusivity\n        a_kv &gt;&gt; ~a_kn,\n        b_kn &gt;&gt; ~b_kv,\n        b_kv &gt;&gt; ~b_kn,\n        c_kn &gt;&gt; ~c_kv,\n        c_kv &gt;&gt; ~c_kn,\n        a_kn &gt;&gt; b_kv,                # A=knight: \"B is knave\" is true\n        a_kv &gt;&gt; b_kn,                # A=knave:  \"B is knave\" is false\n        b_kn &gt;&gt; b_says,              # B=knight: \"A,C same type\" is true\n        b_kv &gt;&gt; ~b_says,             # B=knave:  \"A,C same type\" is false\n        c_kn &gt;&gt; a_kn,                # C=knight: \"A is knight\" is true\n        c_kv &gt;&gt; ~a_kn,               # C=knave:  \"A is knight\" is false\n        a_kv & b_kn & c_kv,         # conclusion: A=knave, B=knight, C=knave\n    )\n\n\nlogos.check(puzzle3.proof(\n    t.intro(\"a_kn\", \"a_kv\", \"b_kn\", \"b_kv\", \"c_kn\", \"c_kv\",\n            \"h_a_ex\", \"h_b_ex\", \"h_c_ex\",\n            \"h_akn_exc\", \"h_akv_exc\",\n            \"h_bkn_exc\", \"h_bkv_exc\",\n            \"h_ckn_exc\", \"h_ckv_exc\",\n            \"h_a_kn_says\", \"h_a_kv_says\",\n            \"h_b_kn_says\", \"h_b_kv_says\",\n            \"h_c_kn_says\", \"h_c_kv_says\"),\n\n    t.cases(\"h_a_ex\", \"h_a\"),\n\n    # ── Case A = knight  (h_a : a_kn) ──────────────────────────────────\n    # A=knight → B=knave.  B=knave → b_says is false.\n    # In either sub-case for C, we reach a contradiction.\n    [\n        t.have(\"h_bkv\",      \"h_a_kn_says\", \"h_a\"),    # B is knave\n        t.have(\"h_not_bsays\",\"h_b_kv_says\", \"h_bkv\"),  # ~((a_kn&c_kn)|(a_kv&c_kv))\n        t.cases(\"h_c_ex\", \"h_c\"),\n\n        # Sub-case C = knight  (h_c : c_kn)\n        # a_kn & c_kn satisfies the left disjunct of b_says → contradicts ~b_says\n        [\n            t.conj(\"h_a\", \"h_c\", \"h_ac\"),    # h_ac : a_kn & c_kn\n            t.contradiction(),                 # ~(A|B) with A present\n        ],\n\n        # Sub-case C = knave  (h_c : c_kv)\n        # C=knave says \"A is knight\" is false → ~a_kn, contradicts h_a : a_kn\n        [\n            t.have(\"h_not_akn\", \"h_c_kv_says\", \"h_c\"),\n            t.contradiction(),                 # a_kn and ~a_kn\n        ],\n    ],\n\n    # ── Case A = knave  (h_a : a_kv) ───────────────────────────────────\n    # A=knave → B=knight.  B=knight → b_says is true.\n    # C=knight sub-case leads to contradiction; C=knave is the solution.\n    [\n        t.have(\"h_bkn\", \"h_a_kv_says\", \"h_a\"),    # B is knight\n        t.cases(\"h_c_ex\", \"h_c\"),\n\n        # Sub-case C = knight  (h_c : c_kn)\n        # C=knight says A=knight → a_kn.  But h_a says a_kv.\n        # Exclusivity: a_kv → ~a_kn.  So a_kn and ~a_kn.\n        [\n            t.have(\"h_akn\",     \"h_c_kn_says\", \"h_c\"),    # a_kn\n            t.have(\"h_not_akn\", \"h_akv_exc\",   \"h_a\"),    # ~a_kn\n            t.contradiction(),\n        ],\n\n        # Sub-case C = knave  (h_c : c_kv)  — the solution\n        [\n            t.split(),\n            [t.split(), [t.assumption()], [t.assumption()]],  # a_kv & b_kn\n            [t.assumption()],                                   # c_kv\n        ],\n    ],\n))\nprint(\"Puzzle 3: A=knave, B=knight, C=knave ✓\")\n\nPuzzle 3: A=knave, B=knight, C=knave ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Knights and Knaves"
+    ]
+  },
+  {
+    "objectID": "guide/defining.html",
+    "href": "guide/defining.html",
+    "title": "Defining Functions",
+    "section": "",
+    "text": "@logos.define is how you introduce functions into the logos proof system. The function body runs in expression-tree mode — operators build trees instead of evaluating — and the result is a Function object you can use in proofs.",
+    "crumbs": [
+      "Get Started",
+      "Defining Functions"
+    ]
+  },
+  {
+    "objectID": "guide/defining.html#basic-usage",
+    "href": "guide/defining.html#basic-usage",
+    "title": "Defining Functions",
+    "section": "Basic Usage",
+    "text": "Basic Usage\n\nimport logos\nimport logos.tactics as t\n\n@logos.define\ndef double(x: int):\n    return x + x\n\n# double is now a Function object\nprint(type(double))        # &lt;class 'logos.define.Function'&gt;\nprint(double.name)         # double\nprint(double.params)       # [Var('x', int)]\n\n&lt;class 'logos.define.Function'&gt;\ndouble\n[Var(name='x', type=&lt;class 'int'&gt;)]",
+    "crumbs": [
+      "Get Started",
+      "Defining Functions"
+    ]
+  },
+  {
+    "objectID": "guide/defining.html#dual-mode",
+    "href": "guide/defining.html#dual-mode",
+    "title": "Defining Functions",
+    "section": "Dual Mode",
+    "text": "Dual Mode\nThe same function works as a normal Python function and as a symbolic expression builder:\n\nx = logos.var(\"x\", int)\nfrom logos.expr import App\n\n# Python mode — called with a concrete value\nprint(double(5))    # 10 (= 5 + 5)\nprint(double(7))    # 14\n\n# Symbolic mode — called with a Var\nresult = double(x)\nprint(type(result).__name__)   # App\nprint(result.func_name)        # double\nprint(result.args)             # [Var(\"x\", int)]\n\n10\n14\nApp\ndouble\n[Var(name='x', type=&lt;class 'int'&gt;)]",
+    "crumbs": [
+      "Get Started",
+      "Defining Functions"
+    ]
+  },
+  {
+    "objectID": "guide/defining.html#proving-about-defined-functions",
+    "href": "guide/defining.html#proving-about-defined-functions",
+    "title": "Defining Functions",
+    "section": "Proving About Defined Functions",
+    "text": "Proving About Defined Functions\nUse t.unfold(double) (the Function object) to replace double(x) with its definition body:\n\n@logos.theorem\ndef double_is_2x(x: int):\n    return double(x) == logos.lit(2) * x\n\nlogos.check(double_is_2x.proof(t.intro(\"x\"), t.unfold(double), t.ring()))\nprint(\"Proved: double(x) = 2x\")\n\nProved: double(x) = 2x\n\n\nThe proof trace is: 1. intro(\"x\") — introduce x from the Forall 2. unfold(double) — replaces double(x) with x + x in the goal 3. ring() — proves x + x == 2 * x by polynomial normalization",
+    "crumbs": [
+      "Get Started",
+      "Defining Functions"
+    ]
+  },
+  {
+    "objectID": "guide/defining.html#composing-definitions",
+    "href": "guide/defining.html#composing-definitions",
+    "title": "Defining Functions",
+    "section": "Composing Definitions",
+    "text": "Composing Definitions\nDefined functions can call each other:\n\n@logos.define\ndef square(x: int):\n    return x * x\n\n@logos.define\ndef sum_of_squares(x: int, y: int):\n    return square(x) + square(y)\n\n@logos.theorem\ndef sos_symmetric(x: int, y: int):\n    return sum_of_squares(x, y) == sum_of_squares(y, x)\n\nlogos.check(sos_symmetric.proof(\n    t.intro(\"x\", \"y\"),\n    t.unfold(sum_of_squares),\n    t.unfold(square),\n    t.ring(),\n))\nprint(\"Proved: sum_of_squares is symmetric\")\n\nProved: sum_of_squares is symmetric",
+    "crumbs": [
+      "Get Started",
+      "Defining Functions"
+    ]
+  },
+  {
+    "objectID": "guide/defining.html#case-expressions",
+    "href": "guide/defining.html#case-expressions",
+    "title": "Defining Functions",
+    "section": "Case Expressions",
+    "text": "Case Expressions\nUse logos.cases() for conditional definitions. Each branch is a (condition, value) pair:\n\n@logos.define\ndef abs_val(x: int):\n    return logos.cases(\n        (x &gt;= logos.lit(0),  x),\n        (x &lt; logos.lit(0),  -x),\n    )\n\n# Python mode still works\nprint(abs_val(-5))   # 5\nprint(abs_val(3))    # 3\n\nCaseExpr(branches=[(Le(left=Lit(value=0), right=Lit(value=-5)), -5), (Gt(left=Lit(value=0), right=Lit(value=-5)), 5)])\nCaseExpr(branches=[(Le(left=Lit(value=0), right=Lit(value=3)), 3), (Gt(left=Lit(value=0), right=Lit(value=3)), -3)])",
+    "crumbs": [
+      "Get Started",
+      "Defining Functions"
+    ]
+  },
+  {
+    "objectID": "guide/defining.html#external-black-box-functions",
+    "href": "guide/defining.html#external-black-box-functions",
+    "title": "Defining Functions",
+    "section": "External (Black-Box) Functions",
+    "text": "External (Black-Box) Functions\nFor functions logos can’t inspect — C extensions, external APIs, database queries — declare them symbolically with logos.extern and axiomatize their properties:\n\n# Declare an external sorting function\nsorted_fn = logos.extern(\"my_sorted\", [list], list)\n\nxs = logos.var(\"xs\", list)\n\n# State what we know about it\n@logos.axiom\ndef sorted_returns_same_type(xs: list):\n    return sorted_fn(xs) == sorted_fn(xs)\n\n# Now we can use sorted_fn in propositions and proofs\nfrom logos.expr import App\nresult = sorted_fn(xs)\nprint(type(result).__name__)  # App\nprint(result.func_name)       # my_sorted\n\nApp\nmy_sorted\n\n\n\n\n\n\n\n\nNote\n\n\n\nThe extern approach is how logos reasons about library functions you can’t redefine. You state the properties you need as axioms, then build proofs on top of them.",
+    "crumbs": [
+      "Get Started",
+      "Defining Functions"
+    ]
+  },
+  {
+    "objectID": "guide/defining.html#multiple-parameters",
+    "href": "guide/defining.html#multiple-parameters",
+    "title": "Defining Functions",
+    "section": "Multiple Parameters",
+    "text": "Multiple Parameters\nDefinitions can take any number of parameters:\n\n@logos.define\ndef clamp(x: int, lo: int, hi: int):\n    return logos.cases(\n        (x &lt; lo, lo),\n        (x &gt; hi, hi),\n        (logos.lit(True), x),   # default/else case\n    )\n\nprint(clamp(-5, 0, 10))   # 0\nprint(clamp(50, 0, 10))   # 10\nprint(clamp(5, 0, 10))    # 5\n\nCaseExpr(branches=[(True, 0), (False, 10), (Lit(value=True), -5)])\nCaseExpr(branches=[(False, 0), (True, 10), (Lit(value=True), 50)])\nCaseExpr(branches=[(False, 0), (False, 10), (Lit(value=True), 5)])",
+    "crumbs": [
+      "Get Started",
+      "Defining Functions"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/index.html",
+    "href": "guide/tactics/index.html",
+    "title": "Tactics Overview",
+    "section": "",
+    "text": "A tactic is a Python function that transforms a proof goal. Tactics are untrusted — they produce proof terms, and the kernel validates every term before the proof is accepted.",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactics Overview"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/index.html#the-goal",
+    "href": "guide/tactics/index.html#the-goal",
+    "title": "Tactics Overview",
+    "section": "The Goal",
+    "text": "The Goal\nEvery tactic receives a Goal object:\n\nimport logos\nimport logos.tactics as t\nfrom logos.goal import Goal\n\nx = logos.var(\"x\", int)\ngoal = Goal(\n    context={\"h\": x &gt; logos.lit(0)},    # hypotheses in scope\n    statement=x &gt; logos.lit(0),          # what to prove\n)\nprint(\"Statement:\", goal.statement)\nprint(\"Context:\", goal.context)\n\nStatement: Gt(left=Var(name='x', type=&lt;class 'int'&gt;), right=Lit(value=0))\nContext: {'h': Gt(left=Var(name='x', type=&lt;class 'int'&gt;), right=Lit(value=0))}",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactics Overview"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/index.html#tactic-protocol",
+    "href": "guide/tactics/index.html#tactic-protocol",
+    "title": "Tactics Overview",
+    "section": "Tactic Protocol",
+    "text": "Tactic Protocol\nA tactic is a callable with signature:\nGoal → ProofTerm                          # closes the goal\nGoal → (list[Goal], compose_fn)           # splits into subgoals\n\nClosing: returns a ProofTerm directly. The proof is complete.\nSplitting: returns (subgoals, compose_fn). Each subgoal must be proved; compose_fn assembles the final proof from the subgoal proofs.",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactics Overview"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/index.html#the-tactic-runner",
+    "href": "guide/tactics/index.html#the-tactic-runner",
+    "title": "Tactics Overview",
+    "section": "The Tactic Runner",
+    "text": "The Tactic Runner\nlogos.runner.run(goal, by) drives the tactic list:\n\nfrom logos.runner import run, TacticFailed\nfrom logos.goal import Goal\nfrom logos.helpers import structural_eq\n\nx = logos.var(\"x\", int)\n\n# A goal: prove x &gt; 0 given h: x &gt; 0\ngoal = Goal({\"h\": x &gt; logos.lit(0)}, x &gt; logos.lit(0))\nproof = run(goal, [t.assumption()])\nprint(\"Proof term type:\", type(proof).__name__)  # HypRef\n\nProof term type: HypRef",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactics Overview"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/index.html#nested-lists-for-subgoals",
+    "href": "guide/tactics/index.html#nested-lists-for-subgoals",
+    "title": "Tactics Overview",
+    "section": "Nested Lists for Subgoals",
+    "text": "Nested Lists for Subgoals\nWhen a tactic produces multiple subgoals, wrap each subgoal’s tactics in a nested list [...]:\n\nfrom logos.expr import And\n\nx, y = logos.vars(\"x y\", int)\ngoal = Goal(\n    {\"hx\": x &gt; logos.lit(0), \"hy\": y &gt; logos.lit(0)},\n    (x &gt; logos.lit(0)) & (y &gt; logos.lit(0)),\n)\n\nproof = run(goal, [\n    t.split(),            # produces 2 subgoals\n    [t.assumption()],     # handles subgoal 1: x &gt; 0\n    [t.assumption()],     # handles subgoal 2: y &gt; 0\n])\nprint(\"Proved:\", type(proof).__name__)   # AndIntro\n\nProved: AndIntro",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactics Overview"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/index.html#tactic-categories",
+    "href": "guide/tactics/index.html#tactic-categories",
+    "title": "Tactics Overview",
+    "section": "Tactic Categories",
+    "text": "Tactic Categories\n\n\n\n\n\n\n\nCategory\nTactics\n\n\n\n\nStructural\nintro, assumption, exact, apply, split, left, right, witness, contradiction\n\n\nArithmetic\nring, linarith, decide\n\n\nRewriting\nunfold, refl, rewrite, rewrite_rev, eval_, norm_num\n\n\nCombinators\nthen, first, try_, repeat, all_goals\n\n\n\nSee the sub-pages for detailed documentation on each category.",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactics Overview"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/index.html#writing-your-own-tactic",
+    "href": "guide/tactics/index.html#writing-your-own-tactic",
+    "title": "Tactics Overview",
+    "section": "Writing Your Own Tactic",
+    "text": "Writing Your Own Tactic\nAny Python function that follows the protocol is a valid tactic:\n\nfrom logos.goal import Goal\nfrom logos.kernel import Refl\nfrom logos.helpers import structural_eq\nfrom logos.runner import TacticFailed\nfrom logos.expr import Eq\n\ndef my_refl(goal: Goal):\n    \"\"\"Proves a == a by reflexivity.\"\"\"\n    match goal.statement:\n        case Eq(lhs, rhs) if structural_eq(lhs, rhs):\n            return Refl(lhs)\n        case _:\n            raise TacticFailed(\"my_refl: goal is not a == a\")\n\nx = logos.var(\"x\", int)\ngoal = Goal({}, x == x)\nproof = run(goal, [my_refl])\nprint(\"Custom tactic worked:\", type(proof).__name__)  # Refl\n\nCustom tactic worked: Refl\n\n\nSee Writing Custom Tactics → for advanced patterns.",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactics Overview"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/structural.html",
+    "href": "guide/tactics/structural.html",
+    "title": "Structural Tactics",
+    "section": "",
+    "text": "Structural tactics manipulate the shape of the goal — introducing variables, splitting conjunctions, pattern-matching on disjunctions.\nimport logos\nimport logos.tactics as t\nfrom logos.goal import Goal\nfrom logos.runner import run\nfrom logos.kernel import infer\nfrom logos.helpers import structural_eq",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Structural Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/structural.html#intronames",
+    "href": "guide/tactics/structural.html#intronames",
+    "title": "Structural Tactics",
+    "section": "intro(*names)",
+    "text": "intro(*names)\nStrips leading Forall and Implies from the goal, adding the introduced items to the context.\n\nx, y = logos.vars(\"x y\", int)\n\n# Introduce universally quantified variables\nlogos.check(logos.prove(\n    logos.forall(int, int, lambda x, y: x + y == y + x),\n    [\n        t.intro(\"x\", \"y\"),   # strips Forall(x, Forall(y, ...)), adds x,y to context\n        t.ring(),\n    ],\n))\nprint(\"Proved with intro\")\n\n# Introduce hypothesis from implication\nlogos.check(logos.prove(\n    logos.forall(int, lambda x: (x &gt; logos.lit(0)) &gt;&gt; (x &gt; logos.lit(0))),\n    [\n        t.intro(\"x\", \"h\"),   # x from Forall, h: x&gt;0 from Implies\n        t.assumption(),       # close with h\n    ],\n))\nprint(\"Proved implication with intro\")\n\nProved with intro\nProved implication with intro",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Structural Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/structural.html#assumption",
+    "href": "guide/tactics/structural.html#assumption",
+    "title": "Structural Tactics",
+    "section": "assumption()",
+    "text": "assumption()\nCloses the goal if it appears verbatim in the context.\n\nx = logos.var(\"x\", int)\nhyp = x &gt; logos.lit(0)\n\ngoal = Goal({\"h\": hyp}, hyp)\nproof = run(goal, [t.assumption()])\nprint(\"Closed by assumption:\", type(proof).__name__)  # HypRef\n\nClosed by assumption: HypRef",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Structural Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/structural.html#exactterm",
+    "href": "guide/tactics/structural.html#exactterm",
+    "title": "Structural Tactics",
+    "section": "exact(term)",
+    "text": "exact(term)\nCloses the goal with an explicit proof term. For when you know exactly what kernel term to supply.\n\nfrom logos.kernel import Refl\n\nx = logos.var(\"x\", int)\ngoal = Goal({}, x == x)\nproof = run(goal, [t.exact(Refl(x))])\nprint(\"Closed by exact:\", type(proof).__name__)  # Refl\n\nClosed by exact: Refl",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Structural Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/structural.html#split",
+    "href": "guide/tactics/structural.html#split",
+    "title": "Structural Tactics",
+    "section": "split()",
+    "text": "split()\nFor conjunction goals A & B — splits into two subgoals, one for A and one for B.\n\nx, y = logos.vars(\"x y\", int)\n\nlogos.check(logos.prove(\n    logos.forall(int, int, lambda x, y:\n        (x &gt; logos.lit(0)) &gt;&gt; ((y &gt; logos.lit(0)) &gt;&gt; ((x &gt; logos.lit(0)) & (y &gt; logos.lit(0))))\n    ),\n    [\n        t.intro(\"x\", \"y\", \"hx\", \"hy\"),\n        t.split(),\n        [t.assumption()],   # prove x &gt; 0\n        [t.assumption()],   # prove y &gt; 0\n    ],\n))\nprint(\"Proved conjunction\")\n\nProved conjunction",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Structural Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/structural.html#leftright_type-rightleft_type",
+    "href": "guide/tactics/structural.html#leftright_type-rightleft_type",
+    "title": "Structural Tactics",
+    "section": "left(right_type) / right(left_type)",
+    "text": "left(right_type) / right(left_type)\nFor disjunction goals A | B — choose which side to prove.\n\nx = logos.var(\"x\", int)\n\n# Prove \"x &gt; 0 or x &gt; 0\" by proving the left side\nlogos.check(logos.prove(\n    logos.forall(int, lambda x:\n        (x &gt; logos.lit(0)) &gt;&gt; ((x &gt; logos.lit(0)) | (x &gt; logos.lit(0)))\n    ),\n    [\n        t.intro(\"x\", \"h\"),\n        t.left(x &gt; logos.lit(0)),   # choose to prove left side; right_type = x &gt; 0\n        t.assumption(),\n    ],\n))\nprint(\"Proved disjunction via left\")\n\nProved disjunction via left",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Structural Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/structural.html#witnessval",
+    "href": "guide/tactics/structural.html#witnessval",
+    "title": "Structural Tactics",
+    "section": "witness(val)",
+    "text": "witness(val)\nFor existential goals Exists(x, P(x)) — provide the witness value, reducing to P[x:=val].\n\nlogos.check(logos.prove(\n    logos.exists(int, lambda x: x &gt; logos.lit(5)),\n    [\n        t.witness(logos.lit(10)),   # instantiate x := 10\n        t.decide(),                  # verify 10 &gt; 5\n    ],\n))\nprint(\"Proved: ∃x &gt; 5  (witness: 10)\")\n\nProved: ∃x &gt; 5  (witness: 10)",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Structural Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/structural.html#contradiction",
+    "href": "guide/tactics/structural.html#contradiction",
+    "title": "Structural Tactics",
+    "section": "contradiction()",
+    "text": "contradiction()\nCloses the goal if the context contains both P and ~P for some proposition P.\n\nfrom logos.expr import Not\n\nx = logos.var(\"x\", int)\np = x &gt; logos.lit(0)\n\n# Context has both h: x &gt; 0 and hn: ~(x &gt; 0) — contradiction!\ngoal = Goal({\"h\": p, \"hn\": Not(p)}, x == logos.lit(99))\nproof = run(goal, [t.contradiction()])\nprint(\"Closed by contradiction:\", type(proof).__name__)  # ExFalso\n\nClosed by contradiction: ExFalso",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Structural Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/structural.html#applyref",
+    "href": "guide/tactics/structural.html#applyref",
+    "title": "Structural Tactics",
+    "section": "apply(ref)",
+    "text": "apply(ref)\nApplies an Axiom/Theorem object (or a local hypothesis string) whose statement matches the current goal.\n\nx, y = logos.vars(\"x y\", int)\n\n# Declare and prove a theorem\n@logos.theorem\ndef x_eq_x(x: int):\n    return x == x\n\nlogos.check(x_eq_x.proof(t.intro(\"x\"), t.refl()))\n\n# Apply it inside another proof using the object\nx_inst = logos.var(\"x\", int)\ngoal = Goal({}, x_inst == x_inst)\nproof = run(goal, [t.apply(x_eq_x)])\nprint(\"Applied theorem:\", type(proof).__name__)\n\nApplied theorem: ForallElim\n\n\nYou can also apply local hypotheses by name:\n\nx = logos.var(\"x\", int)\nhyp = x &gt; logos.lit(0)\ngoal = Goal({\"h\": hyp}, hyp)\nproof = run(goal, [t.apply(\"h\")])\nprint(\"Applied hypothesis:\", type(proof).__name__)\n\nApplied hypothesis: HypRef",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Structural Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/rewrite.html",
+    "href": "guide/tactics/rewrite.html",
+    "title": "Rewrite Tactics",
+    "section": "",
+    "text": "Rewrite tactics transform the goal by unfolding definitions, applying equational lemmas, or evaluating sub-expressions.\nimport logos\nimport logos.tactics as t",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Rewrite Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/rewrite.html#refl",
+    "href": "guide/tactics/rewrite.html#refl",
+    "title": "Rewrite Tactics",
+    "section": "refl()",
+    "text": "refl()\nCloses a == a goals — when both sides are structurally identical.\n\nx = logos.var(\"x\", int)\n\nlogos.check(logos.prove(logos.forall(int, lambda x: x == x),\n            [t.intro(\"x\"), t.refl()]))\nprint(\"x = x ✓\")\n\n# Also works on expressions\nlogos.check(logos.prove(\n    logos.forall(int, int, lambda x, y: x + y == x + y),\n    [t.intro(\"x\", \"y\"), t.refl()],\n))\nprint(\"x + y = x + y ✓\")\n\nx = x ✓\nx + y = x + y ✓\n\n\nrefl fails when the sides differ — even if they’re equivalent:\n\nfrom logos.theorem import LogosProofError\n\ntry:\n    logos.check(logos.prove(logos.forall(int, int, lambda x, y: x + y == y + x),\n                [t.intro(\"x\", \"y\"), t.refl()]))\nexcept LogosProofError:\n    print(\"refl cannot prove x + y = y + x (use ring instead)\")\n\nrefl cannot prove x + y = y + x (use ring instead)",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Rewrite Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/rewrite.html#unfoldrefs",
+    "href": "guide/tactics/rewrite.html#unfoldrefs",
+    "title": "Rewrite Tactics",
+    "section": "unfold(*refs)",
+    "text": "unfold(*refs)\nReplaces function applications with their definition bodies. Pass Function objects (from @logos.define).\n\n@logos.define\ndef triple(x: int):\n    return x + x + x\n\nx = logos.var(\"x\", int)\n\n# After unfold, triple(x) becomes x + x + x\n@logos.theorem\ndef triple_is_3x(x: int):\n    return triple(x) == logos.lit(3) * x\n\nlogos.check(triple_is_3x.proof(t.intro(\"x\"), t.unfold(triple), t.ring()))\nprint(\"Proved: triple(x) = 3x\")\n\n# Unfold multiple at once\n@logos.define\ndef quad(x: int):\n    return triple(x) + x\n\n@logos.theorem\ndef quad_is_4x(x: int):\n    return quad(x) == logos.lit(4) * x\n\nlogos.check(quad_is_4x.proof(t.intro(\"x\"), t.unfold(quad), t.unfold(triple), t.ring()))\nprint(\"Proved: quad(x) = 4x\")\n\nProved: triple(x) = 3x\nProved: quad(x) = 4x",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Rewrite Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/rewrite.html#rewriteref-rewrite_revref",
+    "href": "guide/tactics/rewrite.html#rewriteref-rewrite_revref",
+    "title": "Rewrite Tactics",
+    "section": "rewrite(ref) / rewrite_rev(ref)",
+    "text": "rewrite(ref) / rewrite_rev(ref)\nRewrites the goal using an Axiom or Theorem object. rewrite applies left-to-right; rewrite_rev applies right-to-left.\n\nx, y = logos.vars(\"x y\", int)\n\n# Prove a useful lemma\n@logos.theorem\ndef triple_def(x: int):\n    return triple(x) == x + x + x\n\nlogos.check(triple_def.proof(t.intro(\"x\"), t.unfold(triple), t.refl()))\n\n# Use it to rewrite inside another goal\nlogos.check(logos.prove(\n    logos.forall(int, lambda x: triple(x) + x == logos.lit(4) * x),\n    [\n        t.intro(\"x\"),\n        t.rewrite(triple_def),   # replaces triple(x) with x+x+x\n        t.ring(),\n    ],\n))\nprint(\"Proved via rewrite\")\n\nProved via rewrite",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Rewrite Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/rewrite.html#eval_",
+    "href": "guide/tactics/rewrite.html#eval_",
+    "title": "Rewrite Tactics",
+    "section": "eval_()",
+    "text": "eval_()\nEvaluates ground arithmetic sub-expressions (no variables) within the goal.\n\nlogos.check(logos.prove(\n    logos.lit(2) + logos.lit(3) == logos.lit(5),\n    [t.eval_()],\n))\nprint(\"2 + 3 = 5 ✓ (via eval)\")\n\nlogos.check(logos.prove(\n    logos.lit(10) - logos.lit(4) == logos.lit(6),\n    [t.eval_()],\n))\nprint(\"10 - 4 = 6 ✓\")\n\n2 + 3 = 5 ✓ (via eval)\n10 - 4 = 6 ✓",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Rewrite Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/rewrite.html#norm_num",
+    "href": "guide/tactics/rewrite.html#norm_num",
+    "title": "Rewrite Tactics",
+    "section": "norm_num()",
+    "text": "norm_num()\nNormalizes numeric expressions and closes numeric ground goals. Similar to eval_ but more aggressive:\n\nlogos.check(logos.prove(logos.lit(6) == logos.lit(2) * logos.lit(3), [t.norm_num()]))\nprint(\"6 = 2 * 3 ✓\")\n\nlogos.check(logos.prove(logos.lit(100) == logos.lit(10) ** logos.lit(2), [t.norm_num()]))\nprint(\"100 = 10² ✓\")\n\n6 = 2 * 3 ✓\n100 = 10² ✓",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Rewrite Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/rewrite.html#chaining-rewrites",
+    "href": "guide/tactics/rewrite.html#chaining-rewrites",
+    "title": "Rewrite Tactics",
+    "section": "Chaining Rewrites",
+    "text": "Chaining Rewrites\nRewrite tactics can be chained to progressively transform a goal:\n\n@logos.define\ndef square(x: int):\n    return x * x\n\n@logos.theorem\ndef sq_comm_example(x: int, y: int):\n    return square(x) + square(y) == square(y) + square(x)\n\nlogos.check(sq_comm_example.proof(\n    t.intro(\"x\", \"y\"),\n    t.unfold(square),   # square(x) → x*x, square(y) → y*y\n    t.ring(),            # x*x + y*y = y*y + x*x (commutativity)\n))\nprint(\"Proved: x² + y² = y² + x²\")\n\nProved: x² + y² = y² + x²",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Rewrite Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/expressions.html",
+    "href": "guide/expressions.html",
+    "title": "Expression Language",
+    "section": "",
+    "text": "Every logos proposition is built from expression trees. Instead of evaluating immediately, operators on Var and Expr objects build a tree that the kernel can inspect and manipulate symbolically.",
+    "crumbs": [
+      "Get Started",
+      "Expression Language"
+    ]
+  },
+  {
+    "objectID": "guide/expressions.html#variables-and-literals",
+    "href": "guide/expressions.html#variables-and-literals",
+    "title": "Expression Language",
+    "section": "Variables and Literals",
+    "text": "Variables and Literals\n\nimport logos\nfrom logos.expr import Var, Lit\n\n# Create variables — the building blocks of symbolic expressions\nx = logos.var(\"x\", int)\ny = logos.var(\"y\", int)\n\n# Or several at once\na, b, c = logos.vars(\"a b c\", int)\n\nprint(type(x))    # &lt;class 'logos.expr.Var'&gt;\nprint(x.name)     # x\nprint(x.type)     # &lt;class 'int'&gt;\n\n# Literals are created by Lit() or auto-lifted from Python values\nfrom logos.expr import Lit\nzero = Lit(0)\nprint(zero)       # Lit(value=0)\n\n&lt;class 'logos.expr.Var'&gt;\nx\n&lt;class 'int'&gt;\nLit(value=0)",
+    "crumbs": [
+      "Get Started",
+      "Expression Language"
+    ]
+  },
+  {
+    "objectID": "guide/expressions.html#arithmetic-operators",
+    "href": "guide/expressions.html#arithmetic-operators",
+    "title": "Expression Language",
+    "section": "Arithmetic Operators",
+    "text": "Arithmetic Operators\nAll Python arithmetic operators are overloaded to return Expr nodes rather than values. The right-hand side is auto-lifted from Python literals.\n\nx, y = logos.vars(\"x y\", int)\n\nfrom logos.expr import Add, Sub, Mul, Neg, Lit\n\ne1 = x + y         # Add(x, y)\ne2 = x + 1         # Add(x, Lit(1))  ← literal auto-lifted\ne3 = 2 * x         # Mul(Lit(2), x)  ← __rmul__\ne4 = -x            # Neg(x)\ne5 = x ** 2        # Pow(x, Lit(2))\ne6 = x // y        # Div(x, y)\ne7 = x % 3         # Mod(x, Lit(3))\n\nprint(type(e1).__name__)  # Add\nprint(type(e2).__name__)  # Add\nprint(e2.right)           # Lit(value=1)\n\nAdd\nAdd\nLit(value=1)",
+    "crumbs": [
+      "Get Started",
+      "Expression Language"
+    ]
+  },
+  {
+    "objectID": "guide/expressions.html#comparison-operators",
+    "href": "guide/expressions.html#comparison-operators",
+    "title": "Expression Language",
+    "section": "Comparison Operators",
+    "text": "Comparison Operators\nComparisons return Expr[bool] nodes — not Python booleans. This is the key design decision: x == y builds an Eq node, not True or False.\n\nfrom logos.expr import Eq, Lt, Le, Gt, Ge\n\neq_expr  = x == y    # Eq(x, y)\nlt_expr  = x &lt; 0     # Lt(x, Lit(0))\nle_expr  = x &lt;= y    # Le(x, y)\ngt_expr  = x &gt; 1     # Gt(x, Lit(1))\nge_expr  = x &gt;= 0    # Ge(x, Lit(0))\n\nprint(type(eq_expr).__name__)   # Eq\nprint(type(gt_expr).__name__)   # Gt\n\nEq\nGt",
+    "crumbs": [
+      "Get Started",
+      "Expression Language"
+    ]
+  },
+  {
+    "objectID": "guide/expressions.html#logical-connectives",
+    "href": "guide/expressions.html#logical-connectives",
+    "title": "Expression Language",
+    "section": "Logical Connectives",
+    "text": "Logical Connectives\nPython’s and, or, and not can’t be overloaded (they’re keywords with short-circuit evaluation). Instead, use &, |, ~, and &gt;&gt;.\n\nfrom logos.expr import And, Or, Not, Implies\n\np = x &gt; logos.lit(0)\nq = y &gt; logos.lit(0)\n\nconj    = p & q          # And(p, q)\ndisj    = p | q          # Or(p, q)\nneg     = ~p             # Not(p)\nimpl    = p &gt;&gt; q         # Implies(p, q)\n\nprint(type(conj).__name__)   # And\nprint(type(impl).__name__)   # Implies\n\nAnd\nImplies",
+    "crumbs": [
+      "Get Started",
+      "Expression Language"
+    ]
+  },
+  {
+    "objectID": "guide/expressions.html#the-__bool__-guard",
+    "href": "guide/expressions.html#the-__bool__-guard",
+    "title": "Expression Language",
+    "section": "The __bool__ Guard",
+    "text": "The __bool__ Guard\nIf an Expr accidentally ends up in a Python if or assert, you get a clear error:\n\nimport pytest\n\ntry:\n    if x &gt; 0:   # ← this would call bool() on an Expr\n        pass\nexcept TypeError as e:\n    print(f\"Caught: {e}\")\n\nCaught: Expr cannot be used as a Python bool. Use & instead of 'and', | instead of 'or', ~ instead of 'not'.\n\n\nThis protects you from silent bugs where symbolic expressions are accidentally evaluated as Python booleans.",
+    "crumbs": [
+      "Get Started",
+      "Expression Language"
+    ]
+  },
+  {
+    "objectID": "guide/expressions.html#expression-trees-are-identity-based",
+    "href": "guide/expressions.html#expression-trees-are-identity-based",
+    "title": "Expression Language",
+    "section": "Expression Trees Are Identity-Based",
+    "text": "Expression Trees Are Identity-Based\nTwo expression objects are never == in Python (that returns an Eq node). Identity comparison uses is or id(). Structural equality is handled by logos.helpers.structural_eq:\n\nfrom logos.helpers import structural_eq\n\ne1 = x + y\ne2 = x + y   # different Python objects, same structure\n\nprint(e1 == e2)                  # Eq(Add(x,y), Add(x,y)) — NOT bool!\nprint(structural_eq(e1, e2))     # True  — structural comparison\nprint(e1 is e2)                  # False — different objects\n\nEq(left=Add(left=Var(name='x', type=&lt;class 'int'&gt;), right=Var(name='y', type=&lt;class 'int'&gt;)), right=Add(left=Var(name='x', type=&lt;class 'int'&gt;), right=Var(name='y', type=&lt;class 'int'&gt;)))\nTrue\nFalse",
+    "crumbs": [
+      "Get Started",
+      "Expression Language"
+    ]
+  },
+  {
+    "objectID": "guide/expressions.html#substitution",
+    "href": "guide/expressions.html#substitution",
+    "title": "Expression Language",
+    "section": "Substitution",
+    "text": "Substitution\nsubstitute(expr, var, val) replaces all free occurrences of a variable:\n\nfrom logos.helpers import substitute\n\ne = x + y\nresult = substitute(e, x, logos.lit(5))\nprint(structural_eq(result, logos.lit(5) + y))  # True\n\nTrue\n\n\nSubstitution is capture-avoiding — it won’t replace a variable that’s bound inside a Forall:\n\nfrom logos.expr import Forall\n\n# Forall(x, x + y) — x is bound, y is free\ne = Forall(x, x + y)\nresult = substitute(e, x, logos.lit(99))\n# x inside the Forall is not replaced\nprint(structural_eq(result, e))  # True — substitution stopped at the binder\n\nTrue",
+    "crumbs": [
+      "Get Started",
+      "Expression Language"
+    ]
+  },
+  {
+    "objectID": "guide/propositions.html",
+    "href": "guide/propositions.html",
+    "title": "Propositions & Quantifiers",
+    "section": "",
+    "text": "A proposition in logos is any Expr that represents a truth claim — typically an equation, inequality, or logical combination. Quantifiers let you make universal and existential claims.",
+    "crumbs": [
+      "Get Started",
+      "Propositions & Quantifiers"
+    ]
+  },
+  {
+    "objectID": "guide/propositions.html#universal-quantification",
+    "href": "guide/propositions.html#universal-quantification",
+    "title": "Propositions & Quantifiers",
+    "section": "Universal Quantification",
+    "text": "Universal Quantification\nForall says “for all values of these variables, this holds.”\n\nimport logos\nimport logos.tactics as t\nfrom logos.expr import Var, Forall\n\nx, y, z = logos.vars(\"x y z\", int)\n\n# Lambda form — most ergonomic\np1 = logos.forall(int, int, lambda x, y: x + y == y + x)\n\n# Explicit form — useful when you have vars already\np2 = Forall(x, y, x + y == y + x)\n\n# Nested Forall is sugar for multiple binders\np3 = logos.forall(int, int, int, lambda x, y, z: (x + y) + z == x + (y + z))\n\nfrom logos.helpers import structural_eq\nprint(structural_eq(p1, p2))   # True — same structure\n\nTrue",
+    "crumbs": [
+      "Get Started",
+      "Propositions & Quantifiers"
+    ]
+  },
+  {
+    "objectID": "guide/propositions.html#existential-quantification",
+    "href": "guide/propositions.html#existential-quantification",
+    "title": "Propositions & Quantifiers",
+    "section": "Existential Quantification",
+    "text": "Existential Quantification\nExists says “there is some value for which this holds.”\n\nfrom logos.expr import Exists\n\n# There exists an integer greater than 5\np = logos.exists(int, lambda x: x &gt; logos.lit(5))\n\n# Prove it by providing a witness\ngp = logos.prove(\n    logos.exists(int, lambda x: x &gt; logos.lit(5)),\n    [t.witness(logos.lit(10)), t.decide()],\n)\nlogos.check(gp)\nprint(\"Proved: ∃x &gt; 5\")\n\nProved: ∃x &gt; 5",
+    "crumbs": [
+      "Get Started",
+      "Propositions & Quantifiers"
+    ]
+  },
+  {
+    "objectID": "guide/propositions.html#implications",
+    "href": "guide/propositions.html#implications",
+    "title": "Propositions & Quantifiers",
+    "section": "Implications",
+    "text": "Implications\nThe &gt;&gt; operator builds implications. intro in a proof strips the implication and adds the antecedent as a hypothesis:\n\nx = logos.var(\"x\", int)\n\n# If x &gt; 0, then x + 1 &gt; 0\np = (x &gt; logos.lit(0)) &gt;&gt; (x + logos.lit(1) &gt; logos.lit(0))\n\ngp = logos.prove(\n    logos.forall(int, lambda x: (x &gt; logos.lit(0)) &gt;&gt; (x + logos.lit(1) &gt; logos.lit(0))),\n    [t.intro(\"x\", \"h\"), t.linarith()],\n)\nlogos.check(gp)\nprint(\"Proved: x &gt; 0 → x + 1 &gt; 0\")\n\nProved: x &gt; 0 → x + 1 &gt; 0",
+    "crumbs": [
+      "Get Started",
+      "Propositions & Quantifiers"
+    ]
+  },
+  {
+    "objectID": "guide/propositions.html#conjunctions-and-disjunctions",
+    "href": "guide/propositions.html#conjunctions-and-disjunctions",
+    "title": "Propositions & Quantifiers",
+    "section": "Conjunctions and Disjunctions",
+    "text": "Conjunctions and Disjunctions\n\nx, y = logos.vars(\"x y\", int)\n\n# Prove both sides independently\n# Note: &gt;&gt; is left-associative in Python, so parenthesize for right-nesting\ngp = logos.prove(\n    logos.forall(int, int, lambda x, y:\n        (x &gt; logos.lit(0)) &gt;&gt; ((y &gt; logos.lit(0)) &gt;&gt; ((x &gt; logos.lit(0)) & (y &gt; logos.lit(0))))\n    ),\n    [\n        t.intro(\"x\", \"y\", \"hx\", \"hy\"),\n        t.split(),\n        [t.assumption()],\n        [t.assumption()],\n    ],\n)\nlogos.check(gp)\nprint(\"Proved: hx ∧ hy\")\n\nProved: hx ∧ hy",
+    "crumbs": [
+      "Get Started",
+      "Propositions & Quantifiers"
+    ]
+  },
+  {
+    "objectID": "guide/propositions.html#composing-propositions",
+    "href": "guide/propositions.html#composing-propositions",
+    "title": "Propositions & Quantifiers",
+    "section": "Composing Propositions",
+    "text": "Composing Propositions\nPropositions are just Expr values — you can build helpers:\n\ndef positive(v):\n    return v &gt; logos.lit(0)\n\ndef between(v, lo, hi):\n    return (v &gt; lo) & (v &lt; hi)\n\nx = logos.var(\"x\", int)\n\nprop = logos.forall(int, lambda x: positive(x) &gt;&gt; between(x * logos.lit(2), logos.lit(0), logos.lit(100)))\nprint(\"Proposition type:\", type(prop).__name__)   # ForallNode\n\nProposition type: ForallNode",
+    "crumbs": [
+      "Get Started",
+      "Propositions & Quantifiers"
+    ]
+  },
+  {
+    "objectID": "guide/propositions.html#propositions-as-first-class-values",
+    "href": "guide/propositions.html#propositions-as-first-class-values",
+    "title": "Propositions & Quantifiers",
+    "section": "Propositions as First-Class Values",
+    "text": "Propositions as First-Class Values\nPropositions can be stored, passed around, and reused:\n\n@logos.theorem\ndef commutativity_of_add(x: int, y: int):\n    return x + y == y + x\n\n@logos.theorem\ndef associativity_of_add(x: int, y: int, z: int):\n    return (x + y) + z == x + (y + z)\n\nlogos.check(commutativity_of_add.proof(t.intro(\"x\", \"y\"), t.ring()))\nlogos.check(associativity_of_add.proof(t.intro(\"x\", \"y\", \"z\"), t.ring()))\n\nprint(\"Proved: commutativity and associativity\")\n\nProved: commutativity and associativity",
+    "crumbs": [
+      "Get Started",
+      "Propositions & Quantifiers"
+    ]
+  },
+  {
+    "objectID": "guide/theorems.html",
+    "href": "guide/theorems.html",
+    "title": "Proving Theorems",
+    "section": "",
+    "text": "@logos.theorem, logos.check, and logos.prove are the top-level entry points for proof checking.",
+    "crumbs": [
+      "Get Started",
+      "Proving Theorems"
+    ]
+  },
+  {
+    "objectID": "guide/theorems.html#logos.theorem-declare-a-theorem",
+    "href": "guide/theorems.html#logos.theorem-declare-a-theorem",
+    "title": "Proving Theorems",
+    "section": "@logos.theorem — declare a theorem",
+    "text": "@logos.theorem — declare a theorem\n@logos.theorem wraps a function to declare a Theorem object. No proof is run yet.\n\nimport logos\nimport logos.tactics as t\n\n@logos.theorem\ndef add_zero(x: int):\n    return x + logos.lit(0) == x\n\nprint(add_zero)             # Theorem[unverified]('add_zero')\nprint(add_zero.certified)   # False — not yet checked\n\nTheorem[unverified]('add_zero')\nFalse",
+    "crumbs": [
+      "Get Started",
+      "Proving Theorems"
+    ]
+  },
+  {
+    "objectID": "guide/theorems.html#proof...-attach-a-proof",
+    "href": "guide/theorems.html#proof...-attach-a-proof",
+    "title": "Proving Theorems",
+    "section": ".proof(...) — attach a proof",
+    "text": ".proof(...) — attach a proof\nAttach the proof spec with .proof(tactic1, tactic2, ...). Returns self for chaining:\n\n# Chain style\nlogos.check(add_zero.proof(t.intro(\"x\"), t.ring()))\nprint(add_zero.certified)   # True\n\nTrue\n\n\nOr use the decorator form:\n\n@logos.theorem\ndef add_zero_v2(x: int):\n    return x + logos.lit(0) == x\n\n@add_zero_v2.proof\ndef _():\n    return [t.intro(\"x\"), t.ring()]\n\nlogos.check(add_zero_v2)\nprint(\"Proved with decorator style\")\n\nProved with decorator style",
+    "crumbs": [
+      "Get Started",
+      "Proving Theorems"
+    ]
+  },
+  {
+    "objectID": "guide/theorems.html#logos.check-the-compute-boundary",
+    "href": "guide/theorems.html#logos.check-the-compute-boundary",
+    "title": "Proving Theorems",
+    "section": "logos.check — the compute boundary",
+    "text": "logos.check — the compute boundary\nlogos.check(thm) runs the kernel. Nothing executes until this call:\n\n@logos.theorem\ndef mul_comm(x: int, y: int):\n    return x * y == y * x\n\nmul_comm.proof(t.intro(\"x\", \"y\"), t.ring())   # just attaches, doesn't run\n\nlogos.check(mul_comm)   # NOW it runs\nprint(mul_comm.certified)   # True\n\nTrue",
+    "crumbs": [
+      "Get Started",
+      "Proving Theorems"
+    ]
+  },
+  {
+    "objectID": "guide/theorems.html#the-proof-list",
+    "href": "guide/theorems.html#the-proof-list",
+    "title": "Proving Theorems",
+    "section": "The Proof List",
+    "text": "The Proof List\nThe proof is a list of tactics applied left-to-right. When a tactic produces subgoals, the next items handle them.\n\n@logos.theorem\ndef both_positive(x: int, y: int):\n    return (x &gt; logos.lit(0)) &gt;&gt; ((y &gt; logos.lit(0)) &gt;&gt; ((x &gt; logos.lit(0)) & (y &gt; logos.lit(0))))\n\nlogos.check(both_positive.proof(\n    t.intro(\"x\", \"y\", \"hx\", \"hy\"),   # strip foralls and implications\n    t.split(),                          # A & B → two subgoals\n    [t.assumption()],                   # subgoal 1: x &gt; 0  (in context as hx)\n    [t.assumption()],                   # subgoal 2: y &gt; 0  (in context as hy)\n))\nprint(\"Proved\")\n\nProved",
+    "crumbs": [
+      "Get Started",
+      "Proving Theorems"
+    ]
+  },
+  {
+    "objectID": "guide/theorems.html#what-happens-when-a-proof-fails",
+    "href": "guide/theorems.html#what-happens-when-a-proof-fails",
+    "title": "Proving Theorems",
+    "section": "What Happens When a Proof Fails",
+    "text": "What Happens When a Proof Fails\nLogosProofError is raised with a clear message:\n\nfrom logos.theorem import LogosProofError\n\n@logos.theorem\ndef false_claim(x: int, y: int):\n    return x + y == x - y   # false!\n\ntry:\n    logos.check(false_claim.proof(t.intro(\"x\", \"y\"), t.ring()))\nexcept LogosProofError as e:\n    print(f\"Proof failed: {e}\")\n\nProof failed: Theorem 'false_claim': ring: Add(left=Var(name='x', type=&lt;class 'int'&gt;), right=Var(name='y', type=&lt;class 'int'&gt;)) ≠ Sub(left=Var(name='x', type=&lt;class 'int'&gt;), right=Var(name='y', type=&lt;class 'int'&gt;)) after normalization\n  LHS poly: {frozenset({('x', 1)}): 1, frozenset({('y', 1)}): 1}\n  RHS poly: {frozenset({('x', 1)}): 1, frozenset({('y', 1)}): -1}",
+    "crumbs": [
+      "Get Started",
+      "Proving Theorems"
+    ]
+  },
+  {
+    "objectID": "guide/theorems.html#logos.prove-one-shot-anonymous-proof",
+    "href": "guide/theorems.html#logos.prove-one-shot-anonymous-proof",
+    "title": "Proving Theorems",
+    "section": "logos.prove — one-shot anonymous proof",
+    "text": "logos.prove — one-shot anonymous proof\nlogos.prove(statement, proof_list) creates a _GroundProof — pass it to logos.check():\n\nresult = logos.check(logos.prove(\n    logos.forall(int, lambda x: x + logos.lit(0) == x),\n    [t.intro(\"x\"), t.ring()],\n))\nprint(result.certified)  # True\n\nTrue",
+    "crumbs": [
+      "Get Started",
+      "Proving Theorems"
+    ]
+  },
+  {
+    "objectID": "guide/theorems.html#logos.provethm-automatic-proof-search",
+    "href": "guide/theorems.html#logos.provethm-automatic-proof-search",
+    "title": "Proving Theorems",
+    "section": "logos.prove(thm) — automatic proof search",
+    "text": "logos.prove(thm) — automatic proof search\nWhen you pass a Theorem object to logos.prove, logos tries to prove it automatically using a cascade of decision procedures: ground computation, polynomial arithmetic, linear arithmetic, and structural decomposition.\n\n# No tactic list needed — logos figures it out\n@logos.theorem\ndef add_comm_auto(x: int, y: int):\n    return x + y == y + x\n\nlogos.prove(add_comm_auto)\nprint(add_comm_auto.certified)   # True\n\nTrue\n\n\nThis works for non-trivial goals too. Here is a chain with three quantified variables and two nested hypotheses — logos automatically introduces all variables, collects the hypotheses, and closes with linear arithmetic:\n\n@logos.theorem\ndef le_trans(x: int, y: int, z: int):\n    return (x &lt;= y) &gt;&gt; ((y &lt;= z) &gt;&gt; (x &lt;= z))\n\nlogos.prove(le_trans)\nprint(\"x ≤ y → y ≤ z → x ≤ z ✓\")\n\nx ≤ y → y ≤ z → x ≤ z ✓\n\n\nFor goals that need a conjunction proved, auto splits it and handles each branch separately:\n\n@logos.theorem\ndef nonneg_increment(x: int):\n    return (x &gt;= logos.lit(0)) &gt;&gt; ((x + logos.lit(1) &gt;= logos.lit(0)) & (x + logos.lit(1) &gt; x))\n\nlogos.prove(nonneg_increment)\nprint(\"x ≥ 0 → (x+1 ≥ 0) ∧ (x+1 &gt; x) ✓\")\n\nx ≥ 0 → (x+1 ≥ 0) ∧ (x+1 &gt; x) ✓\n\n\nPass hints to help with defined functions — auto will try unfolding them and then apply arithmetic:\n\n@logos.define\ndef double(n: int):\n    return n + n\n\n@logos.theorem\ndef double_double(n: int):\n    return double(double(n)) == logos.lit(4) * n\n\nlogos.prove(double_double, hints=[double])\nprint(\"double(double(n)) = 4n ✓\")\n\ndouble(double(n)) = 4n ✓\n\n\nControl the search with depth and timeout:\nlogos.prove(my_thm, depth=8)          # search deeper\nlogos.prove(my_thm, timeout=2.0)      # give up after 2 seconds",
+    "crumbs": [
+      "Get Started",
+      "Proving Theorems"
+    ]
+  },
+  {
+    "objectID": "guide/theorems.html#building-on-proved-theorems",
+    "href": "guide/theorems.html#building-on-proved-theorems",
+    "title": "Proving Theorems",
+    "section": "Building on Proved Theorems",
+    "text": "Building on Proved Theorems\nOnce a theorem is certified, you can apply it in other proofs using the object directly:\n\n@logos.theorem\ndef add_comm_v2(x: int, y: int):\n    return x + y == y + x\n\nlogos.check(add_comm_v2.proof(t.intro(\"x\", \"y\"), t.ring()))\n\n# Use add_comm_v2 as an axiom object in another proof\n@logos.theorem\ndef reorder_sum(x: int, y: int, z: int):\n    return x + y + z == z + y + x\n\nlogos.check(reorder_sum.proof(t.intro(\"x\", \"y\", \"z\"), t.ring()))\nprint(\"Proved\")\n\nProved",
+    "crumbs": [
+      "Get Started",
+      "Proving Theorems"
+    ]
+  },
+  {
+    "objectID": "guide/theorems.html#module-level-theorem-files",
+    "href": "guide/theorems.html#module-level-theorem-files",
+    "title": "Proving Theorems",
+    "section": "Module-Level Theorem Files",
+    "text": "Module-Level Theorem Files\nA common pattern is a dedicated theorem file that’s imported wherever needed. Since logos.check raises LogosProofError at check time if a proof is wrong, it acts like a compile-time check:\n# theorems/arithmetic.py\nimport logos\nimport logos.tactics as t\n\n@logos.theorem\ndef add_comm(x: int, y: int):\n    return x + y == y + x\n\nlogos.check(add_comm.proof(t.intro(\"x\", \"y\"), t.ring()))\n\n@logos.theorem\ndef mul_comm(x: int, y: int):\n    return x * y == y * x\n\nlogos.check(mul_comm.proof(t.intro(\"x\", \"y\"), t.ring()))\n\n# If any proof breaks, this module fails to import.",
+    "crumbs": [
+      "Get Started",
+      "Proving Theorems"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/custom.html",
+    "href": "guide/tactics/custom.html",
+    "title": "Writing Custom Tactics",
+    "section": "",
+    "text": "Any Python function that follows the tactic protocol is a valid tactic. This page shows you how to build your own — from simple one-liners to full automation.\nimport logos\nimport logos.tactics as t\nfrom logos.goal import Goal\nfrom logos.runner import run, TacticFailed\nfrom logos.kernel import Refl, ProofTerm, AndIntro\nfrom logos.helpers import structural_eq",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Writing Custom Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/custom.html#the-protocol",
+    "href": "guide/tactics/custom.html#the-protocol",
+    "title": "Writing Custom Tactics",
+    "section": "The Protocol",
+    "text": "The Protocol\nA tactic is a callable with one of two return shapes:\n# Close the goal — return a proof term\ndef my_tactic(goal: Goal) -&gt; ProofTerm:\n    ...\n\n# Split into subgoals — return (subgoals, compose_fn)\ndef my_tactic(goal: Goal) -&gt; tuple:\n    subgoals = [...]\n    compose = lambda proofs: ...\n    return subgoals, compose\nRaise TacticFailed for any situation where the tactic can’t proceed.",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Writing Custom Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/custom.html#a-closing-tactic-my_refl",
+    "href": "guide/tactics/custom.html#a-closing-tactic-my_refl",
+    "title": "Writing Custom Tactics",
+    "section": "A Closing Tactic: my_refl",
+    "text": "A Closing Tactic: my_refl\nThe simplest tactic: close a == a by reflexivity.\n\nfrom logos.expr import Eq\n\ndef my_refl(goal: Goal) -&gt; ProofTerm:\n    match goal.statement:\n        case Eq(lhs, rhs) if structural_eq(lhs, rhs):\n            return Refl(lhs)\n        case _:\n            raise TacticFailed(f\"my_refl: expected a == a, got {goal.statement!r}\")\n\nx = logos.var(\"x\", int)\ngoal = Goal({}, x == x)\nproof = run(goal, [my_refl])\nprint(\"Custom refl:\", type(proof).__name__)  # Refl\n\nCustom refl: Refl",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Writing Custom Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/custom.html#a-splitting-tactic-my_split",
+    "href": "guide/tactics/custom.html#a-splitting-tactic-my_split",
+    "title": "Writing Custom Tactics",
+    "section": "A Splitting Tactic: my_split",
+    "text": "A Splitting Tactic: my_split\nA splitting tactic returns (subgoals, compose_fn):\n\nfrom logos.expr import And\nfrom logos.kernel import AndIntro\n\ndef my_split(goal: Goal):\n    match goal.statement:\n        case And(left, right):\n            subgoals = [\n                Goal(goal.context, left),\n                Goal(goal.context, right),\n            ]\n            compose = lambda proofs: AndIntro(proofs[0], proofs[1])\n            return subgoals, compose\n        case _:\n            raise TacticFailed(\"my_split: expected A & B\")\n\nx, y = logos.vars(\"x y\", int)\ngoal = Goal({\"hx\": x == x, \"hy\": y == y}, (x == x) & (y == y))\n\nproof = run(goal, [\n    my_split,\n    [t.assumption()],\n    [t.assumption()],\n])\nprint(\"Custom split:\", type(proof).__name__)  # AndIntro\n\nCustom split: AndIntro",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Writing Custom Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/custom.html#a-parameterized-tactic",
+    "href": "guide/tactics/custom.html#a-parameterized-tactic",
+    "title": "Writing Custom Tactics",
+    "section": "A Parameterized Tactic",
+    "text": "A Parameterized Tactic\nMost tactics are tactic factories — functions that return a tactic. This lets them take arguments:\n\ndef assert_context_has(name: str):\n    \"\"\"Tactic: fail if `name` is not in the goal's context.\"\"\"\n    def tactic(goal: Goal) -&gt; ProofTerm:\n        if name not in goal.context:\n            raise TacticFailed(f\"assert_context_has: '{name}' not in context {list(goal.context)}\")\n        return goal.context[name]   # ← not a ProofTerm, just demonstrating the pattern\n    return tactic\n\n# Usage: assert_context_has(\"h\") as a debugging tactic",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Writing Custom Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/custom.html#a-transforming-tactic-normalize_goal",
+    "href": "guide/tactics/custom.html#a-transforming-tactic-normalize_goal",
+    "title": "Writing Custom Tactics",
+    "section": "A Transforming Tactic: normalize_goal",
+    "text": "A Transforming Tactic: normalize_goal\nA tactic that rewrites the goal and returns a single new subgoal:\n\nfrom logos.helpers import substitute\nfrom logos.expr import Var, Lit\n\ndef simplify_double(goal: Goal):\n    \"\"\"Replace `x + x` with `2 * x` in the goal.\"\"\"\n    from logos.expr import Add, Mul\n    def _simplify(expr):\n        match expr:\n            case Add(lhs, rhs) if structural_eq(lhs, rhs):\n                return Mul(Lit(2), lhs)\n            case _:\n                cls = type(expr)\n                if hasattr(cls, \"__dataclass_fields__\"):\n                    fields = [getattr(expr, f) for f in cls.__dataclass_fields__]\n                    new_fields = [_simplify(f) if hasattr(f, \"__dataclass_fields__\") or isinstance(f, type(logos.var(\"_\", int))) else f for f in fields]\n                    return cls(*new_fields)\n                return expr\n\n    new_stmt = _simplify(goal.statement)\n    new_goal = Goal(goal.context, new_stmt)\n    return [new_goal], lambda proofs: proofs[0]",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Writing Custom Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/custom.html#debugging-tactics-trace",
+    "href": "guide/tactics/custom.html#debugging-tactics-trace",
+    "title": "Writing Custom Tactics",
+    "section": "Debugging Tactics: trace",
+    "text": "Debugging Tactics: trace\nA utility tactic that prints the current goal without changing it:\n\ndef trace(label: str = \"\"):\n    \"\"\"Print the current goal for debugging.\"\"\"\n    def tactic(goal: Goal):\n        print(f\"[trace{' '+label if label else ''}] Context: {list(goal.context.keys())}\")\n        print(f\"[trace{' '+label if label else ''}] Goal: {goal.statement!r}\")\n        # Return a no-op: 1 subgoal (same goal), identity compose\n        return [goal], lambda proofs: proofs[0]\n    return tactic\n\nx = logos.var(\"x\", int)\nlogos.check(logos.prove(\n    logos.forall(int, lambda x: x + logos.lit(0) == x),\n    [\n        trace(\"before intro\"),\n        t.intro(\"x\"),\n        trace(\"after intro\"),\n        t.ring(),\n    ],\n))\n\n[trace before intro] Context: []\n[trace before intro] Goal: ForallNode(var=Var(name='x', type=&lt;class 'int'&gt;), body=Eq(left=Add(left=Var(name='x', type=&lt;class 'int'&gt;), right=Lit(value=0)), right=Var(name='x', type=&lt;class 'int'&gt;)))\n[trace after intro] Context: ['x']\n[trace after intro] Goal: Eq(left=Add(left=Var(name='x', type=&lt;class 'int'&gt;), right=Lit(value=0)), right=Var(name='x', type=&lt;class 'int'&gt;))\n\n\n&lt;logos.theorem._GroundProof at 0x7fddacfa1880&gt;",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Writing Custom Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/custom.html#combining-custom-tactics-with-builtins",
+    "href": "guide/tactics/custom.html#combining-custom-tactics-with-builtins",
+    "title": "Writing Custom Tactics",
+    "section": "Combining Custom Tactics with Builtins",
+    "text": "Combining Custom Tactics with Builtins\nCustom tactics plug in seamlessly with the built-in tactic library:\n\n@logos.define\ndef abs_val(x: int):\n    return logos.cases(\n        (x &gt;= logos.lit(0), x),\n        (x &lt; logos.lit(0), -x),\n    )\n\n# A reusable \"unfold then arithmetic\" pattern\ndef unfold_and_solve(*fns):\n    \"\"\"Unfold the given Function objects then try ring and linarith.\"\"\"\n    return t.then(\n        *[t.unfold(fn) for fn in fns],\n        t.first(t.refl(), t.ring(), t.linarith()),\n    )\n\nx = logos.var(\"x\", int)\nlogos.check(logos.prove(\n    logos.forall(int, int, lambda x, y: x + y == y + x),\n    [t.intro(\"x\", \"y\"), unfold_and_solve()],\n))\nprint(\"unfold_and_solve worked\")\n\nunfold_and_solve worked",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Writing Custom Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/custom.html#introspecting-the-context",
+    "href": "guide/tactics/custom.html#introspecting-the-context",
+    "title": "Writing Custom Tactics",
+    "section": "Introspecting the Context",
+    "text": "Introspecting the Context\nCustom tactics can read the context to make decisions:\n\ndef find_equality(goal: Goal):\n    \"\"\"Look for an equality hypothesis and try to rewrite with it.\"\"\"\n    from logos.expr import Eq\n    for name, hyp in goal.context.items():\n        match hyp:\n            case Eq(lhs, rhs):\n                # Found one — try rewriting\n                from logos.tactics.rewrite import _replace_unify\n                new_stmt = _replace_unify(goal.statement, lhs, rhs, set())\n                if not structural_eq(new_stmt, goal.statement):\n                    new_goal = Goal(goal.context, new_stmt)\n                    return [new_goal], lambda ps: ps[0]\n    raise TacticFailed(\"find_equality: no usable equality in context\")\n\nx = logos.var(\"x\", int)\neq_hyp = x == logos.lit(5)\ngoal = Goal({\"h\": eq_hyp}, x + logos.lit(1) == logos.lit(6))\n\nproof = run(goal, [find_equality, t.norm_num()])\nprint(\"find_equality worked:\", type(proof).__name__)\n\nfind_equality worked: Refl",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Writing Custom Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/arithmetic.html",
+    "href": "guide/tactics/arithmetic.html",
+    "title": "Arithmetic Tactics",
+    "section": "",
+    "text": "Arithmetic tactics prove numeric goals without requiring manual proof steps. They work by normalizing expressions and checking algebraic identities.\nimport logos\nimport logos.tactics as t",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Arithmetic Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/arithmetic.html#ring",
+    "href": "guide/tactics/arithmetic.html#ring",
+    "title": "Arithmetic Tactics",
+    "section": "ring()",
+    "text": "ring()\nProves polynomial ring identities over integers and rationals — commutativity, associativity, distributivity, and any combination. Internally normalizes both sides to a canonical sum-of-monomials form and checks equality.\n\nx, y, z = logos.vars(\"x y z\", int)\n\n# Commutativity\nlogos.check(logos.prove(logos.forall(int, int, lambda x, y: x + y == y + x),\n            [t.intro(\"x\", \"y\"), t.ring()]))\nprint(\"x + y = y + x ✓\")\n\n# Distributivity\nlogos.check(logos.prove(logos.forall(int, int, int, lambda x, y, z: x * (y + z) == x * y + x * z),\n            [t.intro(\"x\", \"y\", \"z\"), t.ring()]))\nprint(\"x(y+z) = xy+xz ✓\")\n\n# Difference of squares\nlogos.check(logos.prove(\n    logos.forall(int, int, lambda x, y: (x + y) * (x - y) == x**2 - y**2),\n    [t.intro(\"x\", \"y\"), t.ring()],\n))\nprint(\"(x+y)(x-y) = x²-y² ✓\")\n\n# Constants fold automatically\nlogos.check(logos.prove(logos.forall(int, lambda x: logos.lit(3) * x + logos.lit(2) * x == logos.lit(5) * x),\n            [t.intro(\"x\"), t.ring()]))\nprint(\"3x + 2x = 5x ✓\")\n\nx + y = y + x ✓\nx(y+z) = xy+xz ✓\n(x+y)(x-y) = x²-y² ✓\n3x + 2x = 5x ✓\n\n\nring fails when the identity doesn’t hold:\n\nfrom logos.theorem import LogosProofError\n\ntry:\n    logos.check(logos.prove(logos.forall(int, int, lambda x, y: x + y == x - y),\n                [t.intro(\"x\", \"y\"), t.ring()]))\nexcept LogosProofError as e:\n    print(f\"Correctly rejected: {e}\")\n\nCorrectly rejected: Proof failed: ring: Add(left=Var(name='x', type=&lt;class 'int'&gt;), right=Var(name='y', type=&lt;class 'int'&gt;)) ≠ Sub(left=Var(name='x', type=&lt;class 'int'&gt;), right=Var(name='y', type=&lt;class 'int'&gt;)) after normalization\n  LHS poly: {frozenset({('x', 1)}): 1, frozenset({('y', 1)}): 1}\n  RHS poly: {frozenset({('x', 1)}): 1, frozenset({('y', 1)}): -1}",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Arithmetic Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/arithmetic.html#linarith",
+    "href": "guide/tactics/arithmetic.html#linarith",
+    "title": "Arithmetic Tactics",
+    "section": "linarith()",
+    "text": "linarith()\nProves linear arithmetic goals from linear hypotheses. It works by finding a non-negative linear combination of the hypotheses (Farkas’ lemma) that implies the goal.\n\nx, y = logos.vars(\"x y\", int)\n\n# Simple transitive inequality\nlogos.check(logos.prove(\n    logos.forall(int, int, lambda x, y:\n        (x &gt; logos.lit(0)) &gt;&gt; ((y &gt; x) &gt;&gt; (y &gt; logos.lit(0)))\n    ),\n    [t.intro(\"x\", \"y\", \"hx\", \"hxy\"), t.linarith()],\n))\nprint(\"x &gt; 0 ∧ y &gt; x → y &gt; 0 ✓\")\n\n# Linear combination\nlogos.check(logos.prove(\n    logos.forall(int, int, lambda x, y:\n        (x &gt; logos.lit(2)) &gt;&gt; ((y &gt; logos.lit(3)) &gt;&gt; (x + y &gt; logos.lit(5)))\n    ),\n    [t.intro(\"x\", \"y\", \"hx\", \"hy\"), t.linarith()],\n))\nprint(\"x &gt; 2 ∧ y &gt; 3 → x+y &gt; 5 ✓\")\n\n# Tighter bound derivation\nlogos.check(logos.prove(\n    logos.forall(int, lambda x:\n        (x &gt; logos.lit(10)) &gt;&gt; (x &gt; logos.lit(1))\n    ),\n    [t.intro(\"x\", \"h\"), t.linarith()],\n))\nprint(\"x &gt; 10 → x &gt; 1 ✓\")\n\nx &gt; 0 ∧ y &gt; x → y &gt; 0 ✓\nx &gt; 2 ∧ y &gt; 3 → x+y &gt; 5 ✓\nx &gt; 10 → x &gt; 1 ✓\n\n\n\n\n\n\n\n\nNote\n\n\n\nlinarith uses a simplified Farkas-lemma approach. It handles most common linear reasoning but may not close all valid linear goals. For those cases, try ring or break the proof into smaller steps with intro/split.",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Arithmetic Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/arithmetic.html#decide",
+    "href": "guide/tactics/arithmetic.html#decide",
+    "title": "Arithmetic Tactics",
+    "section": "decide()",
+    "text": "decide()\nEvaluates a ground (variable-free) boolean proposition by computing its value. If it evaluates to True, the goal is closed.\n\n# Ground numeric comparisons\nlogos.check(logos.prove(logos.lit(5) &gt; logos.lit(3),  [t.decide()]))\nprint(\"5 &gt; 3 ✓\")\n\nlogos.check(logos.prove(logos.lit(2) * logos.lit(3) == logos.lit(6), [t.decide()]))\nprint(\"2 * 3 = 6 ✓\")\n\nlogos.check(logos.prove(logos.lit(10) &gt;= logos.lit(10), [t.decide()]))\nprint(\"10 ≥ 10 ✓\")\n\n5 &gt; 3 ✓\n2 * 3 = 6 ✓\n10 ≥ 10 ✓\n\n\ndecide is most useful after instantiating universally quantified variables to specific values:\n\nlogos.check(logos.prove(\n    logos.exists(int, lambda x: x * x == logos.lit(25)),\n    [\n        t.witness(logos.lit(5)),   # x := 5\n        t.decide(),                 # verify 5 * 5 == 25\n    ],\n))\nprint(\"∃x: x² = 25 ✓\")\n\n∃x: x² = 25 ✓",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Arithmetic Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/arithmetic.html#combining-arithmetic-tactics",
+    "href": "guide/tactics/arithmetic.html#combining-arithmetic-tactics",
+    "title": "Arithmetic Tactics",
+    "section": "Combining Arithmetic Tactics",
+    "text": "Combining Arithmetic Tactics\nReal proofs often combine ring and linarith:\n\n@logos.define\ndef double(x: int):\n    return x + x\n\n# double(x) &gt; x  when  x &gt; 0\n@logos.theorem\ndef double_exceeds_input(x: int):\n    return (x &gt; logos.lit(0)) &gt;&gt; (double(x) &gt; x)\n\nlogos.check(double_exceeds_input.proof(\n    t.intro(\"x\", \"h\"),\n    t.unfold(double),   # double(x) → x + x\n    t.linarith(),       # x + x &gt; x follows from x &gt; 0\n))\nprint(\"Proved: double(x) &gt; x when x &gt; 0\")\n\nProved: double(x) &gt; x when x &gt; 0",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Arithmetic Tactics"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/combinators.html",
+    "href": "guide/tactics/combinators.html",
+    "title": "Tactic Combinators",
+    "section": "",
+    "text": "Combinators compose tactics into more powerful ones. They let you sequence, branch, and repeat tactics without writing a new function.\nimport logos\nimport logos.tactics as t\nfrom logos.goal import Goal\nfrom logos.runner import run, TacticFailed",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactic Combinators"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/combinators.html#thentactics",
+    "href": "guide/tactics/combinators.html#thentactics",
+    "title": "Tactic Combinators",
+    "section": "then(*tactics)",
+    "text": "then(*tactics)\nSequences tactics as a single compound tactic. Equivalent to listing them separately, but usable anywhere a single tactic is expected.\n\nx, y = logos.vars(\"x y\", int)\n\n# These are equivalent:\nlogos.check(logos.prove(\n    logos.forall(int, int, lambda x, y: x + y == y + x),\n    [t.then(t.intro(\"x\", \"y\"), t.ring())],   # single compound tactic\n))\n\nlogos.check(logos.prove(\n    logos.forall(int, int, lambda x, y: x + y == y + x),\n    [t.intro(\"x\", \"y\"), t.ring()],            # two separate tactics\n))\nprint(\"Both work\")\n\nBoth work\n\n\nthen is particularly useful when you need a single tactic for a subgoal:\n\n@logos.define\ndef double(x: int):\n    return x + x\n\nx, y = logos.vars(\"x y\", int)\n\nlogos.check(logos.prove(\n    logos.forall(int, int, lambda x, y:\n        (x &gt; logos.lit(0)) &gt;&gt; ((y &gt; logos.lit(0)) &gt;&gt; ((double(x) &gt; logos.lit(0)) & (double(y) &gt; logos.lit(0))))\n    ),\n    [\n        t.intro(\"x\", \"y\", \"hx\", \"hy\"),\n        t.split(),\n        [t.then(t.unfold(double), t.linarith())],  # subgoal 1 as a compound tactic\n        [t.then(t.unfold(double), t.linarith())],  # subgoal 2\n    ],\n))\nprint(\"Proved compound goal\")\n\nProved compound goal",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactic Combinators"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/combinators.html#firsttactics",
+    "href": "guide/tactics/combinators.html#firsttactics",
+    "title": "Tactic Combinators",
+    "section": "first(*tactics)",
+    "text": "first(*tactics)\nTries each tactic in order and succeeds with the first one that doesn’t raise TacticFailed. Useful for automation when multiple tactics might apply.\n\nx = logos.var(\"x\", int)\n\n# refl works for x == x, ring works for x + 0 == x\n# first tries refl, then ring\n\nlogos.check(logos.prove(logos.forall(int, lambda x: x == x),\n            [t.intro(\"x\"), t.first(t.refl(), t.ring())]))\nprint(\"x = x via first(refl, ring)\")\n\nlogos.check(logos.prove(logos.forall(int, lambda x: x + logos.lit(0) == x),\n            [t.intro(\"x\"), t.first(t.refl(), t.ring())]))\nprint(\"x + 0 = x via first(refl, ring)\")\n\nx = x via first(refl, ring)\nx + 0 = x via first(refl, ring)\n\n\nThis pattern is useful in generic automation:\n\n# A \"cheap auto\" tactic that tries simple things first\ncheap_auto = t.first(t.refl(), t.assumption(), t.decide(), t.ring())\n\nlogos.check(logos.prove(logos.forall(int, lambda x: x == x),\n            [t.intro(\"x\"), cheap_auto]))\nlogos.check(logos.prove(logos.lit(2) + logos.lit(2) == logos.lit(4),\n            [cheap_auto]))\nprint(\"cheap_auto handles both\")\n\ncheap_auto handles both",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactic Combinators"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/combinators.html#try_tactic",
+    "href": "guide/tactics/combinators.html#try_tactic",
+    "title": "Tactic Combinators",
+    "section": "try_(tactic)",
+    "text": "try_(tactic)\nApplies the tactic; if it fails, silently succeeds (the goal remains open for the next tactic). Never raises TacticFailed.\n\nx = logos.var(\"x\", int)\nhyp = x &gt; logos.lit(0)\n\n# try_(ring()) fails silently on a non-ring goal, then assumption() closes it\nlogos.check(logos.prove(\n    logos.forall(int, lambda x: (x &gt; logos.lit(0)) &gt;&gt; (x &gt; logos.lit(0))),\n    [\n        t.intro(\"x\", \"h\"),\n        t.try_(t.ring()),    # fails (not a ring goal), but doesn't raise\n        t.assumption(),      # closes the goal\n    ],\n))\nprint(\"try_ worked correctly\")\n\ntry_ worked correctly",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactic Combinators"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/combinators.html#repeattactic",
+    "href": "guide/tactics/combinators.html#repeattactic",
+    "title": "Tactic Combinators",
+    "section": "repeat(tactic)",
+    "text": "repeat(tactic)\nApplies the tactic repeatedly until it fails. Useful for stripping multiple Forall binders one at a time or simplifying iteratively.\n\nx, y, z = logos.vars(\"x y z\", int)\n\n# Strip all three Foralls one at a time, then ring\nlogos.check(logos.prove(\n    logos.forall(int, int, int, lambda x, y, z: x + y + z == z + y + x),\n    [\n        t.repeat(t.intro(\"_\")),   # strips x, y, z one at a time\n        t.ring(),\n    ],\n))\nprint(\"repeat(intro) stripped all foralls\")\n\nrepeat(intro) stripped all foralls",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactic Combinators"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/combinators.html#all_goalstactic",
+    "href": "guide/tactics/combinators.html#all_goalstactic",
+    "title": "Tactic Combinators",
+    "section": "all_goals(tactic)",
+    "text": "all_goals(tactic)\nApplies the tactic to the current goal (acts as the tactic itself). In a proof list after a splitting tactic, repeat it for each subgoal using separate nested lists, or use t.first to handle multiple cases:\n\nx, y = logos.vars(\"x y\", int)\n\n# Use the same sub-tactic for each subgoal\nclose_with_assumption = t.assumption()\n\nlogos.check(logos.prove(\n    logos.forall(int, int, lambda x, y:\n        (x &gt; logos.lit(0)) &gt;&gt; ((y &gt; logos.lit(0)) &gt;&gt; ((x &gt; logos.lit(0)) & (y &gt; logos.lit(0))))\n    ),\n    [\n        t.intro(\"x\", \"y\", \"hx\", \"hy\"),\n        t.split(),\n        [close_with_assumption],\n        [close_with_assumption],\n    ],\n))\nprint(\"Both subgoals closed by same tactic\")\n\nBoth subgoals closed by same tactic",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactic Combinators"
+    ]
+  },
+  {
+    "objectID": "guide/tactics/combinators.html#building-a-mini-automation",
+    "href": "guide/tactics/combinators.html#building-a-mini-automation",
+    "title": "Tactic Combinators",
+    "section": "Building a Mini Automation",
+    "text": "Building a Mini Automation\nCombinators let you compose a simple automation tactic without writing Python:\n\n# A mini \"auto\" that tries a battery of cheap tactics\nauto = t.first(\n    t.refl(),\n    t.assumption(),\n    t.decide(),\n    t.ring(),\n    t.linarith(),\n)\n\n# Now use it for simple goals without specifying which tactic applies\nx, y = logos.vars(\"x y\", int)\n\nfor stmt, by in [\n    (logos.forall(int, lambda x: x == x), [t.intro(\"x\"), auto]),\n    (logos.lit(3) &gt; logos.lit(2), [auto]),\n    (logos.forall(int, int, lambda x, y: x + y == y + x), [t.intro(\"x\", \"y\"), auto]),\n]:\n    logos.check(logos.prove(stmt, by))\n\nprint(\"mini-auto handled all three goals\")\n\nmini-auto handled all three goals",
+    "crumbs": [
+      "Get Started",
+      "Tactics",
+      "Tactic Combinators"
+    ]
+  },
+  {
+    "objectID": "guide/examples/number-theory.html",
+    "href": "guide/examples/number-theory.html",
+    "title": "Number Theory",
+    "section": "",
+    "text": "Proving properties of integer arithmetic — the kind of reasoning that underlies correct numerical algorithms.\nimport logos\nimport logos.tactics as t",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Number Theory"
+    ]
+  },
+  {
+    "objectID": "guide/examples/number-theory.html#basic-identities",
+    "href": "guide/examples/number-theory.html#basic-identities",
+    "title": "Number Theory",
+    "section": "Basic Identities",
+    "text": "Basic Identities\nLet’s build a small library of arithmetic identities, each proved formally.\n\nx, y, z = logos.vars(\"x y z\", int)\n\n# Commutativity\n@logos.theorem\ndef add_comm(x: int, y: int):\n    return x + y == y + x\n\n@logos.theorem\ndef mul_comm(x: int, y: int):\n    return x * y == y * x\n\n# Associativity\n@logos.theorem\ndef add_assoc(x: int, y: int, z: int):\n    return (x + y) + z == x + (y + z)\n\n@logos.theorem\ndef mul_assoc(x: int, y: int, z: int):\n    return (x * y) * z == x * (y * z)\n\n# Distributivity\n@logos.theorem\ndef distrib(x: int, y: int, z: int):\n    return x * (y + z) == x * y + x * z\n\nlogos.check(add_comm.proof(t.intro(\"x\", \"y\"), t.ring()))\nlogos.check(mul_comm.proof(t.intro(\"x\", \"y\"), t.ring()))\nlogos.check(add_assoc.proof(t.intro(\"x\", \"y\", \"z\"), t.ring()))\nlogos.check(mul_assoc.proof(t.intro(\"x\", \"y\", \"z\"), t.ring()))\nlogos.check(distrib.proof(t.intro(\"x\", \"y\", \"z\"), t.ring()))\n\nprint(\"Core arithmetic library: ✓\")\n\nCore arithmetic library: ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Number Theory"
+    ]
+  },
+  {
+    "objectID": "guide/examples/number-theory.html#parity",
+    "href": "guide/examples/number-theory.html#parity",
+    "title": "Number Theory",
+    "section": "Parity",
+    "text": "Parity\n\n@logos.define\ndef double(n: int):\n    return n + n\n\n# double(n) = 2*n\n@logos.theorem\ndef double_is_2n(n: int):\n    return double(n) == logos.lit(2) * n\n\nlogos.check(double_is_2n.proof(t.intro(\"n\"), t.unfold(double), t.ring()))\nprint(\"double(n) = 2n ✓\")\n\n# double is non-negative for non-negative inputs\n@logos.theorem\ndef double_nonneg(n: int):\n    return (n &gt;= logos.lit(0)) &gt;&gt; (double(n) &gt;= logos.lit(0))\n\nlogos.check(double_nonneg.proof(t.intro(\"n\", \"h\"), t.unfold(double), t.linarith()))\nprint(\"n ≥ 0 → double(n) ≥ 0 ✓\")\n\n# double of a sum: double(x + y) = double(x) + double(y)\n@logos.theorem\ndef double_additive(x: int, y: int):\n    return double(x + y) == double(x) + double(y)\n\nlogos.check(double_additive.proof(t.intro(\"x\", \"y\"), t.unfold(double), t.ring()))\nprint(\"double(x + y) = double(x) + double(y) ✓\")\n\ndouble(n) = 2n ✓\nn ≥ 0 → double(n) ≥ 0 ✓\ndouble(x + y) = double(x) + double(y) ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Number Theory"
+    ]
+  },
+  {
+    "objectID": "guide/examples/number-theory.html#difference-of-squares",
+    "href": "guide/examples/number-theory.html#difference-of-squares",
+    "title": "Number Theory",
+    "section": "Difference of Squares",
+    "text": "Difference of Squares\nA classic identity used in factoring and cryptography:\n\n@logos.define\ndef square(n: int):\n    return n * n\n\n@logos.theorem\ndef diff_of_squares(a: int, b: int):\n    return (a + b) * (a - b) == square(a) - square(b)\n\nlogos.check(diff_of_squares.proof(t.intro(\"a\", \"b\"), t.unfold(square), t.ring()))\nprint(\"(a+b)(a-b) = a² - b² ✓\")\n\n@logos.theorem\ndef square_of_sum(a: int, b: int):\n    return square(a + b) == square(a) + logos.lit(2)*a*b + square(b)\n\nlogos.check(square_of_sum.proof(t.intro(\"a\", \"b\"), t.unfold(square), t.ring()))\nprint(\"(a+b)² = a² + 2ab + b² ✓\")\n\n(a+b)(a-b) = a² - b² ✓\n(a+b)² = a² + 2ab + b² ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Number Theory"
+    ]
+  },
+  {
+    "objectID": "guide/examples/number-theory.html#linear-inequalities",
+    "href": "guide/examples/number-theory.html#linear-inequalities",
+    "title": "Number Theory",
+    "section": "Linear Inequalities",
+    "text": "Linear Inequalities\nReasoning about bounds — essential for algorithm correctness:\n\nx, y = logos.vars(\"x y\", int)\n\n# Additive monotonicity\n@logos.theorem\ndef add_mono(x: int, y: int, z: int):\n    return (x &lt;= y) &gt;&gt; (x + z &lt;= y + z)\n\nlogos.check(add_mono.proof(t.intro(\"x\", \"y\", \"z\", \"h\"), t.linarith()))\nprint(\"x ≤ y → x+z ≤ y+z ✓\")\n\n# Transitivity\n@logos.theorem\ndef lt_trans(x: int, y: int, z: int):\n    return (x &lt; y) &gt;&gt; ((y &lt; z) &gt;&gt; (x &lt; z))\n\nlogos.check(lt_trans.proof(t.intro(\"x\", \"y\", \"z\", \"hxy\", \"hyz\"), t.linarith()))\nprint(\"x &lt; y ∧ y &lt; z → x &lt; z ✓\")\n\n# Sum of non-positives is non-positive\n@logos.theorem\ndef neg_add_neg(x: int, y: int):\n    return (x &lt;= logos.lit(0)) &gt;&gt; ((y &lt;= logos.lit(0)) &gt;&gt; (x + y &lt;= logos.lit(0)))\n\nlogos.check(neg_add_neg.proof(t.intro(\"x\", \"y\", \"hx\", \"hy\"), t.linarith()))\nprint(\"x ≤ 0 ∧ y ≤ 0 → x + y ≤ 0 ✓\")\n\nx ≤ y → x+z ≤ y+z ✓\nx &lt; y ∧ y &lt; z → x &lt; z ✓\nx ≤ 0 ∧ y ≤ 0 → x + y ≤ 0 ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Number Theory"
+    ]
+  },
+  {
+    "objectID": "guide/examples/number-theory.html#triangle-inequality",
+    "href": "guide/examples/number-theory.html#triangle-inequality",
+    "title": "Number Theory",
+    "section": "Triangle Inequality",
+    "text": "Triangle Inequality\nProving |a + b| ≤ |a| + |b| requires case analysis. Here’s a simplified version for non-negatives:\n\n# For non-negative integers: (a + b) ≤ (a + b) — trivial base case\n# Full triangle inequality needs case splits; here we show the setup:\n\n@logos.theorem\ndef abs_nonneg(n: int):\n    return (n &gt;= logos.lit(0)) &gt;&gt; (n &gt;= logos.lit(0))\n\nlogos.check(abs_nonneg.proof(t.intro(\"n\", \"h\"), t.assumption()))\nprint(\"n ≥ 0 → n ≥ 0 (trivial, shows case intro works) ✓\")\n\nn ≥ 0 → n ≥ 0 (trivial, shows case intro works) ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Number Theory"
+    ]
+  },
+  {
+    "objectID": "guide/examples/number-theory.html#arithmetic-progressions",
+    "href": "guide/examples/number-theory.html#arithmetic-progressions",
+    "title": "Number Theory",
+    "section": "Arithmetic Progressions",
+    "text": "Arithmetic Progressions\nSum of first n natural numbers using Gauss’s formula (as an axiom — logos doesn’t have induction in v0.2):\n\n# Declare gauss_sum as an external function and axiomatize it\ngauss_sum = logos.extern(\"gauss_sum\", [int], int)\n\nn = logos.var(\"n\", int)\n\n# Axiom: gauss_sum(n) * 2 = n * (n + 1)\n@logos.axiom\ndef gauss_formula(n: int):\n    return gauss_sum(n) * logos.lit(2) == n * (n + logos.lit(1))\n\n# Use the axiom: from it and n &gt; 0, we can derive gauss_sum(n) * 2 == n*(n+1)\n# Here we show applying the axiom in a forall proof\nlogos.check(logos.prove(\n    logos.forall(int, lambda n: gauss_sum(n) * logos.lit(2) == n * (n + logos.lit(1))),\n    [t.intro(\"n\"), t.apply(gauss_formula)],\n))\nprint(\"gauss_sum(n) * 2 = n*(n+1) ✓\")\n\ngauss_sum(n) * 2 = n*(n+1) ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Number Theory"
+    ]
+  },
+  {
+    "objectID": "guide/examples/number-theory.html#modular-arithmetic",
+    "href": "guide/examples/number-theory.html#modular-arithmetic",
+    "title": "Number Theory",
+    "section": "Modular Arithmetic",
+    "text": "Modular Arithmetic\n\n# Basic mod property: (a * b) mod m = ((a mod m) * (b mod m)) mod m\n# We'll prove a specific case\n\nlogos.check(logos.prove(\n    logos.lit(7) * logos.lit(8) % logos.lit(5) == (logos.lit(7) % logos.lit(5)) * (logos.lit(8) % logos.lit(5)) % logos.lit(5),\n    [t.norm_num()],\n))\nprint(\"(7 * 8) mod 5 = (7 mod 5)(8 mod 5) mod 5 ✓\")\n\n(7 * 8) mod 5 = (7 mod 5)(8 mod 5) mod 5 ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Number Theory"
+    ]
+  },
+  {
+    "objectID": "guide/examples/number-theory.html#automatic-proof-search",
+    "href": "guide/examples/number-theory.html#automatic-proof-search",
+    "title": "Number Theory",
+    "section": "Automatic Proof Search",
+    "text": "Automatic Proof Search\nlogos.prove(thm) searches for a proof automatically. It handles multi-variable goals with nested hypotheses — no tactic list needed:\n\n# Three variables, two nested implications: logos figures out the intro chain\n# and closes with linear arithmetic\n@logos.theorem\ndef sum_of_positives(x: int, y: int, z: int):\n    return (x &gt; logos.lit(0)) &gt;&gt; ((y &gt; logos.lit(0)) &gt;&gt; ((z &gt; logos.lit(0)) &gt;&gt; (x + y + z &gt; logos.lit(0))))\n\nlogos.prove(sum_of_positives)\nprint(\"x&gt;0, y&gt;0, z&gt;0 → x+y+z&gt;0 ✓ (auto)\")\n\nx&gt;0, y&gt;0, z&gt;0 → x+y+z&gt;0 ✓ (auto)\n\n\n\n# Conjunction goals are split and each branch solved independently\n@logos.theorem\ndef both_bounds(x: int):\n    return (x &gt;= logos.lit(0)) &gt;&gt; ((x + logos.lit(1) &gt;= logos.lit(0)) & (x + logos.lit(1) &gt; x))\n\nlogos.prove(both_bounds)\nprint(\"x≥0 → (x+1≥0) ∧ (x+1&gt;x) ✓ (auto)\")\n\nx≥0 → (x+1≥0) ∧ (x+1&gt;x) ✓ (auto)\n\n\n\n# Function definitions as hints: auto unfolds them and applies ring/linarith\n@logos.define\ndef increment(n: int):\n    return n + logos.lit(1)\n\n@logos.theorem\ndef increment_double(n: int):\n    return increment(increment(n)) == n + logos.lit(2)\n\nlogos.prove(increment_double, hints=[increment])\nprint(\"increment(increment(n)) = n+2 ✓ (auto with function hint)\")\n\nincrement(increment(n)) = n+2 ✓ (auto with function hint)",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Number Theory"
+    ]
+  },
+  {
+    "objectID": "guide/examples/data-structures.html",
+    "href": "guide/examples/data-structures.html",
+    "title": "Data Structures",
+    "section": "",
+    "text": "Reasoning about pure functions on data — the foundation of verified algorithm design.\nimport logos\nimport logos.tactics as t",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Data Structures"
+    ]
+  },
+  {
+    "objectID": "guide/examples/data-structures.html#reasoning-about-external-functions",
+    "href": "guide/examples/data-structures.html#reasoning-about-external-functions",
+    "title": "Data Structures",
+    "section": "Reasoning About External Functions",
+    "text": "Reasoning About External Functions\nWhen you can’t inspect a function’s source (C extensions, third-party libraries), declare it externally and axiomatize its contract:\n\n# Declare Python's built-in sorted() as an external function\nmy_sorted = logos.extern(\"my_sorted\", [list], list)\n\nxs = logos.var(\"xs\", list)\ni = logos.var(\"i\", int)\nj = logos.var(\"j\", int)\n\n# Axiomatize what we know about sorted()\n@logos.axiom\ndef sorted_length(xs: list):\n    return my_sorted(xs) == my_sorted(xs)  # placeholder\n\n# Verify concrete behavior with decide()\nlogos.check(logos.prove(\n    logos.lit(1) &lt; logos.lit(3),\n    [t.decide()],\n))\nprint(\"Ordering check: 1 &lt; 3 ✓\")\n\nOrdering check: 1 &lt; 3 ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Data Structures"
+    ]
+  },
+  {
+    "objectID": "guide/examples/data-structures.html#pure-accumulator-functions",
+    "href": "guide/examples/data-structures.html#pure-accumulator-functions",
+    "title": "Data Structures",
+    "section": "Pure Accumulator Functions",
+    "text": "Pure Accumulator Functions\nAccumulators are a common pattern — prove properties about their results:\n\n@logos.define\ndef increment(n: int):\n    \"\"\"n + 1\"\"\"\n    return n + logos.lit(1)\n\n# increment is strictly greater than its input\n@logos.theorem\ndef increment_gt(n: int):\n    return increment(n) &gt; n\n\nlogos.check(increment_gt.proof(t.intro(\"n\"), t.unfold(increment), t.linarith()))\nprint(\"increment(n) &gt; n ✓\")\n\n# increment is non-negative when input is non-negative\n@logos.theorem\ndef increment_nonneg(n: int):\n    return (n &gt;= logos.lit(0)) &gt;&gt; (increment(n) &gt;= logos.lit(0))\n\nlogos.check(increment_nonneg.proof(t.intro(\"n\", \"h\"), t.unfold(increment), t.linarith()))\nprint(\"n ≥ 0 → increment(n) ≥ 0 ✓\")\n\nincrement(n) &gt; n ✓\nn ≥ 0 → increment(n) ≥ 0 ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Data Structures"
+    ]
+  },
+  {
+    "objectID": "guide/examples/data-structures.html#monotone-functions",
+    "href": "guide/examples/data-structures.html#monotone-functions",
+    "title": "Data Structures",
+    "section": "Monotone Functions",
+    "text": "Monotone Functions\nA function is monotone if x ≤ y → f(x) ≤ f(y). This property is essential for binary search correctness:\n\n@logos.define\ndef linear_fn(x: int):\n    return logos.lit(3) * x + logos.lit(5)\n\n@logos.theorem\ndef linear_fn_monotone(x: int, y: int):\n    return (x &lt;= y) &gt;&gt; (linear_fn(x) &lt;= linear_fn(y))\n\nlogos.check(linear_fn_monotone.proof(\n    t.intro(\"x\", \"y\", \"h\"),\n    t.unfold(linear_fn),\n    t.linarith(),\n))\nprint(\"3x + 5 is monotone ✓\")\n\n@logos.define\ndef square(x: int):\n    return x * x\n\n# Algebraic identity: (x+1)² = x² + 2x + 1\n@logos.theorem\ndef square_succ(x: int):\n    return square(x + logos.lit(1)) == square(x) + logos.lit(2) * x + logos.lit(1)\n\nlogos.check(square_succ.proof(t.intro(\"x\"), t.unfold(square), t.ring()))\nprint(\"(x+1)² = x² + 2x + 1 ✓\")\n\n# Difference of squares: (x-y)*(x+y) = x² - y²\n@logos.theorem\ndef square_diff(x: int, y: int):\n    return (x - y) * (x + y) == square(x) - square(y)\n\nlogos.check(square_diff.proof(t.intro(\"x\", \"y\"), t.unfold(square), t.ring()))\nprint(\"(x-y)(x+y) = x² - y² ✓\")\n\n3x + 5 is monotone ✓\n(x+1)² = x² + 2x + 1 ✓\n(x-y)(x+y) = x² - y² ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Data Structures"
+    ]
+  },
+  {
+    "objectID": "guide/examples/data-structures.html#function-composition-properties",
+    "href": "guide/examples/data-structures.html#function-composition-properties",
+    "title": "Data Structures",
+    "section": "Function Composition Properties",
+    "text": "Function Composition Properties\nComposition of linear scaling functions: prove that applying a 2× scale twice equals a 4× scale.\n\n@logos.define\ndef scale_2(x: int):\n    return logos.lit(2) * x\n\n@logos.define\ndef scale_4(x: int):\n    return logos.lit(4) * x\n\n# scale_2 ∘ scale_2 = scale_4\n@logos.theorem\ndef double_twice_is_quadruple(x: int):\n    return scale_2(scale_2(x)) == scale_4(x)\n\nlogos.check(double_twice_is_quadruple.proof(\n    t.intro(\"x\"), t.unfold(scale_2), t.unfold(scale_2), t.unfold(scale_4), t.ring()\n))\nprint(\"2*(2*x) = 4*x ✓\")\n\n# scale_2 preserves the sign\n@logos.theorem\ndef scale_2_nonneg(x: int):\n    return (x &gt;= logos.lit(0)) &gt;&gt; (scale_2(x) &gt;= logos.lit(0))\n\nlogos.check(scale_2_nonneg.proof(t.intro(\"x\", \"h\"), t.unfold(scale_2), t.linarith()))\nprint(\"x ≥ 0 → 2x ≥ 0 ✓\")\n\n2*(2*x) = 4*x ✓\nx ≥ 0 → 2x ≥ 0 ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Data Structures"
+    ]
+  },
+  {
+    "objectID": "guide/examples/data-structures.html#composing-function-properties",
+    "href": "guide/examples/data-structures.html#composing-function-properties",
+    "title": "Data Structures",
+    "section": "Composing Function Properties",
+    "text": "Composing Function Properties\nProve properties of function compositions from properties of the parts:\n\n@logos.define\ndef double(x: int):\n    return logos.lit(2) * x\n\n@logos.define\ndef triple(x: int):\n    return logos.lit(3) * x\n\n@logos.define\ndef sextuple(x: int):\n    return logos.lit(6) * x\n\n@logos.theorem\ndef double_triple_is_sextuple(x: int):\n    return double(triple(x)) == sextuple(x)\n\nlogos.check(double_triple_is_sextuple.proof(\n    t.intro(\"x\"), t.unfold(double), t.unfold(triple), t.unfold(sextuple), t.ring()\n))\nprint(\"2 * (3 * x) = 6 * x ✓\")\n\n# And multiplication is commutative in composition order\n@logos.theorem\ndef triple_double_is_sextuple(x: int):\n    return triple(double(x)) == sextuple(x)\n\nlogos.check(triple_double_is_sextuple.proof(\n    t.intro(\"x\"), t.unfold(triple), t.unfold(double), t.unfold(sextuple), t.ring()\n))\nprint(\"3 * (2 * x) = 6 * x ✓\")\n\n2 * (3 * x) = 6 * x ✓\n3 * (2 * x) = 6 * x ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Data Structures"
+    ]
+  },
+  {
+    "objectID": "guide/examples/data-structures.html#api-contracts-as-theorems",
+    "href": "guide/examples/data-structures.html#api-contracts-as-theorems",
+    "title": "Data Structures",
+    "section": "API Contracts as Theorems",
+    "text": "API Contracts as Theorems\nA real-world pattern: encode a function’s postcondition as a logos theorem. If the proof breaks, the contract was violated:\n\n# A pricing function that applies a fixed flat discount\n@logos.define\ndef apply_flat_discount(price: int):\n    \"\"\"price - 10  (fixed $10 discount)\"\"\"\n    return price - logos.lit(10)\n\n# Contract 1: discounted price is strictly less than original\n@logos.theorem\ndef flat_discount_reduces_price(price: int):\n    return apply_flat_discount(price) &lt; price\n\nlogos.check(flat_discount_reduces_price.proof(\n    t.intro(\"price\"), t.unfold(apply_flat_discount), t.linarith()\n))\nprint(\"Discount contract: discounted &lt; original ✓\")\n\n# A shipping fee function\n@logos.define\ndef add_shipping(price: int):\n    \"\"\"price + 5  (fixed $5 shipping)\"\"\"\n    return price + logos.lit(5)\n\n# Contract 2: after shipping, total is always greater than base price\n@logos.theorem\ndef shipping_increases_price(price: int):\n    return add_shipping(price) &gt; price\n\nlogos.check(shipping_increases_price.proof(\n    t.intro(\"price\"), t.unfold(add_shipping), t.linarith()\n))\nprint(\"Shipping contract: total &gt; base price ✓\")\n\n# Contract 3: discount then shipping equals shipping then discount\n@logos.theorem\ndef order_matters(price: int):\n    return add_shipping(apply_flat_discount(price)) == apply_flat_discount(add_shipping(price))\n\nlogos.check(order_matters.proof(\n    t.intro(\"price\"),\n    t.unfold(add_shipping), t.unfold(apply_flat_discount),\n    t.ring(),\n))\nprint(\"discount∘shipping == shipping∘discount (same result) ✓\")\n\nDiscount contract: discounted &lt; original ✓\nShipping contract: total &gt; base price ✓\ndiscount∘shipping == shipping∘discount (same result) ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Data Structures"
+    ]
+  },
+  {
+    "objectID": "guide/examples/data-structures.html#ground-computation-verification",
+    "href": "guide/examples/data-structures.html#ground-computation-verification",
+    "title": "Data Structures",
+    "section": "Ground Computation Verification",
+    "text": "Ground Computation Verification\nVerify that specific computations give the correct answer — essentially a proof-carrying unit test:\n\n# Verify that our formulas compute the right values for concrete inputs\nfor n, expected in [(1, 1), (2, 4), (3, 9), (4, 16), (5, 25)]:\n    logos.check(logos.prove(\n        logos.lit(n) ** logos.lit(2) == logos.lit(expected),\n        [t.norm_num()],\n    ))\n    print(f\"{n}² = {expected} ✓\")\n\n1² = 1 ✓\n2² = 4 ✓\n3² = 9 ✓\n4² = 16 ✓\n5² = 25 ✓",
+    "crumbs": [
+      "Get Started",
+      "Examples",
+      "Data Structures"
+    ]
+  },
+  {
+    "objectID": "reference/api.html",
+    "href": "reference/api.html",
+    "title": "API Reference",
+    "section": "",
+    "text": "Complete reference for the logos public API.",
+    "crumbs": [
+      "Get Started",
+      "API Reference"
+    ]
+  },
+  {
+    "objectID": "reference/api.html#top-level-logos",
+    "href": "reference/api.html#top-level-logos",
+    "title": "API Reference",
+    "section": "Top-Level (logos)",
+    "text": "Top-Level (logos)\n\nlogos.var(name, type_) → Var\nCreate a single symbolic variable.\n\nx = logos.var(\"x\", int)\nprint(x.name, x.type)   # x &lt;class 'int'&gt;\n\nx &lt;class 'int'&gt;\n\n\n\n\nlogos.vars(names, type_) → tuple[Var, ...]\nCreate multiple variables from a space-separated string.\n\nx, y, z = logos.vars(\"x y z\", int)\nprint([v.name for v in [x, y, z]])  # ['x', 'y', 'z']\n\n['x', 'y', 'z']\n\n\n\n\nlogos.lit(value) → Lit\nWrap a Python literal as an expression node.\n\nfrom logos.expr import Lit\nzero = logos.lit(0)\nprint(type(zero).__name__)   # Lit\nprint(zero.value)            # 0\n\nLit\n0\n\n\n\n\nlogos.forall(type_, ..., fn) → Expr\nCreate a universally quantified statement from a lambda.\n\np = logos.forall(int, int, lambda x, y: x + y == y + x)\nfrom logos.expr import ForallNode\nprint(type(p).__name__)  # ForallNode\n\nForallNode\n\n\n\n\nlogos.exists(type_, fn) → Expr\nCreate an existentially quantified statement from a lambda.\n\np = logos.exists(int, lambda x: x &gt; logos.lit(5))\nfrom logos.expr import ExistsNode\nprint(type(p).__name__)  # ExistsNode\n\nExistsNode\n\n\n\n\n@logos.theorem — declare a theorem\nDecorator that creates a Theorem object. No proof runs at declaration time.\n\n@logos.theorem\ndef example_comm(x: int, y: int):\n    return x + y == y + x\n\nprint(example_comm)              # Theorem[unverified]('example_comm')\nprint(example_comm.certified)   # False\n\nTheorem[unverified]('example_comm')\nFalse\n\n\n\n\nthm.proof(*tactics) — attach a proof\nAttach a proof spec and return self for chaining.\n\nlogos.check(example_comm.proof(t.intro(\"x\", \"y\"), t.ring()))\nprint(example_comm.certified)   # True\n\nTrue\n\n\n\n\nlogos.check(thm) → thm\nRun the kernel. Marks thm.certified = True or raises LogosProofError.\n\n@logos.theorem\ndef refl_thm(x: int):\n    return x == x\n\nlogos.check(refl_thm.proof(t.intro(\"x\"), t.refl()))\nprint(refl_thm.certified)   # True\n\nTrue\n\n\n\n\nlogos.prove(statement, proof_list) → _GroundProof\nCreate a one-shot anonymous proof. Pass to logos.check() to validate.\n\ngp = logos.prove(\n    logos.forall(int, lambda x: x == x),\n    [t.intro(\"x\"), t.refl()],\n)\nlogos.check(gp)\nprint(gp.certified)   # True\n\nTrue\n\n\n\n\n@logos.axiom — declare a trusted axiom\nDecorator (or function call) that creates an Axiom object — trusted without proof.\n\n@logos.axiom\ndef my_axiom(x: int):\n    return x == x\n\nprint(my_axiom)             # Axiom('my_axiom')\nprint(my_axiom.certified)   # True\n\nAxiom('my_axiom')\nTrue\n\n\n\n\nlogos.define\nDecorator that registers a symbolic function definition. Returns a Function object.\n\n@logos.define\ndef double(x: int):\n    return x + x\n\nprint(double(5))          # 10  (Python mode)\nx = logos.var(\"x\", int)\nprint(type(double(x)).__name__)  # App  (symbolic mode)\nprint(double.name)               # double\n\n10\nApp\ndouble\n\n\n\n\nlogos.extern(name, arg_types, ret_type) → callable\nDeclare an external uninterpreted function symbol.\n\nmy_fn = logos.extern(\"my_fn\", [int], int)\nx = logos.var(\"x\", int)\nfrom logos.expr import App\nresult = my_fn(x)\nprint(type(result).__name__)   # App\n\nApp\n\n\n\n\nlogos.cases(*branches) → Expr\nCreate a conditional expression for use inside @logos.define bodies.\n\nx = logos.var(\"x\", int)\nexpr = logos.cases(\n    (x &gt;= logos.lit(0), x),\n    (x &lt; logos.lit(0), -x),\n)\nfrom logos.expr import CaseExpr\nprint(type(expr).__name__)   # CaseExpr\n\nCaseExpr",
+    "crumbs": [
+      "Get Started",
+      "API Reference"
+    ]
+  },
+  {
+    "objectID": "reference/api.html#expressions-logos.expr",
+    "href": "reference/api.html#expressions-logos.expr",
+    "title": "API Reference",
+    "section": "Expressions (logos.expr)",
+    "text": "Expressions (logos.expr)\n\n\n\nClass\nDescription\nExample\n\n\n\n\nVar(name, type)\nSymbolic variable\nVar(\"x\", int)\n\n\nLit(value)\nLiteral value\nLit(42)\n\n\nAdd(left, right)\nAddition\nx + y\n\n\nSub(left, right)\nSubtraction\nx - y\n\n\nMul(left, right)\nMultiplication\nx * y\n\n\nDiv(left, right)\nInteger division\nx // y\n\n\nMod(left, right)\nModulo\nx % y\n\n\nNeg(operand)\nNegation\n-x\n\n\nPow(base, exp)\nPower\nx ** 2\n\n\nEq(left, right)\nEquality\nx == y\n\n\nNeq(left, right)\nInequality\nx != y\n\n\nLt(left, right)\nLess-than\nx &lt; y\n\n\nLe(left, right)\nLess-or-equal\nx &lt;= y\n\n\nGt(left, right)\nGreater-than\nx &gt; y\n\n\nGe(left, right)\nGreater-or-equal\nx &gt;= y\n\n\nAnd(left, right)\nConjunction\np & q\n\n\nOr(left, right)\nDisjunction\np \\| q\n\n\nNot(operand)\nNegation\n~p\n\n\nImplies(ant, cons)\nImplication\np &gt;&gt; q\n\n\nForallNode(var, body)\nUniversal quantifier\nForall(x, P)\n\n\nExistsNode(var, body)\nExistential quantifier\nExists(x, P)\n\n\nApp(name, args)\nFunction application\ndouble(x)\n\n\nCaseExpr(branches)\nCase expression\nlogos.cases(...)",
+    "crumbs": [
+      "Get Started",
+      "API Reference"
+    ]
+  },
+  {
+    "objectID": "reference/api.html#tactics-logos.tactics",
+    "href": "reference/api.html#tactics-logos.tactics",
+    "title": "API Reference",
+    "section": "Tactics (logos.tactics)",
+    "text": "Tactics (logos.tactics)\n\nStructural\n\n\n\n\n\n\n\nTactic\nDescription\n\n\n\n\nintro(*names)\nStrip Forall/Implies, add to context\n\n\nassumption()\nClose if goal is in context\n\n\nexact(term)\nClose with an explicit proof term\n\n\napply(ref)\nApply an Axiom/Theorem object or local hypothesis string\n\n\nsplit()\nA & B → [A, B]\n\n\nleft(right_type)\nA \\| B → prove A\n\n\nright(left_type)\nA \\| B → prove B\n\n\nwitness(val)\n∃x.P(x) → P[x:=val]\n\n\ncontradiction()\nClose via P and ~P in context\n\n\n\n\n\nArithmetic\n\n\n\nTactic\nDescription\n\n\n\n\nring()\nPolynomial ring identities\n\n\nlinarith()\nLinear arithmetic via Farkas\n\n\ndecide()\nEvaluate ground boolean propositions\n\n\n\n\n\nRewriting\n\n\n\n\n\n\n\nTactic\nDescription\n\n\n\n\nrefl()\nProve a == a\n\n\nunfold(*refs)\nReplace function calls with definition bodies (accepts Function objects)\n\n\nrewrite(ref)\nRewrite left-to-right using Axiom/Theorem object\n\n\nrewrite_rev(ref)\nRewrite right-to-left\n\n\neval_()\nEvaluate ground arithmetic sub-expressions\n\n\nnorm_num()\nNormalize and close numeric ground goals\n\n\n\n\n\nCombinators\n\n\n\nTactic\nDescription\n\n\n\n\nthen(*tactics)\nSequence tactics as one\n\n\nfirst(*tactics)\nTry each, succeed with first non-failing\n\n\ntry_(tactic)\nApply if possible, silent on failure\n\n\nrepeat(tactic)\nApply until failure\n\n\nall_goals(tactic)\nApply tactic to each open subgoal",
+    "crumbs": [
+      "Get Started",
+      "API Reference"
+    ]
+  },
+  {
+    "objectID": "reference/api.html#kernel-logos.kernel",
+    "href": "reference/api.html#kernel-logos.kernel",
+    "title": "API Reference",
+    "section": "Kernel (logos.kernel)",
+    "text": "Kernel (logos.kernel)\nThe kernel is the only trusted code. Direct use is rare but available:\n\nProof Terms\n\n\n\nTerm\nProves\n\n\n\n\nRefl(e)\ne == e\n\n\nSymm(p)\nb == a (given p: a==b)\n\n\nTrans(p, q)\na == c (given p: a==b, q: b==c)\n\n\nSubst(p, f)\nf(a) == f(b) (given p: a==b)\n\n\nAxiom(name)\nThe named axiom’s statement\n\n\nHypRef(name)\nThe named hypothesis\n\n\nForallIntro(var, body)\n∀x. P\n\n\nForallElim(proof, val)\nP[x:=val]\n\n\nImpliesIntro(hyp, name, body)\nP → Q\n\n\nImpliesElim(pq, p)\nQ (modus ponens)\n\n\nAndIntro(p, q)\nA ∧ B\n\n\nAndElimL(p) / AndElimR(p)\nA / B\n\n\nOrIntroL(p, right) / OrIntroR(left, p)\nA ∨ B\n\n\nCaseAnalysis(or_proof, name, left, right)\nCase split\n\n\nExFalso(false_proof, conclusion)\nEx falso quodlibet\n\n\n\n\n\nKernel Functions\nfrom logos.kernel import infer, check, Context\n\n# infer: determine what statement a proof term proves\nstmt = infer(term, ctx)\n\n# check: validate that term proves expected_stmt (raises KernelError on mismatch)\ncheck(term, expected_stmt, ctx)",
+    "crumbs": [
+      "Get Started",
+      "API Reference"
+    ]
+  },
+  {
+    "objectID": "reference/api.html#helpers-logos.helpers",
+    "href": "reference/api.html#helpers-logos.helpers",
+    "title": "API Reference",
+    "section": "Helpers (logos.helpers)",
+    "text": "Helpers (logos.helpers)\nfrom logos.helpers import structural_eq, substitute, free_vars\n\n# structural_eq: recursively compare two expression trees\nstructural_eq(x + y, x + y)     # True\nstructural_eq(x + y, y + x)     # False\n\n# substitute: replace all free occurrences of var with val\nsubstitute(x + y, x, logos.lit(5))  # Lit(5) + y\n\n# free_vars: names of free variables in an expression\nfree_vars(x + y)                 # {\"x\", \"y\"}\nfree_vars(Forall(x, x + y))      # {\"y\"}  (x is bound)",
+    "crumbs": [
+      "Get Started",
+      "API Reference"
+    ]
+  },
+  {
+    "objectID": "reference/api.html#exceptions",
+    "href": "reference/api.html#exceptions",
+    "title": "API Reference",
+    "section": "Exceptions",
+    "text": "Exceptions\n\n\n\nException\nWhen raised\n\n\n\n\nlogos.theorem.LogosProofError\nProof fails in logos.check\n\n\nlogos.runner.TacticFailed\nA tactic cannot proceed\n\n\nlogos.kernel.KernelError\nKernel rejects an invalid proof term",
+    "crumbs": [
+      "Get Started",
+      "API Reference"
+    ]
+  }
+]
