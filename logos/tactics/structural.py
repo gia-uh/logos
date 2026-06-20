@@ -261,31 +261,39 @@ def conj(h1: str, h2: str, result_name: str):
     return tactic
 
 
+def _trivially_provable(expr: Expr, ctx_vals: list) -> bool:
+    """True if expr is directly in context, or is And/Or of trivially provable parts."""
+    if any(structural_eq(expr, v) for v in ctx_vals):
+        return True
+    match expr:
+        case And(a, b):
+            return _trivially_provable(a, ctx_vals) and _trivially_provable(b, ctx_vals)
+        case Or(a, b):
+            return _trivially_provable(a, ctx_vals) or _trivially_provable(b, ctx_vals)
+    return False
+
+
 def contradiction():
     def tactic(goal: Goal) -> ProofTerm:
         ctx   = list(goal.context.items())
         names = [k for k, _ in ctx]
         stmts = [v for _, v in ctx]
 
-        # Direct P / ~P pairs
-        for i, s in enumerate(stmts):
-            for j, t in enumerate(stmts):
-                if i != j and (structural_eq(s, Not(t)) or structural_eq(Not(s), t)):
-                    return ExFalso(HypRef(names[i]), goal.statement)
-
-        # ~(A | B) with A or B present in context
+        # Not(P) in context where P is trivially provable (handles P/~P, ~(A|B) with A or B,
+        # ~(A&B) with both, and nested cases like ~((A&B)|C) with A and B present).
         for i, s in enumerate(stmts):
             match s:
-                case Not(Or(a, b)):
-                    if any(structural_eq(t, a) or structural_eq(t, b) for t in stmts):
+                case Not(inner):
+                    if _trivially_provable(inner, stmts):
                         return ExFalso(HypRef(names[i]), goal.statement)
 
-        # ~(A & B) with both A and B present in context
+        # One-step forward: Implies(P, Not(Q)) in context with P and Q both trivially provable.
+        # Sound: P known + Q known + P→~Q known → ~Q + Q → False → ExFalso.
         for i, s in enumerate(stmts):
             match s:
-                case Not(And(a, b)):
-                    if (any(structural_eq(t, a) for t in stmts) and
-                            any(structural_eq(t, b) for t in stmts)):
+                case Implies(ant, Not(result)):
+                    if (_trivially_provable(ant, stmts) and
+                            _trivially_provable(result, stmts)):
                         return ExFalso(HypRef(names[i]), goal.statement)
 
         raise TacticFailed("contradiction: no contradictory hypotheses found")
