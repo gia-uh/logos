@@ -236,7 +236,7 @@ def test_apply_accepts_an_axiom_and_automatic_proof_accepts_a_lemma_hint(invocat
     assert json.loads(direct.receipt.artifact)["proof"] == {"tag": "axiom_ref", "id": "A"}
     assert not lemma.certified
     assert logos.prove(target, hints=[lemma]).certified
-    assert not lemma.certified  # Target check validates the bundle as a unit.
+    assert not lemma.certified  # Target check validates reachable lemma evidence, not the lemma object.
     assert json.loads(invocations[-1][2].stdout)["custom_axioms"][0]["id"] == "A"
     assert json.loads(target.receipt.artifact)["target"] == {"tag": "symbol", "id": "p1"}
 

@@ -13,6 +13,11 @@ fn checked(value: &Value) -> Result<Verified, String> {
     verify(&serde_json::to_vec(value).unwrap())
 }
 
+fn without_artifact_digest(mut value: Value) -> Value {
+    value.as_object_mut().unwrap().remove("artifact_sha256");
+    value
+}
+
 fn cli(value: &Value, args: &[&str]) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_logos"))
         .args(args)
@@ -185,6 +190,64 @@ fn rejects_bad_dependency_evidence_and_names() {
             .unwrap()
             .contains("out-of-scope hypothesis")
     );
+}
+
+#[test]
+fn checks_only_lemmas_reachable_from_the_target() {
+    let baseline: Value =
+        serde_json::from_str(include_str!("fixtures/portable/dependencies.logos")).unwrap();
+    let unused: Value =
+        serde_json::from_str(include_str!("fixtures/portable/unused-invalid-lemma.logos")).unwrap();
+    let selected: Value = serde_json::from_str(include_str!(
+        "fixtures/portable/selected-invalid-lemma.logos"
+    ))
+    .unwrap();
+
+    let original = checked(&baseline).ok().unwrap();
+    let verified = checked(&unused).ok().unwrap();
+    assert_eq!(
+        without_artifact_digest(serde_json::to_value(&verified.judgment).unwrap()),
+        without_artifact_digest(serde_json::to_value(&original.judgment).unwrap())
+    );
+    assert_eq!(
+        serde_json::to_value(&verified.steps).unwrap(),
+        serde_json::to_value(&original.steps).unwrap()
+    );
+
+    for operation in ["check", "inspect"] {
+        let baseline_default = cli(&baseline, &[operation, "--json"]);
+        let unused_default = cli(&unused, &[operation, "--json"]);
+        assert_eq!(unused_default.status.code(), Some(0));
+        assert_eq!(
+            without_artifact_digest(serde_json::from_slice(&unused_default.stdout).unwrap()),
+            without_artifact_digest(serde_json::from_slice(&baseline_default.stdout).unwrap())
+        );
+
+        let baseline_strict = cli(&baseline, &[operation, "--json", "--strict"]);
+        let unused_strict = cli(&unused, &[operation, "--json", "--strict"]);
+        assert_eq!(unused_strict.status.code(), Some(3));
+        assert_eq!(
+            without_artifact_digest(serde_json::from_slice(&unused_strict.stdout).unwrap()),
+            without_artifact_digest(serde_json::from_slice(&baseline_strict.stdout).unwrap())
+        );
+
+        for flags in [&["--json"][..], &["--json", "--strict"][..]] {
+            let mut args = vec![operation];
+            args.extend_from_slice(flags);
+            let output = cli(&selected, &args);
+            assert_eq!(output.status.code(), Some(1), "{operation} {flags:?}");
+            assert!(output.stdout.is_empty(), "{operation} {flags:?}");
+            let error: Value = serde_json::from_slice(&output.stderr).unwrap();
+            assert_eq!(error["status"], "error");
+            assert!(
+                error["error"]
+                    .as_str()
+                    .unwrap()
+                    .contains("out-of-scope hypothesis"),
+                "{operation} {flags:?}: {error}"
+            );
+        }
+    }
 }
 
 #[test]

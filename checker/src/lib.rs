@@ -187,8 +187,15 @@ pub fn verify(bytes: &[u8]) -> Result<Verified, String> {
         lemmas.insert(lemma.id.as_str(), lemma);
     }
     checker.check_proposition(&bundle.target)?;
-    // Validate every supplied lemma, in dependency order and with an empty local scope.
-    for lemma in &bundle.lemmas {
+    // Check only the lemmas reachable from the target proof, in dependency
+    // order and with an empty local scope. Bundle-level format, ID and
+    // namespace checks above already covered every supplied declaration.
+    let mut dependencies = Vec::new();
+    bundle.proof.lemma_dependencies(&mut dependencies);
+    for id in dependencies {
+        let lemma = lemmas
+            .get(id)
+            .ok_or_else(|| format!("unknown theorem reference {id:?}"))?;
         checker.check_lemmas(lemma, &lemmas)?;
     }
     let statement = checker.check_conclusion(&bundle.proof, &bundle.target, "proof")?;

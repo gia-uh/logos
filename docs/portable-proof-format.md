@@ -19,9 +19,13 @@ bundle lists. Display labels may repeat. A proposition symbol must resolve to
 a declaration of sort `prop`. The `int` sort can be declared and has no term
 constructors in this fragment. A symbol declaration alone assumes no truth.
 
-Each lemma proof starts with an empty hypothesis scope. Rust checks bundled
-lemmas in dependency order, rejects cycles and checks every derived
-conclusion against its declared statement. A `theorem_ref` resolves to a
+Each lemma proof starts with an empty hypothesis scope. Rust checks the
+lemmas reachable from the target proof in dependency order, rejects cycles
+among them and checks every derived conclusion against its declared
+statement. Every supplied declaration, custom axiom and lemma still passes
+the bundle-level format, ID and namespace checks, including well-sorted
+lemma statements. An unreachable lemma's evidence carries no weight: it is
+not checked unless the target proof reaches it. A `theorem_ref` resolves to a
 checked lemma. An `axiom_ref` resolves to an author-declared custom axiom.
 These lookups use their own kinds and are independent of local binders.
 
@@ -72,9 +76,10 @@ bundle. `proof.declarations` controls the symbols available to that proof.
 `logos.tactics.apply` takes a local hypothesis name, an `Axiom`, or a
 `Theorem`. To compose a custom tactic, use `AxiomRef(axiom)` or
 `TheoremRef(lemma)` from `logos.kernel`. Attach a proof to every referenced
-theorem. The exporter bundles the current evidence and Rust checks it even
-when the lemma has a separate receipt. A dependency's name is its ID, with a
-generated ID assigned to unnamed dependencies.
+theorem. The exporter bundles the current evidence and Rust checks the
+reachable lemma evidence even when the lemma has a separate receipt. A
+dependency's name is its ID, with a generated ID assigned to unnamed
+dependencies.
 
 `logos.check` runs the target tactics and invokes `logos check --json -`
 via the installed checker on PATH. Named, anonymous, and automatic entry

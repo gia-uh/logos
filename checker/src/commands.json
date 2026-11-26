@@ -64,7 +64,7 @@
     "declaration": "{id, name, sort}, sort is prop or int; only prop symbols can occur in propositions",
     "ids": "Nonempty strings, unique across declarations, custom axioms and lemmas",
     "custom_axiom": "{id, statement}",
-    "lemma": "{id, statement, proof}, independently checked in an empty hypothesis scope",
+    "lemma": "{id, statement, proof}, checked in an empty hypothesis scope when the target proof reaches it",
     "propositions": {
       "symbol": "{tag: symbol, id}",
       "and": "{tag: and, left, right}",
