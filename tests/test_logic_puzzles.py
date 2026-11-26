@@ -6,6 +6,7 @@ import pytest
 import logos
 from logos.domains import _finite
 from logos.domains.logic_puzzles import KnightsKnaves
+from logos.runner import TrailingTactics
 
 
 @pytest.mark.parametrize(("describe", "expected"), [
@@ -150,6 +151,51 @@ def test_guided_failure_reports_only_the_active_branch():
         "  role_of_A: A is a knight\n"
         "  statement_1_by_A: (A is a knave) and (B is a knave)"
     )
+
+
+def test_guided_missing_tactic_reports_the_open_goal_and_context():
+    puzzle = KnightsKnaves()
+    a = puzzle.entity("A")
+    claim = a.is_knight() >> a.is_knight()
+    with pytest.raises(logos.LogosProofError) as raised:
+        puzzle.prove(claim, by=[logos.tactics.intro("h")])
+    assert str(raised.value) == (
+        "Open goal: A is a knight\n"
+        "Local hypotheses:\n"
+        "  h: A is a knight"
+    )
+
+
+def test_guided_trailing_tactics_reports_the_runner_cause():
+    puzzle = KnightsKnaves()
+    a = puzzle.entity("A")
+    claim = a.is_knight() >> a.is_knight()
+    with pytest.raises(logos.LogosProofError) as raised:
+        puzzle.prove(claim, by=[
+            logos.tactics.intro("h"),
+            logos.tactics.assumption(),
+            logos.tactics.assumption(),
+        ])
+    message = str(raised.value)
+    assert "Open goal" not in message
+    assert "Goal was already closed, but 1 tactic remains unapplied" in message
+    assert isinstance(raised.value.__cause__, TrailingTactics)
+
+
+def test_guided_trailing_tactics_in_a_nested_branch_is_not_an_open_goal():
+    puzzle = KnightsKnaves()
+    a = puzzle.entity("A")
+    claim = a.is_knight() >> a.is_knight()
+    with pytest.raises(logos.LogosProofError) as raised:
+        puzzle.prove(claim, by=[
+            logos.tactics.intro("h"),
+            [logos.tactics.assumption()],
+            logos.tactics.assumption(),
+        ])
+    message = str(raised.value)
+    assert "Open goal" not in message
+    assert "Goal was already closed" in message
+    assert isinstance(raised.value.__cause__, TrailingTactics)
 
 
 def test_guided_auto_distinguishes_entailment_from_underdetermination():

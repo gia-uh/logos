@@ -10,7 +10,7 @@ from logos import tactics as t
 from logos.expr import And, Expr, Implies, Lit, Not, Or, Var
 from logos.goal import Goal
 from logos.helpers import structural_eq
-from logos.runner import TacticFailed, run
+from logos.runner import TacticFailed, TrailingTactics, run
 from logos.domains import Domain, Entity
 from logos.domains import _finite
 from logos.domains._finite import BinaryChoice
@@ -142,6 +142,12 @@ class KnightsKnaves(Domain):
         goal = Goal(_finite.bind(self._build_premises()), claim)
         try:
             evidence = run(goal, by)
+        except TrailingTactics as error:
+            plural = "tactic" if error.remaining == 1 else "tactics"
+            raise logos.LogosProofError(
+                f"Invalid tactic sequence: {error}. Remove the {error.remaining} extra "
+                f"{plural} after the one that closed the goal."
+            ) from error
         except TacticFailed as error:
             remaining = error.goal or goal
             lines = [f"Open goal: {self._describe(remaining.statement)}"]

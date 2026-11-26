@@ -9,6 +9,22 @@ class TacticFailed(Exception):
     goal: Goal | None = None
 
 
+class TrailingTactics(TacticFailed):
+    """A tactic closed the goal while tactics remained in the list.
+
+    This is a malformed proof, not an unsolved one: the remaining tactics were
+    never applied, so the goal must not be reported as open.
+    """
+
+    def __init__(self, remaining: int):
+        self.remaining = remaining
+        plural = "tactic" if remaining == 1 else "tactics"
+        verb = "remains" if remaining == 1 else "remain"
+        super().__init__(
+            f"Goal was already closed, but {remaining} {plural} {verb} unapplied"
+        )
+
+
 def _at_goal(goal: Goal, tactic):
     try:
         return tactic(goal)
@@ -47,44 +63,42 @@ class _Runner:
         self._idx += 1
         return item
 
+    def _closed(self, proof: ProofTerm) -> ProofTerm:
+        remaining = len(self._tactics) - self._idx
+        if remaining:
+            raise TrailingTactics(remaining)
+        return proof
+
     def run(self, goal: Goal) -> ProofTerm:
         return _at_goal(goal, self._run)
 
-    def _run(self, goal: Goal) -> ProofTerm:
+    def _run(self, goal: Goal, *, check_trailing: bool = True) -> ProofTerm:
         item = self._take()
 
         if isinstance(item, list):
-            # Nested list: fresh sub-runner for this goal only
-            return _Runner(item).run(goal)
+            # Nested list: fresh sub-runner for this goal only. When the
+            # enclosing split owns the remaining tactics for later subgoals,
+            # it checks for leftovers after all subgoals are closed.
+            proof = _Runner(item).run(goal)
+            return self._closed(proof) if check_trailing else proof
 
         if isinstance(item, _AllGoals):
             # Apply the wrapped tactic to this goal
             result = item.tactic_fn(goal)
             if isinstance(result, ProofTerm):
                 # Goal closed
-                if self._idx < len(self._tactics):
-                    remaining = len(self._tactics) - self._idx
-                    raise TacticFailed(
-                        f"Goal closed by _AllGoals "
-                        f"but {remaining} tactics remain"
-                    )
-                return result
+                return self._closed(result) if check_trailing else result
             # Multi-goal result: apply tactic to each subgoal
             subgoals, compose = result
             subgoal_proofs = [_at_goal(sg, item.tactic_fn) for sg in subgoals]
-            return compose(subgoal_proofs)
+            proof = compose(subgoal_proofs)
+            return self._closed(proof) if check_trailing else proof
 
         result = item(goal)
 
         if isinstance(result, ProofTerm):
             # Atomic: goal is closed
-            if self._idx < len(self._tactics):
-                remaining = len(self._tactics) - self._idx
-                raise TacticFailed(
-                    f"Goal closed by {item.__name__ if hasattr(item, '__name__') else item!r} "
-                    f"but {remaining} tactics remain"
-                )
-            return result
+            return self._closed(result) if check_trailing else result
 
         # Splitting/transforming: (subgoals, compose)
         subgoals, compose = result
@@ -101,6 +115,14 @@ class _Runner:
         if all_goals_tactic is not None:
             # Apply the tactic to all subgoals
             subgoal_proofs = [_at_goal(sg, all_goals_tactic) for sg in subgoals]
-        else:
-            subgoal_proofs = [self.run(sg) for sg in subgoals]
-        return compose(subgoal_proofs)
+            proof = compose(subgoal_proofs)
+            return self._closed(proof) if check_trailing else proof
+
+        # Each subgoal consumes the next tactic from this shared list; the
+        # trailing check waits until every subgoal is closed.
+        subgoal_proofs = [
+            _at_goal(sg, lambda g: self._run(g, check_trailing=False))
+            for sg in subgoals
+        ]
+        proof = compose(subgoal_proofs)
+        return self._closed(proof) if check_trailing else proof
