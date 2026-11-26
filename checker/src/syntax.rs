@@ -58,6 +58,14 @@ pub enum Proposition {
         left: Box<Self>,
         right: Box<Self>,
     },
+    Or {
+        left: Box<Self>,
+        right: Box<Self>,
+    },
+    Not {
+        operand: Box<Self>,
+    },
+    False,
     Implies {
         left: Box<Self>,
         right: Box<Self>,
@@ -108,6 +116,10 @@ impl Proposition {
             Mul { left, right } => binary!(Mul, recurse(left), recurse(right)),
             Eq { left, right } => binary!(Eq, recurse(left), recurse(right)),
             And { left, right } => binary!(And, recurse(left), recurse(right)),
+            Or { left, right } => binary!(Or, recurse(left), recurse(right)),
+            Not { operand } => Not {
+                operand: Box::new(recurse(operand)),
+            },
             Implies { left, right } => binary!(Implies, recurse(left), recurse(right)),
             Neg { operand } => Neg {
                 operand: Box::new(recurse(operand)),
@@ -125,7 +137,7 @@ impl Proposition {
                 id: id.clone(),
                 args: args.iter().map(recurse).collect(),
             },
-            Symbol { .. } | Int { .. } => self.clone(),
+            Symbol { .. } | Int { .. } | False => self.clone(),
         }
     }
 
@@ -171,14 +183,16 @@ impl Proposition {
                     _ => 0,
                 };
             match term {
-                Neg { operand } | Pow { base: operand, .. } | Forall { body: operand, .. } => {
-                    visit(operand, depth + 1, weight)?
-                }
+                Neg { operand }
+                | Not { operand }
+                | Pow { base: operand, .. }
+                | Forall { body: operand, .. } => visit(operand, depth + 1, weight)?,
                 Add { left, right }
                 | Sub { left, right }
                 | Mul { left, right }
                 | Eq { left, right }
                 | And { left, right }
+                | Or { left, right }
                 | Implies { left, right } => {
                     visit(left, depth + 1, weight)?;
                     visit(right, depth + 1, weight)?;
@@ -268,7 +282,7 @@ fn normalize(
         _ => Ok(binary!(Add, left, right)),
     };
     match expr {
-        Symbol { .. } | Bound { .. } => Ok(expr.clone()),
+        Symbol { .. } | Bound { .. } | False => Ok(expr.clone()),
         Int { value } => literal(integer(value)?),
         Add { left, right } | Mul { left, right } => combine(
             child(left, fuel)?,
@@ -306,6 +320,10 @@ fn normalize(
         }
         Eq { left, right } => Ok(binary!(Eq, child(left, fuel)?, child(right, fuel)?)),
         And { left, right } => Ok(binary!(And, child(left, fuel)?, child(right, fuel)?)),
+        Or { left, right } => Ok(binary!(Or, child(left, fuel)?, child(right, fuel)?)),
+        Not { operand } => Ok(Not {
+            operand: Box::new(child(operand, fuel)?),
+        }),
         Implies { left, right } => Ok(binary!(Implies, child(left, fuel)?, child(right, fuel)?)),
         Forall { sort, body, .. } => Ok(Forall {
             name: String::new(),
@@ -394,13 +412,16 @@ fn instantiate_with_fuel(
         );
         match term {
             Bound { index } => rest.saturating_sub(bound(*index, depth)),
-            Neg { operand } | Pow { base: operand, .. } => visit(operand, depth, rest, bound),
+            Neg { operand } | Not { operand } | Pow { base: operand, .. } => {
+                visit(operand, depth, rest, bound)
+            }
             Forall { body, .. } => visit(body, depth + 1, rest, bound),
             Add { left, right }
             | Sub { left, right }
             | Mul { left, right }
             | Eq { left, right }
             | And { left, right }
+            | Or { left, right }
             | Implies { left, right } => {
                 let rest = visit(left, depth, rest, bound);
                 visit(right, depth, rest, bound)

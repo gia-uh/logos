@@ -18,6 +18,13 @@ pub fn render(checked: &Verified) -> String {
                 .map(|var| var.name.as_str()),
         )
     };
+    let case_assumptions: HashSet<_> = checked
+        .steps
+        .iter()
+        .filter_map(|step| step.discharged_cases.as_ref())
+        .flatten()
+        .map(String::as_str)
+        .collect();
     let mut equation = HashMap::new();
     let mut next_number = 1;
     for step in &checked.steps {
@@ -148,7 +155,9 @@ pub fn render(checked: &Verified) -> String {
         });
 
         let explanation = match step.rule {
-            "local_assumption" => "Assume the following proposition for the implication.",
+            "local_assumption" if !case_assumptions.contains(step.id.as_str()) => {
+                "Assume the following proposition for the implication."
+            }
             "forall_intro" => generalization
                 .as_deref()
                 .expect("checked universal introduction"),
@@ -157,7 +166,20 @@ pub fn render(checked: &Verified) -> String {
             _ => step.explanation,
         };
         write!(out, "**({label})** {explanation}").unwrap();
-        if !step.premises.is_empty() {
+        if let Some([left_assumption, right_assumption]) = &step.discharged_cases {
+            let [disjunction, _, left_result, _, right_result] = step.premises.as_slice() else {
+                unreachable!("checked case analysis premises");
+            };
+            write!(
+                out,
+                " The disjunction is ({}). The first case derives ({}) under ({}), and the second derives ({}) under ({}). Discharge both case assumptions.",
+                number(disjunction),
+                number(left_result),
+                number(left_assumption),
+                number(right_result),
+                number(right_assumption),
+            ).unwrap();
+        } else if !step.premises.is_empty() {
             let premises = step
                 .premises
                 .iter()
@@ -243,11 +265,16 @@ pub fn render(checked: &Verified) -> String {
             conclusion
         };
         display(&mut out, &calculation);
+        let (first_premise, second_premise) = if step.rule == "trans" {
+            ("First middle expression", "Second middle expression")
+        } else {
+            ("First compared expression", "Second compared expression")
+        };
         for (label, left_label, right_label, conversion) in [
             (
                 "Premise conversion",
-                "First middle expression",
-                "Second middle expression",
+                first_premise,
+                second_premise,
                 &step.premise_conversion,
             ),
             (
@@ -304,8 +331,9 @@ fn has_power(expr: &Proposition) -> bool {
         | Mul { left, right }
         | Eq { left, right }
         | And { left, right }
+        | Or { left, right }
         | Implies { left, right } => has_power(left) || has_power(right),
-        Forall { body, .. } | Neg { operand: body } => has_power(body),
+        Forall { body, .. } | Neg { operand: body } | Not { operand: body } => has_power(body),
         App { args, .. } => args.iter().any(has_power),
         _ => false,
     }
@@ -427,6 +455,14 @@ impl<'a> Math<'a> {
             Mul { left, right } => (left, "\\cdot", right),
             Eq { left, right } => (left, "=", right),
             And { left, right } => (left, "\\land", right),
+            Or { left, right } => (left, "\\lor", right),
+            False => return "\\bot".into(),
+            Not { operand } => {
+                return grouped(
+                    format!("\\neg {}", self.term(operand, vars, true, formal)),
+                    nested,
+                );
+            }
             Implies { left, right } => (left, "\\implies", right),
             Neg { operand } => {
                 return grouped(

@@ -28,16 +28,24 @@ Omitting a body declares an opaque function.
 | `neg` | Integer `operand` |
 | `pow` | Integer `base` and natural literal `exponent` |
 | `eq` | `left` and `right` of the same sort |
-| `and`, `implies` | Propositions `left` and `right` |
+| `and`, `or`, `implies` | Propositions `left` and `right` |
+| `not` | Proposition `operand` |
+| `false` | No fields. The proposition falsehood (⊥). |
 | `forall` | Display `name`, binder `sort`, and proposition `body` |
 | `app` | Function `id` and corresponding `args` |
 
 | Evidence tag | Other fields and checked rule |
 | --- | --- |
 | `implies_intro` | `binder`, proposition `premise`, and proof `body`. Introduces and discharges a local hypothesis. |
+| `implies_elim` | Proofs `implication` and `premise`. The premise must match the antecedent. Derives the consequent. |
 | `hyp_ref` | `binder`. Uses the nearest enclosing local hypothesis with that name. |
 | `and_intro` | `left` and `right` proofs. |
 | `and_elim_l`, `and_elim_r` | `proof` of a conjunction. |
+| `or_intro_l`, `or_intro_r` | `proof` of the chosen disjunct and a proposition `other` for the opposite disjunct. |
+| `or_elim` | `proof` of a disjunction, a hypothesis `binder`, and `left` and `right` branch proofs. Each branch binds its own disjunct under that name. Both branches must derive convertible conclusions, and both assumptions are discharged. |
+| `not_intro` | `proof` of an implication from the operand to falsehood. |
+| `not_elim` | Proofs `negation` and `premise`, the latter matching the negated operand. Derives falsehood. |
+| `ex_falso` | `proof` of falsehood and a proposition `conclusion` to derive. |
 | `axiom_ref`, `theorem_ref` | `id` of a custom axiom or a checked lemma, respectively. |
 | `forall_intro` | Binder `name`, `sort`, and proof `body` under the fresh arbitrary variable. |
 | `forall_elim` | Universal `proof` and instantiation `term` of the binder's sort. |
@@ -55,7 +63,9 @@ declaration, custom axiom and lemma statement is still subject to namespace
 and sort checks. A block can share earlier evidence by index. An unreachable
 block instruction or lemma cannot contribute assumptions to a judgment.
 Local hypotheses and shared conclusions are lifted when read under fresh
-binders.
+binders. Case hypotheses exist only inside the corresponding branch, including
+when they shadow an outer hypothesis. Falsehood has no literal proof term.
+Rule premises match under the same conversion as theorem conclusions.
 
 ### Conversion and the integer laws
 
@@ -112,13 +122,18 @@ signatures, and `custom_axioms` for assumptions.
   also link to the active local assumptions by their step IDs.
   `binder_depth` records how many variables were in scope when the
   assumption was introduced. Introductions and discharges link to the
-  affected variable or assumption.
+  affected variable or assumption. For `or_elim`, `discharged_cases`
+  lists the left and right local assumption step IDs in that order. Its
+  premises list the disjunction, the left assumption and result, and the
+  right assumption and result. The result's context excludes both case
+  assumptions.
 - `provenance` distinguishes core laws, author assumptions, checked lemmas
   and local hypotheses. A `law` gives the formal equality and the named
   formal-to-actual substitution. Symbols in that formal equality name
   law parameters rather than bundle declarations.
 - `premise_conversion` records the common normal form when a transitivity
-  step composes syntactically different middle expressions.
+  step composes syntactically different middle expressions, or when a
+  logic rule compares syntactically different but convertible premises.
   `conclusion_conversion` links a derivation's result to a differently
   written target or lemma statement.
 
@@ -152,6 +167,25 @@ commutativity proof and Python source that exports six integer identities.
 The reference invalid authorization fixture swaps the projection
 and derives the other conclusion.
 
+## Knights and Knaves example
+
+With the checker on PATH and the wheel installed, run the Python example
+from the repository root.
+
+```bash
+python checker/examples/knights_knaves.py knights_knaves.logos
+logos check --strict knights_knaves.logos
+logos inspect --json --strict knights_knaves.logos
+logos inspect --markdown --strict knights_knaves.logos > knights_knaves.md
+```
+
+The example uses `KnightsKnaves.theorem` to put role exhaustivity,
+role exclusivity, and the two implications governing A's utterance in
+the theorem's antecedents. Under these eight premises, A's assertion
+“We are both knaves” entails that A is a knave and B is a knight.
+Strict checking reports zero custom axioms because all eight premises
+are local and discharged.
+
 ## Authoring and certification
 
 Use `logos.var(name, bool)` for proposition symbols or `logos.var(name, int)`
@@ -163,6 +197,16 @@ objects keep distinct IDs even when their labels match. In this fragment,
 each theorem's declaration context starts from its statement's symbols in
 first-occurrence order. Shared symbol objects use the same ID across the
 bundle. `proof.declarations` controls the symbols available to that proof.
+
+Use `P | Q` for disjunction, `~P` for negation, and `logos.lit(False)`
+for falsehood. The `left` and `right` tactics introduce a disjunct.
+`cases` opens one scoped subgoal per disjunct. On a negation goal,
+`intro` assumes its operand and opens a goal of falsehood.
+`contradiction` constructs a proof of falsehood from the available
+hypotheses, and `have` applies a local implication to its antecedent.
+A custom tactic can return the corresponding terms from `logos.kernel`
+(`OrIntroL`, `OrIntroR`, `CaseAnalysis`, `NotIntro`, `NotElim`,
+`ExFalso`, and `ImpliesElim`).
 
 `logos.tactics.apply` takes a local hypothesis name, an `Axiom`, or a
 `Theorem`. To compose a custom tactic, use `AxiomRef(axiom)` or
@@ -203,6 +247,6 @@ judgment for the target.
 | `test_prove_linarith` | Inequalities and linear inequality automation. |
 | `test_builtins_are_axiom_objects` | The legacy assertion treats the flag on an author-declared axiom as certification. The checked core laws are selected by theory ID and instantiated by the verifier. |
 
-The portable checker also supports conjunction, implication introduction,
-local hypotheses, and checked dependencies. Other logical rules and
-protocol domains remain milestone work.
+The portable checker also supports conjunction, disjunction, negation,
+falsehood, implication, local hypotheses, and checked dependencies.
+Existential rules and other domains remain milestone work.

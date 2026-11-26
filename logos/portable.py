@@ -8,10 +8,11 @@ from pathlib import Path
 import shutil
 import subprocess
 
-from logos.expr import Add, And, App, Eq, Expr, ForallNode, Implies, Lit, Mul, Neg, Pow, Sub, Var
+from logos.expr import Add, And, App, Eq, Expr, ForallNode, Implies, Lit, Mul, Neg, Not, Or, Pow, Sub, Var
 from logos.kernel import (
     AndElimL, AndElimR, AndIntro, AxiomRef, Block, Congr, CoreLaw, ForallElim,
-    ForallIntro, HypRef, ImpliesIntro, ProofTerm, Refl, StepRef, Symm, TheoremRef, Trans,
+    CaseAnalysis, ExFalso, ForallIntro, HypRef, ImpliesElim, ImpliesIntro,
+    NotElim, NotIntro, OrIntroL, OrIntroR, ProofTerm, Refl, StepRef, Symm, TheoremRef, Trans,
 )
 
 FORMAT = "logos-proof-v1"
@@ -44,10 +45,10 @@ def statement_declarations(statement: Expr) -> tuple[Var, ...]:
             case App(_, args):
                 for arg in args:
                     visit(arg, bound)
-            case Add(left, right) | Sub(left, right) | Mul(left, right) | Eq(left, right) | And(left, right) | Implies(left, right) | Pow(left, right):
+            case Add(left, right) | Sub(left, right) | Mul(left, right) | Eq(left, right) | And(left, right) | Or(left, right) | Implies(left, right) | Pow(left, right):
                 visit(left, bound)
                 visit(right, bound)
-            case Neg(operand):
+            case Neg(operand) | Not(operand):
                 visit(operand, bound)
 
     visit(statement, set())
@@ -86,7 +87,7 @@ def _result_type(expr):
             return type(value)
         case Add() | Sub() | Mul() | Pow() | Neg():
             return int
-        case Eq() | And() | Implies() | ForallNode():
+        case Eq() | And() | Or() | Not() | Implies() | ForallNode():
             return bool
         case App(_, _, symbol) if symbol is not None:
             return symbol.result_type or _result_type(symbol.body)
@@ -177,8 +178,10 @@ def artifact_bytes(
                 return {"tag": "symbol", "id": symbol_ids[key]}
             case Lit(value) if type(value) is int:
                 return {"tag": "int", "value": _integer_decimal(value)}
-            case Neg(operand):
-                return {"tag": "neg", "operand": encode(operand)}
+            case Lit(value) if value is False:
+                return {"tag": "false"}
+            case Neg(operand) | Not(operand):
+                return {"tag": type(expr).__name__.lower(), "operand": encode(operand)}
             case Pow(base, Lit(exponent)) if type(exponent) is int and 0 <= exponent <= 2**32 - 1:
                 return {"tag": "pow", "base": encode(base), "exponent": exponent}
             case ForallNode(var, body):
@@ -186,7 +189,7 @@ def artifact_bytes(
                         "body": proposition(body, scope, (*bound, var))}
             case App(_, args, symbol):
                 return {"tag": "app", "id": function_id(symbol), "args": [encode(arg) for arg in args]}
-            case Add(left, right) | Sub(left, right) | Mul(left, right) | Eq(left, right) | And(left, right) | Implies(left, right):
+            case Add(left, right) | Sub(left, right) | Mul(left, right) | Eq(left, right) | And(left, right) | Or(left, right) | Implies(left, right):
                 return {"tag": type(expr).__name__.lower(), "left": encode(left), "right": encode(right)}
             case _:
                 raise LogosProofError(f"unsupported portable proposition or term {type(expr).__name__}")
@@ -224,6 +227,22 @@ def artifact_bytes(
                     "tag": "implies_intro", "binder": binder,
                     "premise": encode(hyp), "body": derive(body),
                 }
+            case ImpliesElim(implication, premise):
+                return {"tag": "implies_elim", "implication": derive(implication),
+                        "premise": derive(premise)}
+            case OrIntroL(child, other):
+                return {"tag": "or_intro_l", "proof": derive(child), "other": encode(other)}
+            case OrIntroR(other, child):
+                return {"tag": "or_intro_r", "proof": derive(child), "other": encode(other)}
+            case CaseAnalysis(child, binder, left, right):
+                return {"tag": "or_elim", "proof": derive(child), "binder": binder,
+                        "left": derive(left), "right": derive(right)}
+            case NotIntro(child):
+                return {"tag": "not_intro", "proof": derive(child)}
+            case NotElim(negation, premise):
+                return {"tag": "not_elim", "negation": derive(negation), "premise": derive(premise)}
+            case ExFalso(child, conclusion):
+                return {"tag": "ex_falso", "proof": derive(child), "conclusion": encode(conclusion)}
             case HypRef(binder):
                 return {"tag": "hyp_ref", "binder": binder}
             case AndIntro(left, right):

@@ -57,6 +57,17 @@ pub fn rule_explanation(rule: &str, reference: Option<&str>) -> &'static str {
         "local_assumption" => "Assume this proposition for the body of the implication.",
         "hyp_ref" => "Use the indicated active local hypothesis in the current variable scope.",
         "implies_intro" => "Discharge the local hypothesis to conclude the implication.",
+        "implies_elim" => "Apply the implication to its checked antecedent.",
+        "or_intro_l" => "Introduce the disjunction using its left disjunct.",
+        "or_intro_r" => "Introduce the disjunction using its right disjunct.",
+        "or_elim" => {
+            "Both cases establish the same conclusion, so it follows from the disjunction."
+        }
+        "not_intro" => {
+            "The checked implication derives falsehood from the assumed proposition, establishing its negation."
+        }
+        "not_elim" => "A proposition and its negation yield falsehood.",
+        "ex_falso" => "From falsehood, infer the stated conclusion.",
         "and_intro" => "Conjoin the two checked premises in their given order.",
         "and_elim_l" => "Select the left conjunct of the checked premise.",
         "and_elim_r" => "Select the right conjunct of the checked premise.",

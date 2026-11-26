@@ -6,8 +6,13 @@ import subprocess
 import pytest
 
 import logos
-from logos.kernel import AndElimL, AndElimR, AxiomRef, HypRef, ImpliesIntro
-from logos.tactics import apply, exact, intro, split
+from logos.kernel import (
+    AndElimL, AndElimR, AndIntro, AxiomRef, CaseAnalysis, ExFalso, HypRef,
+    ImpliesElim, ImpliesIntro, NotElim, NotIntro, OrIntroL, OrIntroR,
+)
+from logos.tactics import (
+    apply, assumption, cases, contradiction, exact, have, intro, left, right, split,
+)
 
 
 pytestmark = pytest.mark.skipif(shutil.which("logos") is None, reason="install the Rust logos CLI")
@@ -303,3 +308,84 @@ def test_recheck_rejects_an_unsupported_protocol(monkeypatch, tmp_path):
     with pytest.raises(logos.LogosProofError, match="unsupported Rust logos commands protocol"):
         logos.check(proof)
     assert not proof.certified
+
+
+def test_installed_case_tactics_discharge_both_disjuncts(invocations):
+    p, q = logos.vars("P Q", bool)
+    proof = logos.prove((p | q) >> (q | p), [
+        intro("sum"), cases("sum", "branch"),
+        [right(q), assumption()], [left(p), assumption()],
+    ])
+    assert logos.check(proof).certified
+    bundle = json.loads(invocations[-1][1])
+    split_term = bundle["proof"]["body"]
+    assert split_term["tag"] == "or_elim"
+    assert split_term["left"]["tag"] == "or_intro_r"
+    assert split_term["right"]["tag"] == "or_intro_l"
+
+
+def test_installed_negation_and_forward_implication_tactics(invocations):
+    p, q, r = logos.vars("P Q R", bool)
+    negated = logos.prove((p >> ~q) >> (p >> ~q), [
+        intro("refute", "p", "q"), contradiction(),
+    ])
+    assert logos.check(negated).certified
+    body = json.loads(invocations[-1][1])["proof"]["body"]["body"]
+    assert body["tag"] == "not_intro"
+    assert body["proof"]["body"]["tag"] == "not_elim"
+    assert body["proof"]["body"]["negation"]["tag"] == "implies_elim"
+
+    forward = logos.prove(logos.chain(p >> q, p, q), [
+        intro("impl", "p"), have("q", "impl", "p"), assumption(),
+    ])
+    assert logos.check(forward).certified
+
+    explosive = logos.prove(logos.chain(~(p & q), p, q, r), [
+        intro("not_both", "p", "q"), contradiction(),
+    ])
+    assert logos.check(explosive).certified
+    body = json.loads(invocations[-1][1])["proof"]["body"]["body"]["body"]
+    assert body["tag"] == "ex_falso"
+    assert body["proof"]["premise"]["tag"] == "and_intro"
+
+    absurd = logos.prove(logos.lit(False) >> p, [intro("absurd"), contradiction()])
+    assert logos.check(absurd).certified
+
+
+@pytest.mark.parametrize("mistake,diagnostic", [
+    ("leak", "out-of-scope hypothesis"),
+    ("missing-case", "out-of-scope hypothesis"),
+    ("case-mismatch", "case branches prove different conclusions"),
+    ("case-source", "or_elim requires a disjunction"),
+    ("not-intro", "not_intro requires an implication to falsehood"),
+    ("not-elim", "negation operand does not match premise"),
+    ("ex-falso", "ex_falso requires a proof of falsehood"),
+    ("missing-falsehood", "out-of-scope hypothesis"),
+    ("implication", "implication antecedent does not match premise"),
+    ("or-sort", "has sort int, expected prop"),
+])
+def test_installed_checker_rejects_bogus_logic_evidence(mistake, diagnostic, invocations):
+    p, q = logos.vars("P Q", bool)
+    branch = HypRef("branch")
+    flip_cases = CaseAnalysis(
+        HypRef("sum"), "branch", OrIntroR(q, branch), OrIntroL(branch, p),
+    )
+    bad = {
+        "leak": ((q | p) & p, AndIntro(flip_cases, branch)),
+        "missing-case": (q | p, CaseAnalysis(HypRef("sum"), "branch", branch, HypRef("missing"))),
+        "case-mismatch": (p, CaseAnalysis(HypRef("sum"), "branch", branch, branch)),
+        "case-source": (p, CaseAnalysis(HypRef("p"), "branch", branch, branch)),
+        "not-intro": (~p, NotIntro(ImpliesIntro(p, "h", HypRef("h")))),
+        "not-elim": (logos.lit(False), NotElim(HypRef("not_p"), HypRef("q"))),
+        "ex-falso": (q, ExFalso(HypRef("not_p"), q)),
+        "missing-falsehood": (q, ExFalso(HypRef("missing"), q)),
+        "implication": (p, ImpliesElim(ImpliesIntro(p, "h", HypRef("h")), HypRef("q"))),
+        "or-sort": (p | q, OrIntroL(HypRef("p"), logos.lit(0))),
+    }
+    conclusion, term = bad[mistake]
+    with pytest.raises(logos.LogosProofError, match=diagnostic):
+        logos.check(logos.prove(logos.chain(p | q, p, q, ~p, conclusion), [
+            intro("sum", "p", "q", "not_p"), exact(term),
+        ]))
+    assert invocations[-1][2].returncode == 1
+    assert not invocations[-1][2].stdout

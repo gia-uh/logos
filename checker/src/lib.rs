@@ -26,6 +26,35 @@ enum Evidence {
         premise: Proposition,
         body: Box<Self>,
     },
+    ImpliesElim {
+        implication: Box<Self>,
+        premise: Box<Self>,
+    },
+    OrIntroL {
+        proof: Box<Self>,
+        other: Proposition,
+    },
+    OrIntroR {
+        proof: Box<Self>,
+        other: Proposition,
+    },
+    OrElim {
+        proof: Box<Self>,
+        binder: String,
+        left: Box<Self>,
+        right: Box<Self>,
+    },
+    NotIntro {
+        proof: Box<Self>,
+    },
+    NotElim {
+        negation: Box<Self>,
+        premise: Box<Self>,
+    },
+    ExFalso {
+        proof: Box<Self>,
+        conclusion: Proposition,
+    },
     HypRef {
         binder: String,
     },
@@ -82,18 +111,34 @@ enum Evidence {
 }
 
 impl Evidence {
-    fn children(&self) -> [Option<&Self>; 2] {
+    fn children(&self) -> [Option<&Self>; 3] {
         match self {
-            Self::ImpliesIntro { body, .. } | Self::ForallIntro { body, .. } => [Some(body), None],
+            Self::ImpliesIntro { body, .. } | Self::ForallIntro { body, .. } => {
+                [Some(body), None, None]
+            }
             Self::AndElimL { proof }
             | Self::AndElimR { proof }
+            | Self::OrIntroL { proof, .. }
+            | Self::OrIntroR { proof, .. }
+            | Self::NotIntro { proof }
+            | Self::ExFalso { proof, .. }
             | Self::Symm { proof }
             | Self::Congr { proof, .. }
-            | Self::ForallElim { proof, .. } => [Some(proof), None],
-            Self::AndIntro { left, right } | Self::Trans { left, right } => {
-                [Some(left), Some(right)]
+            | Self::ForallElim { proof, .. } => [Some(proof), None, None],
+            Self::AndIntro { left, right }
+            | Self::Trans { left, right }
+            | Self::ImpliesElim {
+                implication: left,
+                premise: right,
             }
-            _ => [None, None],
+            | Self::NotElim {
+                negation: left,
+                premise: right,
+            } => [Some(left), Some(right), None],
+            Self::OrElim {
+                proof, left, right, ..
+            } => [Some(proof), Some(left), Some(right)],
+            _ => [None, None, None],
         }
     }
 
@@ -229,6 +274,8 @@ pub struct Step {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub discharged: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub discharged_cases: Option<[String; 2]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub substitutions: Option<Vec<Proposition>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<Proposition>,
@@ -257,7 +304,7 @@ pub struct Verified {
 type Declarations<'a> = HashMap<&'a str, &'a Declaration>;
 #[derive(Default)]
 struct Scope<'a> {
-    hyps: Vec<(&'a str, &'a Proposition, String, usize)>,
+    hyps: Vec<(&'a str, Proposition, String, usize)>,
     binders: Vec<Sort>,
     variables: Vec<Variable>,
     blocks: Vec<BlockScope>,
@@ -560,7 +607,12 @@ impl<'a> Checker<'a> {
                 require(right, child(left)?)?;
                 Ok(Sort::Prop)
             }
-            And { left, right } | Implies { left, right } => {
+            False => Ok(Sort::Prop),
+            Not { operand } => {
+                require(operand, Sort::Prop)?;
+                Ok(Sort::Prop)
+            }
+            And { left, right } | Or { left, right } | Implies { left, right } => {
                 require(left, Sort::Prop)?;
                 require(right, Sort::Prop)?;
                 Ok(Sort::Prop)
@@ -684,6 +736,10 @@ impl<'a> Checker<'a> {
                 };
             }
             Proposition::Int { value } => return value.clone(),
+            Proposition::False => return "⊥".into(),
+            Proposition::Not { operand } => {
+                return format!("¬{}", self.render_scoped(operand, true, typed, binders));
+            }
             Proposition::Neg { operand } => {
                 return format!("(−{})", self.render_scoped(operand, true, typed, binders));
             }
@@ -722,6 +778,7 @@ impl<'a> Checker<'a> {
             Proposition::Mul { left, right } => (left, "·", right),
             Proposition::Eq { left, right } => (left, "=", right),
             Proposition::And { left, right } => (left, "∧", right),
+            Proposition::Or { left, right } => (left, "∨", right),
             Proposition::Implies { left, right } => (left, "→", right),
         };
         let text = format!(
@@ -740,6 +797,58 @@ impl<'a> Checker<'a> {
         Ok(())
     }
 
+    fn infer_under_hypothesis(
+        &mut self,
+        binder: &'a str,
+        premise: &Proposition,
+        body: &'a Evidence,
+        scope: &mut Scope<'a>,
+        (path, assumption, explanation): (&str, String, &'static str),
+    ) -> Result<(String, Proposition), String> {
+        self.charge(premise)?;
+        if binder.is_empty() {
+            return Err(format!("{path}: empty hypothesis binder"));
+        }
+        scope.hyps.push((
+            binder,
+            premise.clone(),
+            assumption.clone(),
+            scope.binders.len(),
+        ));
+        let context_id = self.context_id(scope);
+        let mut variables = scope
+            .variables
+            .iter()
+            .map(|var| (var.name.as_str(), var.sort))
+            .collect();
+        self.steps.push(Step {
+            id: assumption.clone(),
+            rule: "local_assumption",
+            explanation,
+            context_id,
+            conclusion_sort: Sort::Prop,
+            premises: Vec::new(),
+            conclusion: premise.clone(),
+            conclusion_text: self.render_scoped(premise, false, false, &mut variables),
+            binder: Some(binder.to_owned()),
+            discharged: None,
+            discharged_cases: None,
+            reference_id: None,
+            substitutions: None,
+            context: None,
+            binder_sort: None,
+            introduced_variable: None,
+            introduced_hypothesis: Some(assumption.clone()),
+            provenance: None,
+            law: None,
+            premise_conversion: None,
+            conclusion_conversion: None,
+        });
+        let result = self.infer(body, scope, path);
+        scope.hyps.pop();
+        Ok((assumption, result?))
+    }
+
     fn infer(
         &mut self,
         evidence: &'a Evidence,
@@ -755,6 +864,7 @@ impl<'a> Checker<'a> {
         let mut binder_sort = None;
         let mut introduced_variable = None;
         let mut introduced_hypothesis = None;
+        let mut discharged_cases = None;
         let mut provenance = None;
         let mut law = None;
         let mut premise_conversion = None;
@@ -765,49 +875,22 @@ impl<'a> Checker<'a> {
                 body,
             } => {
                 self.sort(premise, &scope.binders)?.expect(Sort::Prop)?;
-                self.charge(premise)?;
-                if binder.is_empty() {
-                    return Err(format!("{path}: empty hypothesis binder"));
-                }
-                let assumption = format!("{path}.assumption");
-                scope
-                    .hyps
-                    .push((binder, premise, assumption.clone(), scope.binders.len()));
-                let context_id = self.context_id(scope);
-                let mut variables = scope
-                    .variables
-                    .iter()
-                    .map(|var| (var.name.as_str(), var.sort))
-                    .collect();
-                self.steps.push(Step {
-                    id: assumption.clone(),
-                    rule: "local_assumption",
-                    explanation: rule_explanation("local_assumption", None),
-                    context_id,
-                    conclusion_sort: Sort::Prop,
-                    premises: Vec::new(),
-                    conclusion: premise.clone(),
-                    conclusion_text: self.render_scoped(premise, false, false, &mut variables),
-                    binder: Some(binder.clone()),
-                    discharged: None,
-                    reference_id: None,
-                    substitutions: None,
-                    context: None,
-                    binder_sort: None,
-                    introduced_variable: None,
-                    introduced_hypothesis: Some(assumption.clone()),
-                    provenance: None,
-                    law: None,
-                    premise_conversion: None,
-                    conclusion_conversion: None,
-                });
-                introduced_hypothesis = Some(assumption.clone());
                 let body_path = format!("{path}.body");
-                let result = self.infer(body, scope, &body_path);
-                scope.hyps.pop();
+                let (assumption, result) = self.infer_under_hypothesis(
+                    binder,
+                    premise,
+                    body,
+                    scope,
+                    (
+                        &body_path,
+                        format!("{path}.assumption"),
+                        rule_explanation("local_assumption", None),
+                    ),
+                )?;
+                introduced_hypothesis = Some(assumption.clone());
                 let conclusion = Proposition::Implies {
                     left: Box::new(premise.clone()),
-                    right: Box::new(result?),
+                    right: Box::new(result),
                 };
                 (
                     "implies_intro",
@@ -816,6 +899,169 @@ impl<'a> Checker<'a> {
                     Some(binder.clone()),
                     Some(assumption),
                 )
+            }
+            Evidence::ImpliesElim {
+                implication,
+                premise,
+            } => {
+                let impl_path = format!("{path}.implication");
+                let premise_path = format!("{path}.premise");
+                let inferred = self.infer(implication, scope, &impl_path)?;
+                let implication = if matches!(inferred, Proposition::Implies { .. }) {
+                    inferred
+                } else {
+                    convert(&inferred, &self.functions)?
+                };
+                let Proposition::Implies { left, right } = implication else {
+                    return Err(format!("{path}: implies_elim requires an implication"));
+                };
+                let premise = self.infer(premise, scope, &premise_path)?;
+                premise_conversion = self.compare(&left, &premise)?.ok_or_else(|| {
+                    format!("{path}: implication antecedent does not match premise")
+                })?;
+                (
+                    "implies_elim",
+                    vec![impl_path, premise_path],
+                    *right,
+                    None,
+                    None,
+                )
+            }
+            Evidence::OrIntroL { proof, other } | Evidence::OrIntroR { proof, other } => {
+                self.sort(other, &scope.binders)?.expect(Sort::Prop)?;
+                self.charge(other)?;
+                let proof_path = format!("{path}.proof");
+                let known = Box::new(self.infer(proof, scope, &proof_path)?);
+                let other = Box::new(other.clone());
+                let (rule, left, right) = if matches!(evidence, Evidence::OrIntroL { .. }) {
+                    ("or_intro_l", known, other)
+                } else {
+                    ("or_intro_r", other, known)
+                };
+                (
+                    rule,
+                    vec![proof_path],
+                    Proposition::Or { left, right },
+                    None,
+                    None,
+                )
+            }
+            Evidence::OrElim {
+                proof,
+                binder,
+                left,
+                right,
+            } => {
+                let proof_path = format!("{path}.proof");
+                let inferred = self.infer(proof, scope, &proof_path)?;
+                let disjunction = if matches!(inferred, Proposition::Or { .. }) {
+                    inferred
+                } else {
+                    convert(&inferred, &self.functions)?
+                };
+                let Proposition::Or { left: a, right: b } = disjunction else {
+                    return Err(format!("{path}: or_elim requires a disjunction"));
+                };
+                let left_path = format!("{path}.left");
+                let (left_assumption, left_result) = self.infer_under_hypothesis(
+                    binder,
+                    &a,
+                    left,
+                    scope,
+                    (
+                        &left_path,
+                        format!("{left_path}.assumption"),
+                        "Assume the left disjunct for the first case.",
+                    ),
+                )?;
+                let right_path = format!("{path}.right");
+                let (right_assumption, right_result) = self.infer_under_hypothesis(
+                    binder,
+                    &b,
+                    right,
+                    scope,
+                    (
+                        &right_path,
+                        format!("{right_path}.assumption"),
+                        "Assume the right disjunct for the second case.",
+                    ),
+                )?;
+                premise_conversion = self
+                    .compare(&left_result, &right_result)?
+                    .ok_or_else(|| format!("{path}: case branches prove different conclusions"))?;
+                discharged_cases = Some([left_assumption.clone(), right_assumption.clone()]);
+                (
+                    "or_elim",
+                    vec![
+                        proof_path,
+                        left_assumption,
+                        left_path,
+                        right_assumption,
+                        right_path,
+                    ],
+                    left_result,
+                    Some(binder.clone()),
+                    None,
+                )
+            }
+            Evidence::NotIntro { proof } => {
+                let proof_path = format!("{path}.proof");
+                let inferred = self.infer(proof, scope, &proof_path)?;
+                let implication = if matches!(inferred, Proposition::Implies { .. }) {
+                    inferred
+                } else {
+                    convert(&inferred, &self.functions)?
+                };
+                let Proposition::Implies { left, right } = implication else {
+                    return Err(format!(
+                        "{path}: not_intro requires an implication to falsehood"
+                    ));
+                };
+                premise_conversion =
+                    self.compare(&right, &Proposition::False)?.ok_or_else(|| {
+                        format!("{path}: not_intro requires an implication to falsehood")
+                    })?;
+                (
+                    "not_intro",
+                    vec![proof_path],
+                    Proposition::Not { operand: left },
+                    None,
+                    None,
+                )
+            }
+            Evidence::NotElim { negation, premise } => {
+                let neg_path = format!("{path}.negation");
+                let premise_path = format!("{path}.premise");
+                let inferred = self.infer(negation, scope, &neg_path)?;
+                let negation = if matches!(inferred, Proposition::Not { .. }) {
+                    inferred
+                } else {
+                    convert(&inferred, &self.functions)?
+                };
+                let Proposition::Not { operand } = negation else {
+                    return Err(format!("{path}: not_elim requires a negation"));
+                };
+                let premise = self.infer(premise, scope, &premise_path)?;
+                premise_conversion = self
+                    .compare(&operand, &premise)?
+                    .ok_or_else(|| format!("{path}: negation operand does not match premise"))?;
+                (
+                    "not_elim",
+                    vec![neg_path, premise_path],
+                    Proposition::False,
+                    None,
+                    None,
+                )
+            }
+            Evidence::ExFalso { proof, conclusion } => {
+                self.sort(conclusion, &scope.binders)?.expect(Sort::Prop)?;
+                self.charge(conclusion)?;
+                let proof_path = format!("{path}.proof");
+                let premise = self.infer(proof, scope, &proof_path)?;
+                premise_conversion = self
+                    .compare(&premise, &Proposition::False)?
+                    .ok_or_else(|| format!("{path}: ex_falso requires a proof of falsehood"))?;
+                ("ex_falso", vec![proof_path], conclusion.clone(), None, None)
             }
             Evidence::HypRef { binder } => {
                 let (_, proposition, assumption, depth) = scope
@@ -1115,6 +1361,7 @@ impl<'a> Checker<'a> {
             conclusion: conclusion.clone(),
             binder,
             discharged,
+            discharged_cases,
             reference_id,
             substitutions,
             context,

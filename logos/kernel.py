@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 from logos.expr import (
-    Expr, Var, Eq, And, Or, Not, Implies,
+    Expr, Lit, Var, Eq, And, Or, Not, Implies,
     ForallNode, ExistsNode,
 )
 from logos.helpers import structural_eq, substitute
@@ -155,6 +155,12 @@ class NotIntro(ProofTerm):
     impl_proof: ProofTerm
 
 @dataclass(frozen=True)
+class NotElim(ProofTerm):
+    """Proves False from proofs of ~A and A."""
+    negation: ProofTerm
+    premise: ProofTerm
+
+@dataclass(frozen=True)
 class ExFalso(ProofTerm):
     """Proves anything given proof of False (ex falso quodlibet)."""
     false_proof: ProofTerm
@@ -269,20 +275,23 @@ def infer(term: ProofTerm, ctx: Context) -> Expr:
             raise KernelError("CaseAnalysis: expected Or")
 
         case NotIntro(impl_proof):
-            stmt = infer(impl_proof, ctx)
-            match stmt:
-                case Implies(ant, cons):
-                    # For v0.1: accept any Implies(ant, anything) as ~ant
-                    # Ideally we'd check that cons is Lit(False), but that requires evaluation
+            match infer(impl_proof, ctx):
+                case Implies(ant, Lit(value)) if value is False:
                     return Not(ant)
-            raise KernelError(f"NotIntro: expected Implies, got {stmt!r}")
+            raise KernelError("NotIntro: expected an implication to False")
+
+        case NotElim(negation, premise):
+            given = infer(premise, ctx)
+            match infer(negation, ctx):
+                case Not(operand) if structural_eq(operand, given):
+                    return Lit(False)
+            raise KernelError("NotElim: expected a negation and its matching premise")
 
         case ExFalso(false_proof, conclusion):
-            # Note: v0.1 limitation — we don't validate that false_proof actually proves False.
-            # To properly validate, we'd need a full evaluator to check whether the consequent
-            # is Lit(False). For now, we accept any proof and return the conclusion as-is.
-            # This is known and acceptable for v0.1. The contradiction() tactic depends on this behavior.
-            return conclusion
+            match infer(false_proof, ctx):
+                case Lit(value) if value is False:
+                    return conclusion
+            raise KernelError("ExFalso: expected a proof of False")
 
         case ExistsIntro(witness, body, exists_goal):
             # body proves P[x := witness].

@@ -1,4 +1,4 @@
-"""Exercise P1–P4 and dependencies with an installed binary and wheel.
+"""Exercise portable proofs with an installed binary and wheel.
 
 Authoring is a scripted smoke: the test writes its own caller code. An
 independent recipient trial is separate and is not claimed here.
@@ -239,6 +239,92 @@ def markdown(recipient, evidence, offline):
     assert not ambiguous.stdout and "mutually exclusive" in ambiguous.stderr
 
 
+def knights_knaves(python, cold, recipient, evidence, env, offline):
+    example = FIXTURES.parents[2] / "examples/knights_knaves.py"
+    source = cold / example.name
+    shutil.copy2(example, source)
+    filename = "knights_knaves.logos"
+    run([python, "-I", source.name, filename], cold, env=env)
+    source.unlink()
+    shutil.move(cold / filename, recipient / filename)
+
+    strict = replay(recipient, "check", "--strict", filename, offline=offline)
+    assert "Verified with 0 custom axioms" in strict.stdout
+    inspected = replay(
+        recipient, "inspect", "--json", "--strict", filename, offline=offline, show_output=False
+    )
+    trace = json.loads(inspected.stdout)
+    assert trace["status"] == "verified" and trace["custom_axioms"] == []
+    steps = {step["id"]: step for step in trace["steps"]}
+    contexts = {
+        scope["id"]: {hyp["id"] for hyp in scope["hypotheses"]}
+        for scope in trace["contexts"]
+    }
+    analyses = [step for step in steps.values() if step["rule"] == "or_elim"]
+    assert len(analyses) == 2
+    for step in analyses:
+        left, right = step["discharged_cases"]
+        _, left_assumption, left_result, right_assumption, right_result = step["premises"]
+        assert (left, right) == (left_assumption, right_assumption)
+        for own, other, result in [(left, right, left_result), (right, left, right_result)]:
+            active = contexts[steps[result]["context_id"]]
+            assert own in active and other not in active
+        assert {left, right}.isdisjoint(contexts[step["context_id"]])
+    assert contexts[steps[trace["claim"]["proof_step"]]["context_id"]] == set()
+    assert {"not_intro", "not_elim", "ex_falso"} <= {step["rule"] for step in steps.values()}
+    assert all(
+        step["conclusion"] == {"tag": "false"}
+        for step in steps.values() if step["rule"] == "not_elim"
+    )
+
+    # Independently evaluate the exported premises under a concrete assignment.
+    # Checking each antecedent rules out vacuous truth of the implication chain.
+    assignment = {"A_kn": False, "A_kv": True, "B_kn": True, "B_kv": False}
+    assert {symbol["name"] for symbol in trace["declarations"]} == assignment.keys()
+    values = {symbol["id"]: assignment[symbol["name"]] for symbol in trace["declarations"]}
+
+    def evaluate(expr):
+        match expr:
+            case {"tag": "symbol", "id": id_}:
+                return values[id_]
+            case {"tag": "not", "operand": operand}:
+                return not evaluate(operand)
+            case {"tag": "and", "left": left, "right": right}:
+                return evaluate(left) and evaluate(right)
+            case {"tag": "or", "left": left, "right": right}:
+                return evaluate(left) or evaluate(right)
+            case {"tag": "implies", "left": left, "right": right}:
+                return not evaluate(left) or evaluate(right)
+        raise AssertionError(f"Unexpected puzzle expression: {expr!r}")
+
+    conclusion = trace["statement"]
+    premises = []
+    while conclusion["tag"] == "implies":
+        premises.append(evaluate(conclusion["left"]))
+        conclusion = conclusion["right"]
+    assert len(premises) == 8 and all(premises)
+    names = {symbol["id"]: symbol["name"] for symbol in trace["declarations"]}
+    assert conclusion["tag"] == "and"
+    assert [names[conclusion[side]["id"]] for side in ("left", "right")] == ["A_kv", "B_kn"]
+    assert evaluate(conclusion)
+    print(f"A knave, B knight satisfies all {len(premises)} model premises and the conclusion")
+
+    rendered = replay(
+        recipient, "inspect", "--markdown", "--strict", filename, offline=offline, show_output=False
+    ).stdout
+    assert rendered.count("Discharge both case assumptions.") == 2
+    assert "Assume the left disjunct" in rendered and "Assume the right disjunct" in rendered
+    assert r"\neg" in rendered and r"\bot" in rendered
+    assert "Uses zero custom axioms" in rendered
+    assert all(id_ not in rendered for id_ in steps if id_.startswith("proof."))
+    (evidence / "knights_knaves.md").write_text(rendered)
+    (evidence / "knights_knaves.json").write_text(inspected.stdout)
+    (evidence / "knights_knaves_model.json").write_text(json.dumps({
+        "assignment": assignment, "premise_values": premises, "conclusion": evaluate(conclusion),
+    }, indent=2) + "\n")
+    shutil.copy2(recipient / filename, evidence / filename)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
@@ -410,7 +496,10 @@ def main():
         print(f"Markdown · render checked evidence in {isolation}")
         markdown(recipient, evidence, options.offline)
 
-    print("7 acceptance stages exercised")
+        print(f"Knights and Knaves · check scoped cases in {isolation}")
+        knights_knaves(python, cold, recipient, evidence, env, options.offline)
+
+    print("8 acceptance stages exercised")
 
 
 if __name__ == "__main__":
