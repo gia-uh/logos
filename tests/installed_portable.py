@@ -38,19 +38,20 @@ logos.export_proof(authorization, "cold.logos")
 """
 
 
-def run(argv, cwd, *, env=None, code=0):
+def run(argv, cwd, *, env=None, code=0, show_output=True):
     print(f"$ {shlex.join(str(arg) for arg in argv)}", flush=True)
     result = subprocess.run(argv, cwd=cwd, env=env, capture_output=True, text=True)
-    print(result.stdout, end="")
+    if show_output:
+        print(result.stdout, end="")
     print(result.stderr, end="")
     print(f"exit {result.returncode}", flush=True)
     assert result.returncode == code
     return result
 
 
-def replay(recipient, *args, offline, code=0):
+def replay(recipient, *args, offline, code=0, show_output=True):
     if not offline:
-        return run(["./logos", *args], recipient, env={"PATH": ""}, code=code)
+        return run(["./logos", *args], recipient, env={"PATH": ""}, code=code, show_output=show_output)
 
     # Use a new network namespace and an empty filesystem with only the
     # copied inputs and the binary's system loader and libraries mounted.
@@ -65,7 +66,128 @@ def replay(recipient, *args, offline, code=0):
         library = next((word for word in line.split() if word.startswith("/")), None)
         if library:
             command.extend(["--ro-bind", library, library])
-    return run([*command, "--chdir", "/", "--", "/logos", *args], recipient, code=code)
+    return run([*command, "--chdir", "/", "--", "/logos", *args], recipient, code=code, show_output=show_output)
+
+
+def arithmetic(cold, recipient, evidence, help_text, env, offline):
+    heading = "To replay and author integer identities:\n"
+    commands = help_text.split(heading)[1].split("\n\n")[0].splitlines()
+    for line in commands:
+        argv = shlex.split(line)
+        run(argv, cold, env=env, show_output="--json" not in argv)
+
+    (cold / "wrong_refl.py").write_text("""\
+import logos
+from logos.kernel import Refl
+
+@logos.theorem
+def same_labels_are_distinct(x: int, y: int):
+    return x + y == y + x
+
+try:
+    logos.check(same_labels_are_distinct.proof(
+        logos.tactics.intro("x", "x"), lambda goal: Refl(goal.statement.left)
+    ))
+except logos.LogosProofError as error:
+    assert "proof conclusion mismatch" in str(error)
+    print(error)
+else:
+    raise AssertionError("Python accepted the bad proof")
+""")
+    run(["python", "wrong_refl.py"], cold, env=env)
+    (cold / "wrong_refl.py").unlink()
+    (cold / "arithmetic.py").unlink()
+
+    for path in (cold / "proofs").glob("*.logos"):
+        shutil.move(path, recipient / path.name)
+    shutil.move(cold / "arithmetic.logos", recipient / "arithmetic.logos")
+
+    valid = [
+        "arithmetic", "reflexivity", "addition_commutes", "binomial_square",
+        "signed_square", "additive_inverse", "zero_power",
+    ]
+    trace = {}
+    for name in valid:
+        filename = f"{name}.logos"
+        check = replay(recipient, "check", "--strict", filename, offline=offline)
+        assert "Verified with 0 custom axioms" in check.stdout
+        inspected = replay(recipient, "inspect", "--json", "--strict", filename,
+                           offline=offline, show_output=False)
+        data = json.loads(inspected.stdout)
+        assert data["status"] == "verified" and data["custom_axioms"] == []
+        checked_steps = set()
+        scope_ids = {scope["id"] for scope in data["contexts"]}
+        for step in data["steps"]:
+            assert set(step["premises"]) <= checked_steps
+            assert step["context_id"] in scope_ids
+            assert step["explanation"] and step["conclusion_sort"] == "prop"
+            checked_steps.add(step["id"])
+        claim = data["claim"]
+        assert claim["proof_step"] in checked_steps
+        assert claim["statement_field"] == "statement"
+        shutil.copy2(recipient / filename, evidence / filename)
+        (evidence / f"{name}.inspect.json").write_text(inspected.stdout)
+        trace[name] = data
+        print(f"{filename}: {(recipient / filename).stat().st_size} proof bytes, "
+              f"{len(checked_steps)} checked steps, {len(inspected.stdout.encode())} trace bytes")
+
+    comm = trace["addition_commutes"]
+    [law] = [step for step in comm["steps"] if step["rule"] == "core_law"]
+    assert law["reference_id"] == law["law"]["id"] == "add_comm"
+    substitution = law["law"]["substitution"]
+    assert [item["formal"] for item in substitution] == ["a", "b"]
+    assert [item["actual"]["index"] for item in substitution] == [0, 1]
+    scope = next(scope for scope in comm["contexts"] if scope["id"] == law["context_id"])
+    assert [(v["name"], v["sort"]) for v in scope["variables"]] == [("x", "int"), ("y", "int")]
+    assert law["conclusion_text"] == "(y + x) = (x + y)"
+    square_rules = {step["rule"] for step in trace["binomial_square"]["steps"]}
+    assert {"core_law", "congr", "trans", "step_ref"} <= square_rules
+    assert any(step.get("reference_id") == "distrib" for step in trace["binomial_square"]["steps"])
+    assert len(trace["binomial_square"]["steps"]) < 250
+    assert (recipient / "binomial_square.logos").stat().st_size < 20_000
+    assert any(step.get("conclusion_conversion") for step in trace["zero_power"]["steps"])
+
+    def mutate(source, filename, change):
+        data = json.loads((recipient / f"{source}.logos").read_text())
+        change(data)
+        (recipient / filename).write_text(json.dumps(data) + "\n")
+
+    def wrong_reflexivity(data):
+        data["proof"]["body"]["body"] = {
+            "tag": "refl", "term": data["target"]["body"]["body"]["left"],
+        }
+
+    def wrong_scope(data):
+        data["proof"]["body"]["term"]["index"] = 1
+
+    def wrong_sort(data):
+        data["proof"]["sort"] = "prop"
+
+    def wrong_constant(data):
+        data["target"]["body"]["right"]["right"]["value"] = "2"
+
+    def equal_distinct_variables(data):
+        data["target"]["body"]["body"] = {
+            "tag": "eq", "left": {"tag": "bound", "index": 1},
+            "right": {"tag": "bound", "index": 0},
+        }
+        wrong_reflexivity(data)
+
+    for source, filename, change, reason in [
+        ("addition_commutes", "wrong-reflexivity.logos", wrong_reflexivity, "proof conclusion mismatch"),
+        ("addition_commutes", "wrong-variables.logos", equal_distinct_variables, "proof conclusion mismatch"),
+        ("reflexivity", "wrong-scope.logos", wrong_scope, "out-of-scope bound variable"),
+        ("reflexivity", "wrong-sort.logos", wrong_sort, "proof conclusion mismatch"),
+        ("signed_square", "wrong-constant.logos", wrong_constant, "proof conclusion mismatch"),
+    ]:
+        mutate(source, filename, change)
+        for operation in ("check", "inspect"):
+            for flags in ([], ["--strict"]):
+                invalid = replay(recipient, operation, "--json", *flags, filename, offline=offline, code=1)
+                assert not invalid.stdout
+                error = json.loads(invalid.stderr)
+                assert error["status"] == "error" and reason in error["error"]
+        shutil.copy2(recipient / filename, evidence / filename)
 
 
 def main():
@@ -226,7 +348,10 @@ def main():
         for artifact in ("dependencies.logos", filename, "invalid-dependencies.logos"):
             shutil.copy2(recipient / artifact, evidence / artifact)
 
-    print("5 acceptance stages exercised")
+        print(f"Arithmetic · export from the installed wheel, then {isolation}")
+        arithmetic(cold, recipient, evidence, help_text, env, options.offline)
+
+    print("6 acceptance stages exercised")
 
 
 if __name__ == "__main__":

@@ -1,86 +1,21 @@
 # logos/tactics/arithmetic.py
 from logos.expr import (
-    Expr, Lit, Var, Add, Sub, Mul, Div, Mod, Neg, Pow, Eq,
+    Expr, Lit, Var, Add, Sub, Mul, Neg, Eq,
     Lt, Le, Gt, Ge,
 )
 from logos.goal import Goal
-from logos.kernel import ProofTerm, Refl, KernelError
-from logos.helpers import structural_eq
+from logos.kernel import ProofTerm, Refl
 from logos.runner import TacticFailed
 
-# Polynomial: dict from frozenset of (name, exp) pairs to coefficient
-Poly = dict[frozenset, int | float]
-
-
-def _poly_add(a: Poly, b: Poly) -> Poly:
-    result = dict(a)
-    for mono, coef in b.items():
-        result[mono] = result.get(mono, 0) + coef
-    return {m: c for m, c in result.items() if c != 0}
-
-
-def _poly_scale(p: Poly, factor: int | float) -> Poly:
-    return {m: c * factor for m, c in p.items()}
-
-
-def _poly_mul(a: Poly, b: Poly) -> Poly:
-    result: Poly = {}
-    for m1, c1 in a.items():
-        for m2, c2 in b.items():
-            # Combine monomials: sum exponents
-            combined: dict[str, int] = {}
-            for name, exp in m1:
-                combined[name] = combined.get(name, 0) + exp
-            for name, exp in m2:
-                combined[name] = combined.get(name, 0) + exp
-            mono = frozenset((n, e) for n, e in combined.items() if e != 0)
-            result[mono] = result.get(mono, 0) + c1 * c2
-    return {m: c for m, c in result.items() if c != 0}
-
-
-def _normalize(expr: Expr) -> Poly:
-    match expr:
-        case Lit(v) if isinstance(v, (int, float)):
-            return {frozenset(): v} if v != 0 else {}
-        case Var(name, _):
-            return {frozenset({(name, 1)}): 1}
-        case Add(l, r):
-            return _poly_add(_normalize(l), _normalize(r))
-        case Sub(l, r):
-            return _poly_add(_normalize(l), _poly_scale(_normalize(r), -1))
-        case Mul(l, r):
-            return _poly_mul(_normalize(l), _normalize(r))
-        case Neg(o):
-            return _poly_scale(_normalize(o), -1)
-        case Pow(base, Lit(n)) if isinstance(n, int) and n >= 0:
-            result: Poly = {frozenset(): 1}
-            base_p = _normalize(base)
-            for _ in range(n):
-                result = _poly_mul(result, base_p)
-            return result
-        case _:
-            raise TacticFailed(f"ring: cannot normalize {expr!r}")
-
-
 def ring():
+    """Derive an integer polynomial identity from the core ring laws."""
+    from logos.tactics._ring import Ring
+
     def tactic(goal: Goal) -> ProofTerm:
-        match goal.statement:
-            case Eq(lhs, rhs):
-                try:
-                    lhs_p = _normalize(lhs)
-                    rhs_p = _normalize(rhs)
-                    if lhs_p == rhs_p:
-                        return Refl(lhs)
-                    raise TacticFailed(
-                        f"ring: {lhs!r} ≠ {rhs!r} after normalization\n"
-                        f"  LHS poly: {lhs_p}\n  RHS poly: {rhs_p}"
-                    )
-                except TacticFailed:
-                    raise
-                except Exception as e:
-                    raise TacticFailed(f"ring: {e}")
-            case _:
-                raise TacticFailed(f"ring: goal is not an equation, got {goal.statement!r}")
+        try:
+            return Ring().prove(goal.statement)
+        except RecursionError as error:
+            raise TacticFailed("ring: expression exceeds the depth limit") from error
     return tactic
 
 

@@ -1,4 +1,4 @@
-use logos_checker::{Judgment, PROTOCOL_VERSION, Step, verify};
+use logos_checker::{Judgment, MAX_ARTIFACT_BYTES, PROTOCOL_VERSION, Step, TraceContext, verify};
 use serde::Serialize;
 use std::{
     env, fs,
@@ -10,6 +10,8 @@ use std::{
 const HELP: &str = include_str!("help.txt");
 const COMMANDS: &str = include_str!("commands.json");
 const EXAMPLE: &str = include_str!("../examples/authorization.py");
+const ARITHMETIC_EXAMPLE: &str = include_str!("../examples/arithmetic.py");
+const ARITHMETIC_FIXTURE: &str = include_str!("../tests/fixtures/portable/arithmetic.logos");
 const DEPENDENCY_EXAMPLE: &str = include_str!("../examples/dependencies.py");
 const DEPENDENCY_FIXTURE: &str = include_str!("../tests/fixtures/portable/dependencies.logos");
 const FIXTURE: &str = include_str!("../tests/fixtures/portable/authorization.logos");
@@ -19,6 +21,15 @@ struct Inspection<'a> {
     #[serde(flatten)]
     judgment: &'a Judgment,
     steps: &'a [Step],
+    contexts: &'a [TraceContext],
+    claim: Claim,
+}
+
+#[derive(Serialize)]
+struct Claim {
+    statement_field: &'static str,
+    proof_step: &'static str,
+    sort: &'static str,
 }
 
 enum Failure {
@@ -68,6 +79,10 @@ fn run(args: &[String]) -> Result<(), Failure> {
             ("authorization.logos", FIXTURE),
             ("authorization.py", EXAMPLE),
         ])?,
+        [cmd, selection] if cmd == "example" && selection == "arithmetic" => emit_example([
+            ("arithmetic.logos", ARITHMETIC_FIXTURE),
+            ("arithmetic.py", ARITHMETIC_EXAMPLE),
+        ])?,
         [cmd, selection] if cmd == "example" && selection == "dependencies" => emit_example([
             ("dependencies.logos", DEPENDENCY_FIXTURE),
             ("dependencies.py", DEPENDENCY_EXAMPLE),
@@ -112,13 +127,15 @@ fn check_command(args: &[String], inspect: bool) -> Result<(), Failure> {
         }
     }
     let file = file.ok_or_else(|| Failure::Usage("a proof file is required".into()))?;
-    let bytes = if file == "-" {
-        let mut bytes = Vec::new();
-        io::stdin().read_to_end(&mut bytes)?;
-        bytes
+    let input: Box<dyn Read> = if file == "-" {
+        Box::new(io::stdin().lock())
     } else {
-        fs::read(file)?
+        Box::new(fs::File::open(file)?)
     };
+    let mut bytes = Vec::new();
+    input
+        .take((MAX_ARTIFACT_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)?;
     let mut checked = verify(&bytes).map_err(Failure::Operation)?;
     let judgment = &mut checked.judgment;
     let denied = strict && !judgment.custom_axioms.is_empty();
@@ -130,6 +147,12 @@ fn check_command(args: &[String], inspect: bool) -> Result<(), Failure> {
             serde_json::to_string(&Inspection {
                 judgment,
                 steps: &checked.steps,
+                contexts: &checked.contexts,
+                claim: Claim {
+                    statement_field: "statement",
+                    proof_step: "proof",
+                    sort: "prop",
+                },
             })
         } else {
             serde_json::to_string(judgment)
@@ -158,6 +181,7 @@ fn check_command(args: &[String], inspect: bool) -> Result<(), Failure> {
         if inspect {
             for step in checked.steps {
                 println!("{} {}: {}", step.id, step.rule, step.conclusion_text);
+                println!("  {}", step.explanation);
                 if !step.premises.is_empty() {
                     println!("  Premises: {}", step.premises.join(", "));
                 }

@@ -39,14 +39,23 @@ logos inspect authored-dependencies.logos
 The emitted `dependencies.logos` can also be replayed with the checker alone.
 Default verification accepts conditional proofs. `logos check --strict dependencies.logos` exits 3 and prints the assumption and its proof path.
 
-See the [portable proof format and migration status](docs/portable-proof-format.md).
-The legacy authoring examples below document the broader API's intended
-behavior. This branch can certify propositions and scoped projection proofs
-in the first portable fragment. Arithmetic, quantifiers, other logical rules,
-and definitions await checker support.
+For integer polynomial proofs and structured inspection:
+
+```bash
+logos example arithmetic
+logos check --strict arithmetic.logos
+python arithmetic.py proofs
+logos check --strict proofs/binomial_square.logos
+logos inspect --json --strict proofs/binomial_square.logos
+```
+
+Default inspection prints the checked steps for a reader. JSON inspection
+includes typed conclusions, scopes, rule premises, and law substitutions.
+See the [portable proof format and migration status](docs/portable-proof-format.md)
+for the supported fragment. The broader authoring API below also documents
+features still being migrated.
 
 ---
-
 
 ## Core Idea
 
@@ -54,14 +63,12 @@ and definitions await checker support.
 import logos
 import logos.tactics as t
 
-x, y = logos.vars("x y", int)
+@logos.theorem
+def add_comm(x: int, y: int):
+    return x + y == y + x
 
-# State a theorem and prove it — checked at call time
-logos.theorem(
-    "add_comm",
-    logos.forall(int, int, lambda x, y: x + y == y + x),
-    proof=[t.intro("x", "y"), t.ring()],
-)
+logos.check(add_comm.proof(t.intro("x", "y"), t.ring()))
+logos.export_proof(add_comm, "add_comm.logos")
 ```
 
 `LogosProofError` reports rejected evidence. A successful portable theorem
@@ -74,15 +81,14 @@ reference a theorem with a proof attached.
 
 `@logos.define` runs your function body in *expression-tree mode* — the
 parameters become symbolic variables, and operators build a tree rather than
-evaluating. A definition axiom is generated automatically.
+evaluating. The checker unfolds the typed definition during conversion.
 
 ```python
-from logos.expr import Var
 import logos
 import logos.tactics as t
 
 @logos.define
-def double(x: Var) -> "Expr":
+def double(x: int) -> int:
     return x + x
 
 # Calling with a real value evaluates normally
@@ -93,11 +99,11 @@ x = logos.var("x", int)
 double(x)   # → App("double", [Var("x")])
 
 # Prove a property: unfold the definition, then use ring arithmetic
-logos.theorem(
-    "double_is_2x",
-    logos.forall(int, lambda x: double(x) == logos.lit(2) * x),
-    proof=[t.intro("x"), t.unfold("double"), t.ring()],
-)
+@logos.theorem
+def double_is_2x(x: int):
+    return double(x) == 2 * x
+
+logos.check(double_is_2x.proof(t.intro("x"), t.unfold(double), t.ring()))
 ```
 
 ---

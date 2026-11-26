@@ -51,6 +51,30 @@ class Trans(ProofTerm):
     right: ProofTerm                  # proves b==c  →  together prove a==c
 
 @dataclass(frozen=True)
+class CoreLaw(ProofTerm):
+    id: str
+    args: tuple[Expr, ...]
+
+
+@dataclass(frozen=True)
+class Congr(ProofTerm):
+    var: Var
+    context: Expr
+    proof: ProofTerm
+
+
+@dataclass(frozen=True)
+class Block(ProofTerm):
+    steps: tuple[ProofTerm, ...]
+    result: int
+
+
+@dataclass(frozen=True)
+class StepRef(ProofTerm):
+    index: int
+
+
+@dataclass(frozen=True)
 class Subst(ProofTerm):
     proof: ProofTerm                  # proves a==b
     func: Callable[[Expr], Expr]      # f(a)==f(b)

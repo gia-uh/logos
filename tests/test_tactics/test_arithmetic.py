@@ -1,28 +1,35 @@
 import pytest
+import logos
 from logos.expr import Var, Lit
 from logos.goal import Goal
-from logos.kernel import infer, Context
-from logos.helpers import structural_eq
 from logos.runner import run, TacticFailed
 from logos.tactics.arithmetic import ring, decide, linarith
 
 
 def test_ring_commutativity(x, y):
-    goal = Goal({}, x + y == y + x)
-    proof = run(goal, [ring()])
-    # ring returns Refl(lhs), so infer gives Eq(lhs, lhs)
-    assert structural_eq(infer(proof, Context({}, {})), x + y == x + y)
+    proof = logos.prove(x + y == y + x, [ring()])
+    assert logos.check(proof).certified
 
 
 def test_ring_distributivity(x, y, z):
-    goal = Goal({}, x * (y + z) == x * y + x * z)
-    proof = run(goal, [ring()])
-    assert structural_eq(infer(proof, Context({}, {})), x * (y + z) == x * (y + z))
+    proof = logos.prove(x * (y + z) == x * y + x * z, [ring()])
+    assert logos.check(proof).certified
 
 
 def test_ring_constant_folding():
-    goal = Goal({}, Lit(2) + Lit(3) == Lit(5))
-    proof = run(goal, [ring()])
+    proof = logos.prove(Lit(2) + Lit(3) == Lit(5), [ring()])
+    assert logos.check(proof).certified
+
+
+def test_ring_collects_signed_coefficients_after_factor_reordering(x):
+    proof = logos.prove((x * (2*x)) * -3 == -6 * x**2, [ring()])
+    assert logos.check(proof).certified
+
+
+def test_portable_integer_literal_beyond_python_decimal_string_limit():
+    number = 10**4999
+    proof = logos.prove(Lit(number) + 1 == Lit(number + 1), [ring()])
+    assert logos.check(proof).certified
 
 
 def test_ring_fails_on_inequality(x, y):

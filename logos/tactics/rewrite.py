@@ -2,7 +2,7 @@
 from logos.expr import Expr, Lit, Var, Add, Sub, Mul, Div, Mod, Neg, Pow, Eq, App, CaseExpr, ForallNode
 from logos.goal import Goal
 from logos.kernel import ProofTerm, Refl
-from logos.helpers import structural_eq, substitute, try_unify, _merge_subs
+from logos.helpers import structural_eq, substitute, substitute_symbols, try_unify, _merge_subs
 from logos.runner import TacticFailed
 
 
@@ -87,21 +87,22 @@ def unfold(*refs):
                 from logos.define import get_definition
                 name = ref
                 params, body = get_definition(name)
-            new_stmt = _unfold_in(new_stmt, name, params, body)
+            new_stmt = _unfold_in(new_stmt, name, params, body, ref if not isinstance(ref, str) else None)
         new_goal = goal.with_statement(new_stmt)
         return [new_goal], lambda ps: ps[0]
     return tactic
 
 
-def _unfold_in(expr: Expr, fname: str, params: list, body: Expr) -> Expr:
+def _unfold_in(expr: Expr, fname: str, params: list, body: Expr, symbol=None) -> Expr:
     match expr:
-        case App(n, args) if n == fname:
-            subst_map = {param.name: arg for param, arg in zip(params, args)}
-            return _substitute_many(body, subst_map)
-        case App(n, args):
-            return App(n, [_unfold_in(a, fname, params, body) for a in args])
+        case Var() | Lit():
+            return expr
+        case App(n, args, declared) if n == fname and (symbol is None or declared is symbol):
+            return substitute_symbols(body, {id(param): arg for param, arg in zip(params, args)})
+        case App(n, args, declared):
+            return App(n, [_unfold_in(a, fname, params, body, symbol) for a in args], declared)
         case CaseExpr(branches):
-            return CaseExpr([(_unfold_in(c, fname, params, body), _unfold_in(v, fname, params, body))
+            return CaseExpr([(_unfold_in(c, fname, params, body, symbol), _unfold_in(v, fname, params, body, symbol))
                              for c, v in branches])
         case _:
             cls = type(expr)
@@ -109,7 +110,7 @@ def _unfold_in(expr: Expr, fname: str, params: list, body: Expr) -> Expr:
                 return expr
             fields = [getattr(expr, f) for f in cls.__dataclass_fields__]
             new_fields = [
-                _unfold_in(f, fname, params, body) if isinstance(f, Expr) else f
+                _unfold_in(f, fname, params, body, symbol) if isinstance(f, Expr) else f
                 for f in fields
             ]
             return cls(*new_fields)
@@ -122,8 +123,8 @@ def _substitute_many(expr: Expr, subst_map: dict) -> Expr:
             return subst_map[name]
         case Var() | Lit():
             return expr
-        case App(n, args):
-            return App(n, [_substitute_many(a, subst_map) for a in args])
+        case App(n, args, symbol):
+            return App(n, [_substitute_many(a, subst_map) for a in args], symbol)
         case CaseExpr(branches):
             return CaseExpr([(_substitute_many(c, subst_map), _substitute_many(v, subst_map))
                              for c, v in branches])
@@ -205,8 +206,8 @@ def _replace_unify(expr: Expr, lhs: Expr, rhs: Expr, flex_vars: set) -> Expr:
     if sub is not None:
         return _substitute_many(rhs, sub)
     match expr:
-        case App(n, args):
-            return App(n, [_replace_unify(a, lhs, rhs, flex_vars) for a in args])
+        case App(n, args, symbol):
+            return App(n, [_replace_unify(a, lhs, rhs, flex_vars) for a in args], symbol)
         case CaseExpr(branches):
             return CaseExpr([(_replace_unify(c, lhs, rhs, flex_vars), _replace_unify(v, lhs, rhs, flex_vars))
                              for c, v in branches])

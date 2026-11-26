@@ -57,8 +57,8 @@ def substitute(expr: Expr, var: Var, val: Expr) -> Expr:
             if v.name == var.name:
                 return expr
             return ExistsNode(v, substitute(body, var, val))
-        case App(name, args):
-            return App(name, [substitute(a, var, val) for a in args])
+        case App(name, args, symbol):
+            return App(name, [substitute(a, var, val) for a in args], symbol)
         case CaseExpr(branches):
             new_branches = [(substitute(cond, var, val), substitute(result, var, val))
                             for cond, result in branches]
@@ -69,6 +69,50 @@ def substitute(expr: Expr, var: Var, val: Expr) -> Expr:
             fields = [getattr(expr, f) for f in expr.__dataclass_fields__]
             new_fields = [substitute(f, var, val) if isinstance(f, Expr) else f for f in fields]
             return cls(*new_fields)
+
+def free_symbol_ids(expr: Expr) -> set[int]:
+    match expr:
+        case Var():
+            return {id(expr)}
+        case Lit():
+            return set()
+        case ForallNode(var, body) | ExistsNode(var, body):
+            return free_symbol_ids(body) - {id(var)}
+        case App(_, args):
+            return set().union(*(free_symbol_ids(arg) for arg in args))
+        case CaseExpr(branches):
+            return set().union(*(free_symbol_ids(part) for branch in branches for part in branch))
+        case _:
+            fields = (getattr(expr, name) for name in expr.__dataclass_fields__)
+            return set().union(*(free_symbol_ids(field) for field in fields if isinstance(field, Expr)))
+
+
+def substitute_symbols(expr: Expr, replacements: dict[int, Expr]) -> Expr:
+    """Substitute by object identity, dropping mappings for shadowed binders."""
+    match expr:
+        case Var():
+            return replacements.get(id(expr), expr)
+        case Lit():
+            return expr
+        case ForallNode(var, body) | ExistsNode(var, body):
+            remaining = {key: value for key, value in replacements.items() if key != id(var)}
+            if any(id(var) in free_symbol_ids(value) for value in remaining.values()):
+                fresh = Var(var.name, var.type)
+                remaining[id(var)] = fresh
+                var = fresh
+            return type(expr)(var, substitute_symbols(body, remaining))
+        case App(name, args, symbol):
+            return App(name, [substitute_symbols(arg, replacements) for arg in args], symbol)
+        case CaseExpr(branches):
+            return CaseExpr([
+                (substitute_symbols(cond, replacements), substitute_symbols(value, replacements))
+                for cond, value in branches
+            ])
+        case _:
+            fields = (getattr(expr, name) for name in expr.__dataclass_fields__)
+            return type(expr)(*(substitute_symbols(field, replacements)
+                                if isinstance(field, Expr) else field for field in fields))
+
 
 def try_unify(pattern: Expr, target: Expr, flex_vars: set) -> "dict | None":
     """Match pattern against target with flex_vars as unifiable variables.

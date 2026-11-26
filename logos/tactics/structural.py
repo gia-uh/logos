@@ -11,7 +11,7 @@ from logos.kernel import (
     OrIntroL, OrIntroR, CaseAnalysis, ExFalso,
     ExistsIntro, AxiomRef, TheoremRef,
 )
-from logos.helpers import substitute, structural_eq, try_unify
+from logos.helpers import substitute, substitute_symbols, structural_eq, try_unify
 from logos.runner import TacticFailed
 
 
@@ -26,7 +26,7 @@ def intro(*names: str):
                 case ForallNode(var, body):
                     new_var = Var(name, var.type)
                     ctx[name] = new_var   # note the var in context
-                    stmt = substitute(body, var, new_var)
+                    stmt = substitute_symbols(body, {id(var): new_var})
                     steps.append(("forall", name, new_var))
                 case Implies(ant, cons):
                     ctx[name] = ant

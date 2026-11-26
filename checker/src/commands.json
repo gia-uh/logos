@@ -1,20 +1,36 @@
 {
   "protocol_version": 1,
-  "proof_formats": ["logos-proof-v1"],
-  "theories": ["logos-core-v1"],
+  "proof_formats": [
+    "logos-proof-v1"
+  ],
+  "theories": [
+    "logos-core-v1"
+  ],
   "commands": {
-    "--help": {"usage": "logos --help", "output": "Usage, exit codes and runnable examples."},
-    "--version": {"usage": "logos --version", "output": "Installed checker version."},
-    "commands": {"usage": "logos commands --json", "output": "This versioned command description."},
+    "--help": {
+      "usage": "logos --help",
+      "output": "Usage, exit codes and runnable examples."
+    },
+    "--version": {
+      "usage": "logos --version",
+      "output": "Installed checker version."
+    },
+    "commands": {
+      "usage": "logos commands --json",
+      "output": "This versioned command description."
+    },
     "example": {
-      "usage": "logos example [dependencies]",
+      "usage": "logos example [dependencies|arithmetic]",
       "output": "Writes authorization.logos and authorization.py in the current directory.",
       "dependencies": "Writes dependencies.logos and dependencies.py in the current directory.",
-      "python_prerequisites": "Python 3.12+, logos-ai wheel, and the logos executable on PATH."
+      "python_prerequisites": "Python 3.12+, logos-ai wheel, and the logos executable on PATH.",
+      "arithmetic": "Writes a ready-to-replay addition commutativity proof and an authoring script for six integer identities."
     },
     "check": {
       "usage": "logos check [--json] [--strict] <FILE>",
-      "arguments": {"FILE": "UTF-8 proof path or - for standard input"},
+      "arguments": {
+        "FILE": "UTF-8 proof path or - for standard input"
+      },
       "flags": {
         "--json": "Emit the versioned JSON result.",
         "--strict": "Require zero used custom axioms after verifying the proof."
@@ -27,29 +43,47 @@
         "theory": "core theory ID",
         "unverified_author_label": "optional author-provided string or null",
         "declarations": "array of {id, name, sort}",
-        "statement": "derived proposition tree with declaration IDs",
-        "statement_text": "human-readable derived proposition",
-        "custom_axioms": "array of {id, statement, statement_text, path} for each used custom axiom, with a checked step path from the target"
+        "statement": "verified target proposition tree with declaration IDs",
+        "statement_text": "human-readable verified target",
+        "custom_axioms": "array of {id, statement, statement_text, path} for each used custom axiom, with a checked step path from the target",
+        "functions": "optional array of typed opaque and transparent function declarations"
       }
     },
     "inspect": {
       "usage": "logos inspect [--json] [--strict] <FILE>",
-      "arguments": {"FILE": "UTF-8 proof path or - for standard input"},
+      "arguments": {
+        "FILE": "UTF-8 proof path or - for standard input"
+      },
       "flags": {
-        "--json": "Emit the versioned JSON result.",
+        "--json": "Emit versioned structured proof data for reconstructing the argument.",
         "--strict": "Require zero used custom axioms after verifying the proof."
       },
-      "success": "All check fields plus steps, in premise-first order.",
+      "success": "All check fields plus claim, shared contexts and checked steps in premise-first order.",
       "steps": {
         "id": "structural path",
         "rule": "checker rule tag or local_assumption",
         "premises": "array of earlier step IDs",
-        "conclusion": "derived proposition tree",
+        "conclusion": "typed proposition tree interpreted in the checked scope",
         "conclusion_text": "human-readable proposition",
-        "reference_id": "custom axiom or lemma ID, when applicable",
-        "binder": "hypothesis binder name, when applicable",
-        "discharged": "local assumption step ID, when applicable"
-      }
+        "reference_id": "custom axiom, checked lemma or core law ID, when applicable",
+        "binder": "variable display name or hypothesis binder, when applicable",
+        "discharged": "local assumption step ID, when applicable",
+        "explanation": "concise checker-generated explanation",
+        "context_id": "ID of the checked scope shared by this step",
+        "conclusion_sort": "prop",
+        "binder_sort": "sort of the introduced variable or congruence hole, when applicable",
+        "introduced_variable": "fresh variable ID in the premise scope of forall_intro",
+        "introduced_hypothesis": "local assumption step ID, when applicable",
+        "provenance": "{kind, id, proof_step?} for core laws, custom axioms, checked lemmas and local hypotheses",
+        "law": "{id, formal_statement, substitution: [{formal, actual, sort}]} for a checker-owned law application",
+        "substitutions": "ordered actual terms for a core law or universal elimination",
+        "context": "congruence syntax with the substituted term at bound index 0 outside nested binders",
+        "premise_conversion": "optional {explanation, left, right, common_normal_form} for transitivity",
+        "conclusion_conversion": "optional {explanation, left, right, common_normal_form} for the verified target or lemma root"
+      },
+      "text": "Default output prints each checked step with an explanation and premise links.",
+      "claim": "{statement_field, proof_step, sort}; links the verified target statement to its derivation.",
+      "contexts": "Array of {id, variables, hypotheses}. Variables are oldest-first {id, name, sort}; bound index 0 is the last. Hypotheses are active {id, binder, binder_depth} references to local_assumption steps."
     }
   },
   "exit_codes": {
@@ -60,15 +94,17 @@
   },
   "proof_format": {
     "encoding": "UTF-8 JSON, unknown fields and tags rejected",
-    "bundle": "{format, theory, name?, declarations, custom_axioms, lemmas, target, proof}",
-    "declaration": "{id, name, sort}, sort is prop or int; only prop symbols can occur in propositions",
-    "ids": "Nonempty strings, unique across declarations, custom axioms and lemmas",
+    "bundle": "{format, theory, name?, declarations, functions?, custom_axioms, lemmas, target, proof}",
+    "declaration": "{id, name, sort}, sort is prop or int",
+    "ids": "Nonempty strings, unique across declarations, functions, custom axioms and lemmas; core law IDs are reserved",
     "custom_axiom": "{id, statement}",
     "lemma": "{id, statement, proof}, checked in an empty hypothesis scope when the target proof reaches it",
     "propositions": {
       "symbol": "{tag: symbol, id}",
       "and": "{tag: and, left, right}",
-      "implies": "{tag: implies, left, right}"
+      "implies": "{tag: implies, left, right}",
+      "eq": "{tag: eq, left, right}; operands have the same sort",
+      "forall": "{tag: forall, name, sort, body}; the body is a proposition"
     },
     "evidence": {
       "axiom_ref": "{tag: axiom_ref, id}",
@@ -77,8 +113,37 @@
       "implies_intro": "{tag: implies_intro, binder, premise, body}",
       "and_intro": "{tag: and_intro, left, right}",
       "and_elim_l": "{tag: and_elim_l, proof}",
-      "and_elim_r": "{tag: and_elim_r, proof}"
-    }
+      "and_elim_r": "{tag: and_elim_r, proof}",
+      "refl": "{tag: refl, term}",
+      "symm": "{tag: symm, proof}",
+      "trans": "{tag: trans, left, right}",
+      "congr": "{tag: congr, context, proof}",
+      "forall_intro": "{tag: forall_intro, name, sort, body}",
+      "forall_elim": "{tag: forall_elim, proof, term}",
+      "core_law": "{tag: core_law, id, args}",
+      "block": "{tag: block, steps, result}; result is a zero-based step index",
+      "step_ref": "{tag: step_ref, index}; references an earlier step in the innermost block"
+    },
+    "function": "{id, name, params: [sort], result: sort, body?: expression}; transparent bodies can refer to earlier functions",
+    "terms": {
+      "symbol": "{tag: symbol, id}",
+      "bound": "{tag: bound, index}; index 0 denotes the nearest enclosing binder or last parameter",
+      "int": "{tag: int, value: signed decimal string}",
+      "add/sub/mul": "{tag, left, right}; both operands are integers",
+      "neg": "{tag: neg, operand}; operand is an integer",
+      "pow": "{tag: pow, base, exponent: natural literal}; base is an integer",
+      "app": "{tag: app, id, args}; arguments have the declared sorts"
+    },
+    "core_laws": [
+      "add_assoc",
+      "add_comm",
+      "add_zero",
+      "add_inverse",
+      "mul_assoc",
+      "mul_comm",
+      "mul_one",
+      "distrib"
+    ]
   },
   "json_policy_denied": {
     "stream": "stdout",

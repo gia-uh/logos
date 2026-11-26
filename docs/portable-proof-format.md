@@ -7,33 +7,81 @@ installed checker. Earlier v1 files with empty dependency lists still replay.
 
 | Object | Fields |
 | --- | --- |
-| Proof file | `format: "logos-proof-v1"`, `theory: "logos-core-v1"`, optional `name: string or null` (author label), `declarations: [Declaration]`, `custom_axioms: [CustomAxiom]`, `lemmas: [Lemma]`, `target: Proposition`, `proof: Evidence` |
+| Proof file | `format: "logos-proof-v1"`, `theory: "logos-core-v1"`, optional `name: string or null`, `declarations: [Declaration]`, optional `functions: [Function]`, `custom_axioms: [CustomAxiom]`, `lemmas: [Lemma]`, `target: Expression`, `proof: Evidence` |
 | Declaration | `id: string`, `name: string` (display label), `sort: "prop" \| "int"` |
-| CustomAxiom | `id: string`, `statement: Proposition` |
-| Lemma | `id: string`, `statement: Proposition`, `proof: Evidence` |
-| Proposition | `{"tag":"symbol","id":string}` or `{"tag":"and"\|"implies","left":Proposition,"right":Proposition}` |
-| Evidence | `{"tag":"implies_intro","binder":string,"premise":Proposition,"body":Evidence}`, `{"tag":"hyp_ref","binder":string}`, `{"tag":"and_intro","left":Evidence,"right":Evidence}`, `{"tag":"and_elim_l"\|"and_elim_r","proof":Evidence}` or `{"tag":"axiom_ref"\|"theorem_ref","id":string}` |
+| Function | `id: string`, `name: string`, `params: [Sort]`, `result: Sort`, optional `body: Expression` |
+| CustomAxiom | `id: string`, `statement: Expression` |
+| Lemma | `id: string`, `statement: Expression`, `proof: Evidence` |
 
-IDs and binder names are nonempty strings. IDs are unique across the three
-bundle lists. Display labels may repeat. A proposition symbol must resolve to
-a declaration of sort `prop`. The `int` sort can be declared and has no term
-constructors in this fragment. A symbol declaration alone assumes no truth.
+IDs are nonempty strings and unique across all bundle lists. The eight
+core-law IDs are reserved. Display labels may repeat. A symbol declaration
+alone assumes no truth. Transparent function bodies can reference earlier
+function declarations and take the declared parameters as bound variables.
+Omitting a body declares an opaque function.
 
-Each lemma proof starts with an empty hypothesis scope. Rust checks the
-lemmas reachable from the target proof in dependency order, rejects cycles
-among them and checks every derived conclusion against its declared
-statement. Every supplied declaration, custom axiom and lemma still passes
-the bundle-level format, ID and namespace checks, including well-sorted
-lemma statements. An unreachable lemma's evidence carries no weight: it is
-not checked unless the target proof reaches it. A `theorem_ref` resolves to a
-checked lemma. An `axiom_ref` resolves to an author-declared custom axiom.
-These lookups use their own kinds and are independent of local binders.
+| Expression tag | Other fields |
+| --- | --- |
+| `symbol` | `id` of a symbol declaration |
+| `bound` | Zero-based `index` counting outward from the nearest binder. In a function body, the last parameter has index 0 at the root. |
+| `int` | `value` as a signed decimal string |
+| `add`, `sub`, `mul` | Integer `left` and `right` |
+| `neg` | Integer `operand` |
+| `pow` | Integer `base` and natural literal `exponent` |
+| `eq` | `left` and `right` of the same sort |
+| `and`, `implies` | Propositions `left` and `right` |
+| `forall` | Display `name`, binder `sort`, and proposition `body` |
+| `app` | Function `id` and corresponding `args` |
 
-The target also starts with an empty hypothesis scope. Implication
-introduction adds a local hypothesis while checking its body, then discharges
-it. Lookup resolves the nearest enclosing binder. Conjunction introduction
-checks both children. Each projection requires a checked conjunction. The
-derived conclusion must equal the target as syntax over declaration IDs.
+| Evidence tag | Other fields and checked rule |
+| --- | --- |
+| `implies_intro` | `binder`, proposition `premise`, and proof `body`. Introduces and discharges a local hypothesis. |
+| `hyp_ref` | `binder`. Uses the nearest enclosing local hypothesis with that name. |
+| `and_intro` | `left` and `right` proofs. |
+| `and_elim_l`, `and_elim_r` | `proof` of a conjunction. |
+| `axiom_ref`, `theorem_ref` | `id` of a custom axiom or a checked lemma, respectively. |
+| `forall_intro` | Binder `name`, `sort`, and proof `body` under the fresh arbitrary variable. |
+| `forall_elim` | Universal `proof` and instantiation `term` of the binder's sort. |
+| `refl` | A well-sorted `term`. Derives equality of that term with itself. |
+| `symm` | Equality `proof`. |
+| `trans` | Equality proofs `left` and `right` with convertible middle expressions. |
+| `congr` | Equality `proof` and expression `context` with an extra innermost binder of the operands' sort. Substitutes each operand into the context. |
+| `core_law` | Law `id` and ordered integer substitution `args`. |
+| `block` | `steps` and zero-based `result` index. The result and all its step dependencies must verify. |
+| `step_ref` | `index` of an earlier step within the innermost block. |
+
+The target and each lemma start with empty local scopes. Rust checks
+reachable lemmas in dependency order and rejects cycles. Every supplied
+declaration, custom axiom and lemma statement is still subject to namespace
+and sort checks. A block can share earlier evidence by index. An unreachable
+block instruction or lemma cannot contribute assumptions to a judgment.
+Local hypotheses and shared conclusions are lifted when read under fresh
+binders.
+
+### Conversion and the integer laws
+
+Conversion compares typed syntax up to bound-variable renaming after
+recursive unfolding of transparent definitions and the specified integer
+reductions. Substitution under binders is capture-avoiding. Subtraction
+reduces to addition with negation. Powers expand from `a⁰ = 1` and
+`aⁿ⁺¹ = aⁿ · a`, including `0⁰ = 1`. Literal addition, multiplication and
+negation compute exact integer results. Free symbols and opaque functions
+retain their declaration identities. Symbolic commutation, cancellation and
+distribution require checked evidence.
+
+| Core law | Checker-owned equality over integers |
+| --- | --- |
+| `add_assoc` | `(a + b) + c = a + (b + c)` |
+| `add_comm` | `a + b = b + a` |
+| `add_zero` | `a + 0 = a` |
+| `add_inverse` | `a + (−a) = 0` |
+| `mul_assoc` | `(a · b) · c = a · (b · c)` |
+| `mul_comm` | `a · b = b · a` |
+| `mul_one` | `a · 1 = a` |
+| `distrib` | `a · (b + c) = a · b + a · c` |
+
+The checker rejects inputs beyond its replay resource limits, including
+proof files over 8 MiB and integer computations over 65,536 bits. A limit
+error is a failed replay. Integer results are exact within the limits.
 
 ## Results and policy
 
@@ -42,17 +90,37 @@ derived conclusion must equal the target as syntax over declaration IDs.
 same evidence and exit 3 if it uses a custom axiom. Exit 1 indicates invalid
 input or I/O failure. Exit 2 indicates invalid command usage.
 
-A result includes the derived statement tree, a display string, core theory,
-and `custom_axioms`. Each used custom axiom appears once with its `id`, full
-`statement` tree, typed `statement_text` and `path` from the target proof to a
-use of that axiom. Unused custom axioms and discharged local hypotheses are
-excluded. Inspection adds the reachable checked rule applications in
-premise-first order. Step IDs are structural paths rooted at `proof` or
-`lemma["ID"].proof`. Reference steps have a `reference_id`. Local introductions
-have `.assumption` and `.body` paths, projections have a `.proof` child, and
-conjunction introductions have `.left` and `.right` children. The author
-label is unverified metadata. The SHA-256 digest identifies the checked file
-bytes.
+A result includes the verified target, a display string, core theory, and
+`custom_axioms`. Each used axiom appears once with its full typed
+statement and a checked path from the target to a use. The author-provided
+label is unverified metadata. The SHA-256 digest identifies the checked
+file bytes.
+
+`logos inspect FILE` prints a readable trace. Use
+`logos inspect --json FILE` for structured data suitable for reconstructing
+the argument. The `claim` points to the verified target and its proof step.
+Read `declarations` for free symbols, `functions` for definitions and opaque
+signatures, and `custom_axioms` for assumptions.
+
+- Follow `steps[].premises` from `claim.proof_step`. Steps are ordered with
+  premises first. Their IDs are structural paths rooted at `proof` or
+  `lemma["ID"].proof`. A `step_ref` links to a shared intermediate
+  derivation within a block.
+- Each step has a `rule`, checker-written `explanation`, typed
+  `conclusion` and `context_id`. Contexts list arbitrary variables from
+  oldest to newest, so bound index 0 refers to the last variable. They
+  also link to the active local assumptions by their step IDs.
+  `binder_depth` records how many variables were in scope when the
+  assumption was introduced. Introductions and discharges link to the
+  affected variable or assumption.
+- `provenance` distinguishes core laws, author assumptions, checked lemmas
+  and local hypotheses. A `law` gives the formal equality and the named
+  formal-to-actual substitution. Symbols in that formal equality name
+  law parameters rather than bundle declarations.
+- `premise_conversion` records the common normal form when a transitivity
+  step composes syntactically different middle expressions.
+  `conclusion_conversion` links a derivation's result to a differently
+  written target or lemma statement.
 
 With `--json`, successful judgments and policy denials both go to stdout.
 Their statuses are `verified` and `policy_denied`, respectively. Policy denial
@@ -62,12 +130,18 @@ invalid proof emits an `error` diagnostic to stderr without a judgment.
 Run `logos example` for the unconditional authorization proof. Run
 `logos example dependencies` for both `dependencies.logos`, a ready-to-replay
 proof of `Q` from `P ∧ Q`, and its Python source. Both examples ship in the
-executable. The reference invalid authorization fixture swaps the projection
+executable. Run `logos example arithmetic` for a ready-to-replay addition
+commutativity proof and Python source that exports six integer identities.
+The reference invalid authorization fixture swaps the projection
 and derives the other conclusion.
 
 ## Authoring and certification
 
-Use `logos.var(name, bool)` for proposition symbols. Distinct Python symbol
+Use `logos.var(name, bool)` for proposition symbols or `logos.var(name, int)`
+for integer symbols. Use `@logos.theorem` with typed parameters and
+`t.intro(...)` for scoped universal proofs. `t.ring()` constructs evidence
+from integer polynomial normalization. Its certificates contain instances
+of the eight core laws and explicit equality and congruence steps. Distinct Python symbol
 objects keep distinct IDs even when their labels match. In this fragment,
 each theorem's declaration context starts from its statement's symbols in
 first-occurrence order. Shared symbol objects use the same ID across the
@@ -95,23 +169,23 @@ fails or evidence cannot be exported.
 
 ## Migration status
 
-The pre-checker baseline had 91 passing Python tests. The first portable
-slice added 15 Python tests. The dependency slice replaces the first-slice
-external-reference rejection with checked conditional proof coverage. It
-retains the stale-flag negative and the malformed Rust dependency inputs as
-rejection tests. The legacy positive certification assertions still run with
-strict expected failures for the following dependencies and behavior.
+The pre-checker baseline had 91 passing Python tests. The propositional
+slice added portable replay for scoped projection proofs. The dependency
+slice added checked conditional proofs and assumption accounting.
 
-| Legacy tests | Checker work still required |
+The integer slice removes strict expected failures for
+`test_prove_add_comm`, `test_theorem_certified_after_check`,
+`test_check_idempotent`, `test_full_abs_nonneg`,
+`test_proof_decorator_style`, `test_check_returns_theorem`,
+`test_full_double_proof`, and `test_ground_proof`. Each check verifies the
+current proof evidence. Arithmetic tests exercise the actual checker
+judgment for the target.
+
+| Remaining legacy test | Required work |
 | --- | --- |
-| `test_prove_add_comm`, `test_theorem_certified_after_check`, `test_check_idempotent`, `test_full_abs_nonneg`, `test_proof_decorator_style` | Quantified integer equality and ring derivations. Each recheck now runs the verifier. |
-| `test_prove_linarith` | Quantifiers, inequalities, and linear inequality automation. |
-| `test_check_returns_theorem` | Quantified equality. The portable success test exercises the return value. |
-| `test_full_double_proof` | Transparent definitions, quantified equality, and ring derivations. |
-| `test_ground_proof` | Exact integer computation and equality. |
-| `test_builtins_are_axiom_objects` | Python declarations are still axiom objects. The legacy assertion treated a declaration's flag as certification. A future checker-owned core law can justify a checked use. |
+| `test_prove_linarith` | Inequalities and linear inequality automation. |
+| `test_builtins_are_axiom_objects` | The legacy assertion treats the flag on an author-declared axiom as certification. The checked core laws are selected by theory ID and instantiated by the verifier. |
 
-The portable rules now cover symbols, implication introduction, local
-hypotheses, conjunction introduction and projections, custom axioms, and
-checked lemma references. Other logical rules, definitions and conversion,
-quantifiers, arithmetic and checker-owned integer laws remain milestone work.
+The portable checker also supports conjunction, implication introduction,
+local hypotheses, and checked dependencies. Other logical rules and
+protocol domains remain milestone work.

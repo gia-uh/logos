@@ -117,6 +117,7 @@ def Exists(var: Var, body: Expr) -> Expr:
 class App(Expr):
     func_name: str
     args: list[Expr]
+    symbol: Any = None
 
 # Case expression (used by @logos.define bodies)
 @dataclass(eq=False)
