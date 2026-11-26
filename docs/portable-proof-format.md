@@ -28,6 +28,7 @@ Omitting a body declares an opaque function.
 | `neg` | Integer `operand` |
 | `pow` | Integer `base` and natural literal `exponent` |
 | `eq` | `left` and `right` of the same sort |
+| `lt` | Strict integer order over `left` and `right`, both of sort `int` |
 | `and`, `or`, `implies` | Propositions `left` and `right` |
 | `not` | Proposition `operand` |
 | `false` | No fields. The proposition falsehood (⊥). |
@@ -89,6 +90,36 @@ distribution require checked evidence.
 | `mul_comm` | `a · b = b · a` |
 | `mul_one` | `a · 1 = a` |
 | `distrib` | `a · (b + c) = a · b + a · c` |
+
+Four further core laws are checker-owned propositions over integers. They
+use the same `core_law` evidence tag and the same ordered integer
+substitution; only the conclusion is a proposition rather than an equality.
+
+| Core law | Checker-owned proposition over integers |
+| --- | --- |
+| `lt_irrefl` | `¬(a < a)` |
+| `lt_trans` | `a < b → (b < c → a < c)` |
+| `lt_add` | `a < b → a + c < b + c` |
+| `lt_neq` | `a < b → ¬(a = b)` |
+
+### Soundness of the order laws
+
+`lt` is interpreted as the usual strict order on the mathematical integers.
+Each law is true for every substitution of integer terms, so replaying a
+law instance is sound without any decision procedure:
+
+- `lt_irrefl` states that no integer is less than itself.
+- `lt_trans` composes two inequalities with a shared middle term.
+- `lt_add` adds the same term to both sides; the converse also holds in the
+  integers, but the fragment exposes only the direction a proof needs.
+- `lt_neq` follows because `a < b` and `a = b` cannot both hold.
+
+The checker verifies the law ID, the arity and that every argument has sort
+`int`, then builds exactly the proposition above. It never trusts a tactic.
+There is no order elimination or decision rule: any other order fact must
+come from one of these laws, equality rewriting, or an explicit assumption.
+The complement of `x < y` is encoded as `not` of the same `lt` proposition,
+so equality and `y < x` both satisfy the complement used by an else branch.
 
 The checker rejects inputs beyond its replay resource limits, including
 proof files over 8 MiB and integer computations over 65,536 bits. A limit
@@ -341,6 +372,12 @@ The integer slice removes strict expected failures for
 `test_full_double_proof`, and `test_ground_proof`. Each check verifies the
 current proof evidence. Arithmetic tests exercise the actual checker
 judgment for the target.
+
+The order slice adds `lt` and four core laws for strict integer order, plus
+source-bound contracts whose guard is `<`. Its else path uses the
+propositional complement `~(x < y)`, so the equality boundary and `y < x`
+both belong to that path. General inequality automation (`linarith`) and
+`<=`, `>`, `>=` remain milestone work.
 
 | Remaining legacy test | Required work |
 | --- | --- |

@@ -332,6 +332,7 @@ fn has_power(expr: &Proposition) -> bool {
         | Sub { left, right }
         | Mul { left, right }
         | Eq { left, right }
+        | Lt { left, right }
         | And { left, right }
         | Or { left, right }
         | Implies { left, right } => has_power(left) || has_power(right),
@@ -459,6 +460,7 @@ impl<'a> Math<'a> {
             Sub { left, right } => (left, "-", right),
             Mul { left, right } => (left, "\\cdot", right),
             Eq { left, right } => (left, "=", right),
+            Lt { left, right } => (left, "<", right),
             And { left, right } => (left, "\\land", right),
             Or { left, right } => (left, "\\lor", right),
             False => return "\\bot".into(),

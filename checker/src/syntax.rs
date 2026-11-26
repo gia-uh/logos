@@ -54,6 +54,10 @@ pub enum Proposition {
         left: Box<Self>,
         right: Box<Self>,
     },
+    Lt {
+        left: Box<Self>,
+        right: Box<Self>,
+    },
     And {
         left: Box<Self>,
         right: Box<Self>,
@@ -120,6 +124,7 @@ impl Proposition {
             Sub { left, right } => binary!(Sub, recurse(left), recurse(right)),
             Mul { left, right } => binary!(Mul, recurse(left), recurse(right)),
             Eq { left, right } => binary!(Eq, recurse(left), recurse(right)),
+            Lt { left, right } => binary!(Lt, recurse(left), recurse(right)),
             And { left, right } => binary!(And, recurse(left), recurse(right)),
             Or { left, right } => binary!(Or, recurse(left), recurse(right)),
             Not { operand } => Not {
@@ -202,6 +207,7 @@ impl Proposition {
                 | Sub { left, right }
                 | Mul { left, right }
                 | Eq { left, right }
+                | Lt { left, right }
                 | And { left, right }
                 | Or { left, right }
                 | Implies { left, right } => {
@@ -330,6 +336,7 @@ fn normalize(
             Ok(result)
         }
         Eq { left, right } => Ok(binary!(Eq, child(left, fuel)?, child(right, fuel)?)),
+        Lt { left, right } => Ok(binary!(Lt, child(left, fuel)?, child(right, fuel)?)),
         And { left, right } => Ok(binary!(And, child(left, fuel)?, child(right, fuel)?)),
         Or { left, right } => Ok(binary!(Or, child(left, fuel)?, child(right, fuel)?)),
         Not { operand } => Ok(Not {
@@ -436,6 +443,7 @@ fn instantiate_with_fuel(
             | Sub { left, right }
             | Mul { left, right }
             | Eq { left, right }
+            | Lt { left, right }
             | And { left, right }
             | Or { left, right }
             | Implies { left, right } => {
@@ -468,10 +476,13 @@ fn instantiate_with_fuel(
 }
 
 macro_rules! integer_laws {
-    ($int:ident, $add:ident, $mul:ident, $neg:ident; $($law:literal ($($var:ident),*) => $left:expr, $right:expr;)*) => {
+    ($int:ident, $add:ident, $mul:ident, $neg:ident, $lt:ident, $eq:ident, $not:ident, $implies:ident;
+     $($law:literal ($($var:ident),*) => $left:expr, $right:expr;)*
+     [$($order:literal ($($ovar:ident),*) => $body:expr;)*]) => {
         pub fn law_formals(id: &str) -> Option<&'static [&'static str]> {
             match id {
                 $($law => Some(&[$(stringify!($var)),*]),)*
+                $($order => Some(&[$(stringify!($ovar)),*]),)*
                 _ => None,
             }
         }
@@ -481,8 +492,13 @@ macro_rules! integer_laws {
             let $add = |a, b| binary!(Add, a, b);
             let $mul = |a, b| binary!(Mul, a, b);
             let $neg = |operand| Neg { operand: Box::new(operand) };
+            let $lt = |a, b| binary!(Lt, a, b);
+            let $eq = |a, b| binary!(Eq, a, b);
+            let $not = |operand| Not { operand: Box::new(operand) };
+            let $implies = |left, right| binary!(Implies, left, right);
             match (id, args) {
                 $(($law, [$($var),*]) => Some(binary!(Eq, $left, $right)),)*
+                $(($order, [$($ovar),*]) => Some($body),)*
                 _ => None,
             }
         }
@@ -490,7 +506,7 @@ macro_rules! integer_laws {
 }
 
 integer_laws! {
-    int, add, mul, neg;
+    int, add, mul, neg, lt, eq, not, implies;
     "add_assoc"(a, b, c) => add(add(a.clone(), b.clone()), c.clone()), add(a.clone(), add(b.clone(), c.clone()));
     "add_comm"(a, b) => add(a.clone(), b.clone()), add(b.clone(), a.clone());
     "add_zero"(a) => add(a.clone(), int("0")), a.clone();
@@ -499,4 +515,10 @@ integer_laws! {
     "mul_comm"(a, b) => mul(a.clone(), b.clone()), mul(b.clone(), a.clone());
     "mul_one"(a) => mul(a.clone(), int("1")), a.clone();
     "distrib"(a, b, c) => mul(a.clone(), add(b.clone(), c.clone())), add(mul(a.clone(), b.clone()), mul(a.clone(), c.clone()));
+    [
+        "lt_irrefl"(a) => not(lt(a.clone(), a.clone()));
+        "lt_trans"(a, b, c) => implies(lt(a.clone(), b.clone()), implies(lt(b.clone(), c.clone()), lt(a.clone(), c.clone())));
+        "lt_add"(a, b, c) => implies(lt(a.clone(), b.clone()), lt(add(a.clone(), c.clone()), add(b.clone(), c.clone())));
+        "lt_neq"(a, b) => implies(lt(a.clone(), b.clone()), not(eq(a.clone(), b.clone())));
+    ]
 }

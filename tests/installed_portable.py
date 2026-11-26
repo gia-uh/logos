@@ -479,6 +479,107 @@ def solve_knights_knaves(cold, recipient, evidence, help_text, env, offline):
     shutil.copy2(recipient / "guided.logos", evidence / "guided.logos")
 
 
+ORDER_APP = """\
+def minimum(x: int, y: int) -> int:
+    if x < y:
+        return x
+    else:
+        return y
+"""
+
+ORDER_TEST = """\
+import logos
+from logos import tactics as t
+
+import app
+
+
+@logos.theorem(about=app.minimum)
+def minimum_then(x, y, *, result):
+    return logos.contract(requires=(x < y), ensures=(result == x))
+
+
+@logos.theorem(about=app.minimum)
+def minimum_else(x, y, *, result):
+    return logos.contract(requires=~(x < y), ensures=(result == y))
+
+
+@logos.theorem
+def lt_add_transport(x: int, y: int, c: int):
+    return (x < y) >> ((x + c) < (y + c))
+
+
+@logos.theorem
+def lt_neq_from_lt(x: int, y: int):
+    return (x < y) >> ~(x == y)
+
+
+def test_order():
+    assert app.minimum(3, 3) == 3
+    minimum_then.check()
+    minimum_else.check()
+    logos.check(lt_add_transport.proof(t.intro("x", "y", "c", "h"), t.order("lt_add")))
+    logos.check(lt_neq_from_lt.proof(t.intro("x", "y", "h"), t.order("lt_neq")))
+    for theorem in (minimum_then, minimum_else, lt_add_transport, lt_neq_from_lt):
+        assert theorem.certified
+        logos.export_proof(theorem, theorem.name + ".logos")
+"""
+
+ORDER_STALE = """\
+import pathlib
+import types
+
+import app
+import logos
+
+
+@logos.theorem(about=app.minimum)
+def minimum_then(x, y, *, result):
+    return logos.contract(requires=(x < y), ensures=(result == x))
+
+
+@logos.theorem(about=app.minimum)
+def minimum_else(x, y, *, result):
+    return logos.contract(requires=~(x < y), ensures=(result == y))
+
+
+minimum_then.check()
+minimum_else.check()
+path = pathlib.Path(app.__file__)
+source = path.read_text()
+original = app.minimum.__code__
+
+
+def install(text):
+    path.write_text(text)
+    compiled = compile(text, str(path), "exec")
+    app.minimum.__code__ = next(
+        value for value in compiled.co_consts
+        if isinstance(value, types.CodeType) and value.co_name == "minimum"
+    )
+
+
+for changed in (source.replace("x < y", "y < x"), source.replace("x < y", "x == y"),
+                source.replace("return x", "return x + 1", 1),
+                source.replace("return y", "return x")):
+    install(changed)
+    for theorem in (minimum_then, minimum_else):
+        assert not theorem.certified
+        try:
+            theorem.check()
+        except logos.LogosContractError:
+            pass
+        else:
+            raise AssertionError("a stale order branch was accepted")
+    path.write_text(source)
+    app.minimum.__code__ = original
+
+minimum_then.check()
+minimum_else.check()
+assert minimum_then.certified and minimum_else.certified
+print("order guard and branch mutations invalidated both paths and restored")
+"""
+
 CONTRACT_APP = """\
 def advance(mid: int) -> int:
     return mid + 1
@@ -907,6 +1008,70 @@ def contracts(python, cold, recipient, evidence, env, offline):
     (evidence / "advance-stale.txt").write_text(stale.stdout)
 
 
+def order_contracts(python, cold, recipient, evidence, env, offline):
+    application = cold / "order_application"
+    application.mkdir()
+    app = application / "app.py"
+    fresh_source(app, ORDER_APP)
+    (application / "test_order.py").write_text(ORDER_TEST)
+
+    print("Order · pytest the installed wheel on both minimum paths and order laws")
+    passed = run([python, "-m", "pytest", "-q", "test_order.py"], application, env=env)
+    assert "1 passed" in passed.stdout
+
+    for name in (
+        "minimum_then", "minimum_else", "lt_add_transport", "lt_neq_from_lt",
+    ):
+        artifact = application / f"{name}.logos"
+        assert artifact.is_file()
+        shutil.move(artifact, recipient / artifact.name)
+        strict = replay(recipient, "check", "--strict", artifact.name, offline=offline)
+        assert "Verified with 0 custom axioms" in strict.stdout
+        inspected = replay(
+            recipient, "inspect", "--json", "--strict", artifact.name,
+            offline=offline, show_output=False,
+        )
+        trace = json.loads(inspected.stdout)
+        assert trace["status"] == "verified" and trace["custom_axioms"] == []
+        if name.startswith("minimum"):
+            [symbol] = trace["functions"]
+            expected = "minimum[else]" if name == "minimum_else" else "minimum[then]"
+            assert symbol["name"] == expected
+            assert "not" in json.dumps(trace["statement"]) if name == "minimum_else" else True
+        else:
+            law = "lt_add" if name == "lt_add_transport" else "lt_neq"
+            assert any(
+                step.get("reference_id") == law and step["rule"] == "core_law"
+                for step in trace["steps"]
+            )
+            assert all(step["rule"] != "axiom_ref" for step in trace["steps"])
+        shutil.copy2(recipient / artifact.name, evidence / artifact.name)
+        (evidence / f"{name}.inspect.json").write_text(inspected.stdout)
+
+    print("Order · reject a reversed order-law instance in the installed checker")
+    altered = json.loads((recipient / "lt_add_transport.logos").read_text())
+    core = altered["proof"]
+    while core["tag"] != "core_law":
+        core = core.get("body", core.get("implication", core.get("proof")))
+    core["args"] = [core["args"][1], core["args"][0], core["args"][2]]
+    (recipient / "reversed-order.logos").write_text(json.dumps(altered))
+    rejected = replay(
+        recipient, "check", "--json", "reversed-order.logos", offline=offline,
+        code=1, show_output=False,
+    )
+    diagnostic = json.loads(rejected.stderr)["error"]
+    assert (
+        "antecedent does not match premise" in diagnostic
+        or "proof conclusion mismatch" in diagnostic
+    )
+
+    print("Order · invalidate both paths after a guard or branch change")
+    (application / "stale_order.py").write_text(ORDER_STALE)
+    stale = run([python, "stale_order.py"], application, env=env)
+    assert "order guard and branch mutations invalidated both paths and restored" in stale.stdout
+    (evidence / "order-stale.txt").write_text(stale.stdout)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
@@ -1090,7 +1255,10 @@ def main():
         print(f"Function contracts · bind source, mutate and refuse, then {isolation}")
         contracts(python, cold, recipient, evidence, env, options.offline)
 
-    print("11 acceptance stages exercised")
+        print(f"Strict order · prove both minimum paths and order laws, then {isolation}")
+        order_contracts(python, cold, recipient, evidence, env, options.offline)
+
+    print("12 acceptance stages exercised")
 
 
 if __name__ == "__main__":

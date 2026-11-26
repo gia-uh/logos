@@ -99,6 +99,14 @@ pub fn rule_explanation(rule: &str, reference: Option<&str>) -> &'static str {
                 "Apply the multiplicative identity law to remove a factor of one on the right."
             }
             Some("distrib") => "Distribute an integer factor across the two summands.",
+            Some("lt_irrefl") => "No integer is strictly less than itself.",
+            Some("lt_trans") => {
+                "Two strict integer inequalities with a shared middle term compose transitively."
+            }
+            Some("lt_add") => {
+                "Adding the same integer to both sides preserves a strict integer inequality."
+            }
+            Some("lt_neq") => "A strict integer inequality rules out equality of its two sides.",
             _ => unreachable!("checked core law"),
         },
         "block" => "Take the selected conclusion from the block of shared steps.",

@@ -117,6 +117,7 @@
       "false": "{tag: false}; falsehood has no literal proof term",
       "implies": "{tag: implies, left, right}",
       "eq": "{tag: eq, left, right}; operands have the same sort",
+      "lt": "{tag: lt, left, right}; strict integer order, both operands have sort int",
       "forall": "{tag: forall, name, sort, body}; the body is a proposition",
       "exists": "{tag: exists, name, sort, body}; the body is a proposition"
     },
@@ -164,7 +165,11 @@
       "mul_assoc",
       "mul_comm",
       "mul_one",
-      "distrib"
+      "distrib",
+      "lt_irrefl",
+      "lt_trans",
+      "lt_add",
+      "lt_neq"
     ]
   },
   "json_policy_denied": {

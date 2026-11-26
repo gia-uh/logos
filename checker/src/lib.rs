@@ -613,6 +613,11 @@ impl<'a> Checker<'a> {
                 require(right, child(left)?)?;
                 Ok(Sort::Prop)
             }
+            Lt { left, right } => {
+                require(left, Sort::Int)?;
+                require(right, Sort::Int)?;
+                Ok(Sort::Prop)
+            }
             False => Ok(Sort::Prop),
             Not { operand } => {
                 require(operand, Sort::Prop)?;
@@ -788,6 +793,7 @@ impl<'a> Checker<'a> {
             Proposition::Sub { left, right } => (left, "−", right),
             Proposition::Mul { left, right } => (left, "·", right),
             Proposition::Eq { left, right } => (left, "=", right),
+            Proposition::Lt { left, right } => (left, "<", right),
             Proposition::And { left, right } => (left, "∧", right),
             Proposition::Or { left, right } => (left, "∨", right),
             Proposition::Implies { left, right } => (left, "→", right),

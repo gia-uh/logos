@@ -249,11 +249,11 @@ def test_branch_syntax_fails_closed(tmp_path):
     cases = [
         (
             "def choose(x: int) -> int:\n"
-            "    if x < 0:\n"
+            "    if x <= 0:\n"
             "        return 0\n"
             "    else:\n"
             "        return x\n",
-            "only == and !=",
+            "only <, == and !=",
         ),
         (
             "def choose(x: int) -> int:\n"
@@ -277,7 +277,7 @@ def test_branch_syntax_fails_closed(tmp_path):
             "        return 1\n"
             "    else:\n"
             "        return x\n",
-            "one == or != comparison",
+            "one <, == or != comparison",
         ),
         (
             "def choose(x: int) -> int:\n"
@@ -285,7 +285,7 @@ def test_branch_syntax_fails_closed(tmp_path):
             "        return 1\n"
             "    else:\n"
             "        return x\n",
-            "one == or != comparison",
+            "one <, == or != comparison",
         ),
         (
             "def choose(x: int) -> int:\n"
