@@ -489,6 +489,11 @@ def advance(mid: int) -> int:
     return mid
 """
 
+CONTRACT_PAIR = """\
+def first(x: int, y: int) -> int:
+    return x
+"""
+
 CONTRACT_TEST = """\
 import logos
 import app
@@ -507,9 +512,11 @@ def test_advances():
 
 CONTRACT_STALE = """\
 import pathlib
+import types
 
 import app
 import logos
+import pair_app
 from logos.expr import Add, Lit, Var
 
 
@@ -580,7 +587,36 @@ assert not pathlib.Path("stale-source.logos").exists()
 path.write_text(source)
 advance_contract.check()
 assert advance_contract.certified
-print("same-process revalidation refused code, body and source changes")
+
+
+@logos.theorem(about=pair_app.first)
+def first_is_x(x, y, *, result):
+    return logos.contract(ensures=(result == x))
+
+
+first_is_x.check()
+assert first_is_x.certified
+pair = pathlib.Path(pair_app.__file__)
+pair_code = pair_app.first.__code__
+swapped = "def first(y: int, x: int) -> int:\\n    return x\\n"
+pair.write_text(swapped)
+compiled = compile(swapped, str(pair), "exec")
+pair_app.first.__code__ = next(
+    value for value in compiled.co_consts
+    if isinstance(value, types.CodeType) and value.co_name == "first"
+)
+assert not first_is_x.certified
+try:
+    first_is_x.check()
+except logos.LogosContractError as error:
+    print("refused parameter binding:", error)
+else:
+    raise AssertionError("reordered parameters were accepted")
+pair.write_text("def first(x: int, y: int) -> int:\\n    return x\\n")
+pair_app.first.__code__ = pair_code
+first_is_x.check()
+assert first_is_x.certified
+print("same-process revalidation refused code, body, source and parameter order changes")
 """
 
 CONTRACT_LIMITS = """\
@@ -724,8 +760,9 @@ def contracts(python, cold, recipient, evidence, env, offline):
 
     print("Contracts · revalidate code, translated body and source in one process")
     (application / "stale.py").write_text(CONTRACT_STALE)
+    (application / "pair_app.py").write_text(CONTRACT_PAIR)
     stale = run([python, "stale.py"], application, env=env)
-    assert "same-process revalidation refused code, body and source changes" in stale.stdout
+    assert "same-process revalidation refused code, body, source and parameter order changes" in stale.stdout
     (evidence / "advance-stale.txt").write_text(stale.stdout)
 
 

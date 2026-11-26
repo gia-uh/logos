@@ -67,7 +67,7 @@ A custom tactic can inspect the current goal and return evidence, or split it in
 
 ## Prove a contract about an ordinary function
 
-`@logos.theorem(about=fn)` binds the theorem to `fn`'s own source. The decorated body returns `logos.contract`, whose `ensures` is a postcondition over the parameters and the keyword-only `result`. Logos reads the function's module, recompiles it, and refuses to continue if the imported code object disagrees with the source. Every check, certification and export repeats that binding and compares the fresh translation with the one the statement was built from, so replacing `__code__` or editing the source after decoration cannot certify stale mathematics.
+`@logos.theorem(about=fn)` binds the theorem to `fn`'s own source. The decorated body returns `logos.contract`, whose `ensures` is a postcondition over the parameters and the keyword-only `result`. Logos reads the function's module, recompiles it, and refuses to continue if the imported code object disagrees with the source. Every check, certification and export repeats that binding and compares the fresh signature and translation with the ones the statement was built from, so replacing `__code__`, reordering parameters or editing the source after decoration cannot certify stale mathematics.
 
 ```python
 import logos

@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from types import CodeType
 
 import pytest
 
@@ -194,6 +195,37 @@ def test_replaced_code_object_after_decoration_is_refused(tmp_path):
     assert step_contract.certified
 
 
+def test_parameter_rebinding_after_certification_is_refused(tmp_path):
+    module = _import(
+        tmp_path, "late_params",
+        "def first(x: int, y: int) -> int:\n    return x\n",
+    )
+
+    @logos.theorem(about=module.first)
+    def first_is_x(x, y, *, result):
+        return logos.contract(ensures=(result == x))
+
+    first_is_x.check()
+    assert first_is_x.certified
+    path = Path(module.__file__)
+    original_code = module.first.__code__
+    mutated = "def first(y: int, x: int) -> int:\n    return x\n"
+    path.write_text(mutated)
+    module.first.__code__ = _function_code(mutated, path, "first")
+
+    assert not first_is_x.certified
+    with pytest.raises(logos.LogosContractError, match="parameter binding changed"):
+        first_is_x.check()
+    with pytest.raises(logos.LogosProofError):
+        logos.export_proof(first_is_x, tmp_path / "stale.logos")
+    assert not (tmp_path / "stale.logos").exists()
+
+    path.write_text("def first(x: int, y: int) -> int:\n    return x\n")
+    module.first.__code__ = original_code
+    first_is_x.check()
+    assert first_is_x.certified
+
+
 def test_mutated_translated_body_is_refused(tmp_path):
     module = _import(tmp_path, "late_body", "def step(x: int) -> int:\n    return x + 1\n")
 
@@ -327,3 +359,11 @@ def _load(name, path):
     sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _function_code(source, path, name):
+    compiled = compile(source, str(path), "exec")
+    return next(
+        value for value in compiled.co_consts
+        if isinstance(value, CodeType) and value.co_name == name
+    )

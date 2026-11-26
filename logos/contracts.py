@@ -99,10 +99,18 @@ class ContractTheorem(Theorem):
 
         Decoration is not enough: ``__code__`` can be replaced and the file can
         change while the theorem object lives on. Every proof run, receipt read
-        and export calls this, comparing the fresh translation with the one the
-        statement was built from.
+        and export calls this, comparing the fresh signature and translation
+        with the ones the statement was built from.
         """
-        _names, _variables, body = _bind_source(self.about)
+        names, _variables, body = _bind_source(self.about)
+        bound = [parameter.name for parameter in self.parameters]
+        if names != bound:
+            self._receipt = None
+            raise LogosContractError(
+                f"contract for {self.symbol.name!r} no longer matches its source: the "
+                f"parameter binding changed from ({', '.join(bound)}) to "
+                f"({', '.join(names)}); redeclare the theorem from the current function"
+            )
         if not structural_eq(body, self.symbol.body):
             self._receipt = None
             raise LogosContractError(
