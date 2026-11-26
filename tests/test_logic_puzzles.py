@@ -9,6 +9,65 @@ from logos.domains.logic_puzzles import KnightsKnaves
 from logos.runner import TrailingTactics
 
 
+@pytest.mark.parametrize(("claim", "expected"), [
+    (lambda a, b: a.is_knave(), "A is a knave."),
+    (lambda a, b: a.is_knave() & b.is_knight(), "A is a knave and B is a knight."),
+    (lambda a, b: ~(a.is_knave() & b.is_knave()), "A and B are not both knaves."),
+    (lambda a, b: ~(a.is_knave() | b.is_knave()), "Neither A nor B is a knave."),
+    (lambda a, b: ~(a.is_knight() | b.is_knight()), "Neither A nor B is a knight."),
+    (lambda a, b: ~(a.is_knave() & b.is_knight()),
+     "It is false that (A is a knave and B is a knight)."),
+    (lambda a, b: ~(a.is_knave() | a.is_knave()),
+     "It is false that (A is a knave or A is a knave (or both))."),
+    (lambda a, b: ~a.is_knave() | ~b.is_knave(),
+     "(it is false that A is a knave) or (it is false that B is a knave) (or both)."),
+    (lambda a, b: ~~a.is_knave(), "It is false that (it is false that A is a knave)."),
+    (lambda a, b: (a.is_knave() >> b.is_knave()) >> (a.is_knight() | b.is_knight()),
+     "If (if A is a knave, then B is a knave), then (A is a knight or B is a knight (or both))."),
+    (lambda a, b: (a.is_knave() | b.is_knave()) >> (a.is_knight() >> b.is_knight()),
+     "If (A is a knave or B is a knave (or both)), then (if A is a knight, then B is a knight)."),
+    (lambda a, b: a.is_knave() | (a.is_knight() & b.is_knight()),
+     "A is a knave or (A is a knight and B is a knight) (or both)."),
+    (lambda a, b: (a.is_knave() | a.is_knight()) & b.is_knight(),
+     "(A is a knave or A is a knight (or both)) and B is a knight."),
+    (lambda a, b: a.is_knight() >> logos.lit(False),
+     "If A is a knight, then a contradiction holds."),
+])
+def test_describe_preserves_claim_structure_before_proof(claim, expected):
+    puzzle = KnightsKnaves()
+    a, b = puzzle.entity("A"), puzzle.entity("B")
+    # Even invalid recorded speech is irrelevant to rendering a valid claim.
+    a.says(logos.lit(True))
+    expr = claim(a, b)
+    assert puzzle.describe(expr) == puzzle.describe(expr) == expected
+    assert puzzle.solve_status is None
+
+
+def test_describe_quotes_and_escapes_names():
+    puzzle = KnightsKnaves()
+    a = puzzle.entity('A or "B"\n\x1b')
+    b = puzzle.entity("Éloi")
+    assert puzzle.describe(~(a.is_knave() & b.is_knave())) == (
+        r'"A or \"B\"\n\u001b" and "\u00c9loi" are not both knaves.'
+    )
+    everyone = puzzle.entity("Everyone")
+    assert puzzle.describe(everyone.is_knight()) == '"Everyone" is a knight.'
+
+
+def test_describe_rejects_unsupported_and_foreign_expressions():
+    puzzle = KnightsKnaves()
+    a = puzzle.entity("A")
+    other_a = KnightsKnaves().entity("A")
+    for claim, error in (
+        (a.is_knight() >> other_a.is_knight(), "A_kn.*must belong to this puzzle"),
+        (a.is_knight() & (a.is_knight() == a.is_knave()), "unsupported statement Eq"),
+        (logos.lit(True), "unsupported statement Lit"),
+        (a.is_knight() | False, "unsupported statement bool"),
+    ):
+        with pytest.raises(ValueError, match=error):
+            puzzle.describe(claim)
+
+
 @pytest.mark.parametrize(("describe", "expected"), [
     (lambda a, b: a.says(a.is_knave() & b.is_knave()), {"A": "knave", "B": "knight"}),
     # A says they differ. B says A is a knave. The second statement requires

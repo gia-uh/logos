@@ -1,6 +1,8 @@
 """logos.domains.logic_puzzles — classic truth/lie puzzle domains."""
 from __future__ import annotations
 
+import json
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -12,7 +14,7 @@ from logos.goal import Goal
 from logos.helpers import structural_eq
 from logos.runner import TacticFailed, TrailingTactics, run
 from logos.domains import Domain, Entity
-from logos.domains import _finite
+from logos.domains import _finite, _prose
 from logos.domains._finite import BinaryChoice
 
 
@@ -72,6 +74,7 @@ class KnightsKnaves(Domain):
         result = puzzle.solve()  # {"A": "knave", "B": "knight"}
         puzzle.export_proof("puzzle.logos")
 
+    Use describe(claim) to write a claim in English before proving it.
     Use prove(claim, by=[...]) to guide a proof with tactics, or
     theorem(conclusion) to author evidence manually.
     """
@@ -98,6 +101,38 @@ class KnightsKnaves(Domain):
         self._entities.append(entity)
         self._invalidate_solution()
         return entity
+
+    def describe(self, claim: Expr) -> str:
+        """Render the claim itself in English without checking its truth.
+
+        Accepts this puzzle's role propositions, &, |, ~, >> and logos.lit(False).
+        Raises ValueError for a foreign atom or unsupported expression.
+        """
+        roles = {}
+        for entity in self._entities:
+            name = entity.name
+            if not re.fullmatch(r"[A-Z][0-9]*", name):
+                name = json.dumps(name)
+            roles[entity.kn] = name, "knight"
+            roles[entity.kv] = name, "knave"
+        _finite.validate(claim, set(roles))
+
+        def phrase(node: Expr) -> str | None:
+            match node:
+                case Var():
+                    name, role = roles[node]
+                    return f"{name} is a {role}"
+                case Not((And(left, right) | Or(left, right)) as pair):
+                    if left in roles and right in roles:
+                        first, role = roles[left]
+                        second, other_role = roles[right]
+                        if role == other_role and first != second:
+                            if isinstance(pair, And):
+                                return f"{first} and {second} are not both {role}s"
+                            return f"neither {first} nor {second} is a {role}"
+            return None
+
+        return _prose.sentence(claim, phrase)
 
     def solve(self, *, timeout: float | None = 0.5) -> dict[str, str] | list[dict[str, str]] | None:
         """Return one assignment, all alternatives, or None; see solve_status.

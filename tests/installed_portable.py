@@ -353,9 +353,30 @@ def solve_knights_knaves(cold, recipient, evidence, help_text, env, offline):
     for artifact in (filename, wrong):
         shutil.copy2(recipient / artifact, evidence / artifact)
 
+    heading = "To describe A's utterance and a proposed conclusion before proving:\n"
+    [line] = help_text.split(heading)[1].split("\n\n")[0].splitlines()
+    preview = [
+        "A says, “A is a knave and B is a knave.”",
+        "Proposed conclusion — A is a knave.",
+    ]
+    interpreter, script = shlex.split(line)
+    preview_dir = cold / "preview"
+    preview_dir.mkdir()
+    # Use the installed Python directly with no checker on PATH.
+    result = run([shutil.which(interpreter, path=env["PATH"]), "-I", cold / script],
+                 preview_dir, env={"PATH": ""})
+    assert result.stdout.splitlines() == preview
+    assert not list(preview_dir.iterdir())
+
     heading = "To guide a proof of a specific claim in the same puzzle:\n"
     for line in help_text.split(heading)[1].split("\n\n")[0].splitlines():
-        run(shlex.split(line), cold, env=env)
+        result = run(shlex.split(line), cold, env=env)
+        if line.strip().startswith("python "):
+            assert result.stdout.splitlines() == [
+                *preview,
+                "Checked conditional proof from the role and utterance premises.",
+                "guided.logos",
+            ]
     (cold / "guide_knights_knaves.py").unlink()
     shutil.move(cold / "guided.logos", recipient / "guided.logos")
     inspected = replay(

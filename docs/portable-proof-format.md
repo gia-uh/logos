@@ -207,11 +207,41 @@ discharged. Model witnesses come from Python search. The checker verifies the
 conditional derivation, while model existence is a separate claim. The checker
 applies its existing proof size and nesting limits when exporting or replaying.
 
+### Describe a claim before proving it
+
+After emitting the examples, run `python guide_knights_knaves.py` with no
+arguments. The preview needs only the Python wheel. It prints the reported
+utterance and a proposed conclusion.
+
+```text
+A says, “A is a knave and B is a knave.”
+Proposed conclusion — A is a knave.
+```
+
+`puzzle.describe(claim)` returns one English sentence for claim content.
+The caller supplies wording such as “A says” or “Proposed conclusion.”
+
+```python
+from logos.domains.logic_puzzles import KnightsKnaves
+
+puzzle = KnightsKnaves()
+a, b = puzzle.entity("A"), puzzle.entity("B")
+print(puzzle.describe(a.is_knave() & b.is_knight()))     # A is a knave and B is a knight.
+print(puzzle.describe(~(a.is_knave() & b.is_knave())))  # A and B are not both knaves.
+print(puzzle.describe(~(a.is_knave() | b.is_knave())))  # Neither A nor B is a knave.
+```
+
+The renderer uses inclusive “or” and groups nested clauses with parentheses.
+Labels such as `A` and `B2` appear as written. Other names are quoted with
+JSON string escaping. It accepts the same expressions as the puzzle solver and
+raises `ValueError` for foreign atoms and unsupported expressions.
+
 ### Guide a proof of a chosen claim
 
 Run `python guide_knights_knaves.py guided.logos` after emitting the examples,
 then `logos check --strict guided.logos`. The [guided script](../checker/examples/guide_knights_knaves.py)
-uses the same puzzle and proves that A is a knave.
+uses the same puzzle and checks that A is a knave given the role and utterance
+premises. The exported implication retains those premises.
 
 ```python
 from logos import export_proof, tactics as t
