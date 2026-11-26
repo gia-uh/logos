@@ -229,6 +229,7 @@ a, b = puzzle.entity("A"), puzzle.entity("B")
 print(puzzle.describe(a.is_knave() & b.is_knight()))     # A is a knave and B is a knight.
 print(puzzle.describe(~(a.is_knave() & b.is_knave())))  # A and B are not both knaves.
 print(puzzle.describe(~(a.is_knave() | b.is_knave())))  # Neither A nor B is a knave.
+print(puzzle.describe(~a.is_knave() & ~b.is_knave()))    # Neither A nor B is a knave.
 ```
 
 The renderer uses inclusive “or” and groups nested clauses with parentheses.

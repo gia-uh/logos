@@ -130,6 +130,12 @@ class KnightsKnaves(Domain):
                             if isinstance(pair, And):
                                 return f"{first} and {second} are not both {role}s"
                             return f"neither {first} nor {second} is a {role}"
+                case And(Not(left), Not(right)):
+                    if left in roles and right in roles:
+                        first, role = roles[left]
+                        second, other_role = roles[right]
+                        if role == other_role and first != second:
+                            return f"neither {first} nor {second} is a {role}"
             return None
 
         return _prose.sentence(claim, phrase)
