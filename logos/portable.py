@@ -346,6 +346,7 @@ def export_proof(theorem, path: str | Path) -> ProofReceipt:
 
     if not isinstance(theorem, _Proof):
         raise TypeError("logos.export_proof expects a theorem or anonymous proof")
+    theorem._revalidate()
     receipt = theorem.receipt
     if receipt is None:
         raise LogosProofError("proof has no current Rust verification; call logos.check first")

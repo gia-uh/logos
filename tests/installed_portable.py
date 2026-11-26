@@ -479,6 +479,293 @@ def solve_knights_knaves(cold, recipient, evidence, help_text, env, offline):
     shutil.copy2(recipient / "guided.logos", evidence / "guided.logos")
 
 
+CONTRACT_APP = """\
+def advance(mid: int) -> int:
+    return mid + 1
+"""
+
+CONTRACT_MUTATED = """\
+def advance(mid: int) -> int:
+    return mid
+"""
+
+CONTRACT_PAIR = """\
+def first(x: int, y: int) -> int:
+    return x
+"""
+
+CONTRACT_TEST = """\
+import logos
+import app
+
+
+@logos.theorem(about=app.advance)
+def advances(mid, *, result):
+    return logos.contract(ensures=(result - mid == 1))
+
+
+def test_advances():
+    advances.check()
+    assert advances.certified
+    logos.export_proof(advances, "advance.logos")
+"""
+
+CONTRACT_STALE = """\
+import pathlib
+import types
+
+import app
+import logos
+import pair_app
+from logos.expr import Add, Lit, Var
+
+
+@logos.theorem(about=app.advance)
+def advance_contract(mid, *, result):
+    return logos.contract(ensures=(result - mid == 1))
+
+
+advance_contract.check()
+assert advance_contract.certified
+path = pathlib.Path(app.__file__)
+
+
+def shrink(mid: int) -> int:
+    return mid
+
+
+original_code = app.advance.__code__
+app.advance.__code__ = shrink.__code__.replace(co_filename=str(path))
+assert not advance_contract.certified
+for label, action in (
+    ("check", advance_contract.check),
+    ("export", lambda: logos.export_proof(advance_contract, "stale-code.logos")),
+):
+    try:
+        action()
+    except logos.LogosProofError as error:
+        print(f"refused {label} after code change:", error)
+    else:
+        raise AssertionError(f"{label} accepted a stale code object")
+assert not pathlib.Path("stale-code.logos").exists()
+app.advance.__code__ = original_code
+advance_contract.check()
+assert advance_contract.certified
+
+original_body = advance_contract.symbol.body
+advance_contract.symbol.body = Add(Var("mid", int), Lit(2))
+assert not advance_contract.certified
+for label, action in (
+    ("check", advance_contract.check),
+    ("export", lambda: logos.export_proof(advance_contract, "stale-body.logos")),
+):
+    try:
+        action()
+    except logos.LogosProofError as error:
+        print(f"refused {label} after body change:", error)
+    else:
+        raise AssertionError(f"{label} accepted a mutated translated body")
+assert not pathlib.Path("stale-body.logos").exists()
+advance_contract.symbol.body = original_body
+advance_contract.check()
+assert advance_contract.certified
+
+source = path.read_text()
+path.write_text("def advance(mid: int) -> int:\\n    return mid\\n")
+assert not advance_contract.certified
+for label, action in (
+    ("check", advance_contract.check),
+    ("export", lambda: logos.export_proof(advance_contract, "stale-source.logos")),
+):
+    try:
+        action()
+    except logos.LogosProofError as error:
+        print(f"refused {label} after source change:", error)
+    else:
+        raise AssertionError(f"{label} accepted a stale source")
+assert not pathlib.Path("stale-source.logos").exists()
+path.write_text(source)
+advance_contract.check()
+assert advance_contract.certified
+
+
+@logos.theorem(about=pair_app.first)
+def first_is_x(x, y, *, result):
+    return logos.contract(ensures=(result == x))
+
+
+first_is_x.check()
+assert first_is_x.certified
+pair = pathlib.Path(pair_app.__file__)
+pair_code = pair_app.first.__code__
+swapped = "def first(y: int, x: int) -> int:\\n    return x\\n"
+pair.write_text(swapped)
+compiled = compile(swapped, str(pair), "exec")
+pair_app.first.__code__ = next(
+    value for value in compiled.co_consts
+    if isinstance(value, types.CodeType) and value.co_name == "first"
+)
+assert not first_is_x.certified
+try:
+    first_is_x.check()
+except logos.LogosContractError as error:
+    print("refused parameter binding:", error)
+else:
+    raise AssertionError("reordered parameters were accepted")
+pair.write_text("def first(x: int, y: int) -> int:\\n    return x\\n")
+pair_app.first.__code__ = pair_code
+first_is_x.check()
+assert first_is_x.certified
+print("same-process revalidation refused code, body, source and parameter order changes")
+"""
+
+CONTRACT_LIMITS = """\
+import os
+import sys
+from pathlib import Path
+
+import logos
+
+import ambiguous_app
+import branch_app
+import global_app
+import mismatch_app
+import wrapper_app
+
+before = set(Path(".").glob("*.logos"))
+
+
+def refuse(label, fn, needle):
+    try:
+        @logos.theorem(about=fn)
+        def claim(x, *, result):
+            return logos.contract(ensures=(result - x == 1))
+    except logos.LogosContractError as error:
+        assert needle in str(error), (needle, str(error))
+        print(f"{label}: {error}")
+    else:
+        raise AssertionError(f"{label} was accepted")
+
+
+refuse("global", global_app.shift, "'OFFSET'")
+refuse("branch", branch_app.choose, "single return statement")
+refuse("wrapper", wrapper_app.wrapped, "wrapped or decorated")
+refuse("ambiguous", ambiguous_app.twice, "2 times at module level")
+
+path = Path(mismatch_app.__file__)
+stat = path.stat()
+path.write_text("def move(x: int) -> int:\\n    return x - 1\\n")
+os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+assert path.stat().st_size == stat.st_size
+refuse("mismatch", mismatch_app.move, "does not match the imported code object")
+
+assert set(Path(".").glob("*.logos")) == before
+print("no artifact exported by any refused contract")
+"""
+
+CONTRACT_LIMIT_MODULES = {
+    "global_app.py": "OFFSET = 1\n\ndef shift(x: int) -> int:\n    return x + OFFSET\n",
+    "branch_app.py": (
+        "def choose(x: int) -> int:\n"
+        "    if x:\n"
+        "        return x + 1\n"
+        "    return x\n"
+    ),
+    "wrapper_app.py": (
+        "import functools\n\n"
+        "def decorate(fn):\n"
+        "    @functools.wraps(fn)\n"
+        "    def wrapper(*args, **kwargs):\n"
+        "        return fn(*args, **kwargs)\n"
+        "    return wrapper\n\n"
+        "@decorate\n"
+        "def wrapped(x: int) -> int:\n"
+        "    return x + 1\n"
+    ),
+    "ambiguous_app.py": (
+        "def twice(x: int) -> int:\n    return x + 1\n\n"
+        "def twice(x: int) -> int:\n    return x + 2\n"
+    ),
+    "mismatch_app.py": "def move(x: int) -> int:\n    return x + 1\n",
+}
+
+
+def fresh_source(path, text):
+    """Replace source and invalidate bytecode, whatever its size or timestamp."""
+    path.write_text(text)
+    cache = path.parent / "__pycache__"
+    shutil.rmtree(cache, ignore_errors=True)
+    stamp = path.stat().st_mtime + 5
+    os.utime(path, (stamp, stamp))
+    assert not cache.exists()
+
+
+def contracts(python, cold, recipient, evidence, env, offline):
+    application = cold / "application"
+    application.mkdir()
+    app = application / "app.py"
+    fresh_source(app, CONTRACT_APP)
+    (application / "test_advance.py").write_text(CONTRACT_TEST)
+
+    print("Contracts · pytest the installed wheel against a temporary application")
+    passed = run([python, "-m", "pytest", "-q", "test_advance.py"], application, env=env)
+    assert "1 passed" in passed.stdout
+
+    artifact = application / "advance.logos"
+    assert artifact.is_file()
+    shutil.move(artifact, recipient / artifact.name)
+    strict = replay(recipient, "check", "--strict", "advance.logos", offline=offline)
+    assert "Verified with 0 custom axioms" in strict.stdout
+    assert "result = " in strict.stdout and "advance" in strict.stdout
+    inspected = replay(
+        recipient, "inspect", "--json", "--strict", "advance.logos",
+        offline=offline, show_output=False,
+    )
+    trace = json.loads(inspected.stdout)
+    assert trace["status"] == "verified" and trace["custom_axioms"] == []
+    [symbol] = trace["functions"]
+    assert symbol["name"] == "advance" and symbol["params"] == ["int"]
+    assert symbol["result"] == "int"
+    assert symbol["body"] == {
+        "tag": "add", "left": {"tag": "bound", "index": 0},
+        "right": {"tag": "int", "value": "1"},
+    }
+    shutil.copy2(recipient / "advance.logos", evidence / "advance.logos")
+    (evidence / "advance.inspect.json").write_text(inspected.stdout)
+
+    print("Contracts · mutate the bound body and fail on the contract")
+    original = app.stat()
+    fresh_source(app, CONTRACT_MUTATED)
+    assert app.stat().st_size != original.st_size
+    failed = run([python, "-m", "pytest", "-q", "test_advance.py"], application,
+                 env=env, code=1, show_output=False)
+    output = failed.stdout + failed.stderr
+    assert "1 failed" in output and "does not follow from its source body" in output
+    print(output.strip().splitlines()[-1])
+    (evidence / "advance-mutation.txt").write_text(output)
+
+    print("Contracts · restore the body and pass again")
+    fresh_source(app, CONTRACT_APP)
+    restored = run([python, "-m", "pytest", "-q", "test_advance.py"], application, env=env)
+    assert "1 passed" in restored.stdout
+
+    print("Contracts · refuse source and statement gaps")
+    limits = application / "limits"
+    limits.mkdir()
+    for name, text in CONTRACT_LIMIT_MODULES.items():
+        (limits / name).write_text(text)
+    (limits / "limits.py").write_text(CONTRACT_LIMITS)
+    refused = run([python, "limits.py"], limits, env=env)
+    assert "no artifact exported by any refused contract" in refused.stdout
+
+    print("Contracts · revalidate code, translated body and source in one process")
+    (application / "stale.py").write_text(CONTRACT_STALE)
+    (application / "pair_app.py").write_text(CONTRACT_PAIR)
+    stale = run([python, "stale.py"], application, env=env)
+    assert "same-process revalidation refused code, body, source and parameter order changes" in stale.stdout
+    (evidence / "advance-stale.txt").write_text(stale.stdout)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
@@ -659,7 +946,10 @@ def main():
         print(f"Domain solve · discover from installed help, then {isolation}")
         solve_knights_knaves(cold, recipient, evidence, help_text, env, options.offline)
 
-    print("10 acceptance stages exercised")
+        print(f"Function contracts · bind source, mutate and refuse, then {isolation}")
+        contracts(python, cold, recipient, evidence, env, options.offline)
+
+    print("11 acceptance stages exercised")
 
 
 if __name__ == "__main__":

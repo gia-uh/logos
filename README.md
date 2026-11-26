@@ -63,7 +63,40 @@ logos.check(square_of_sum.proof(t.intro("x", "y"), t.ring()))
 logos.export_proof(square_of_sum, "square.logos")
 ```
 
-A custom tactic can inspect the current goal and return evidence, or split it into subgoals and combine their proofs. Rust checks the resulting derivation independently of the tactic. For software verification, the theorem is about the encoded model; relating a deployed program to that model is a separate obligation.
+A custom tactic can inspect the current goal and return evidence, or split it into subgoals and combine their proofs. Rust checks the resulting derivation independently of the tactic.
+
+## Prove a contract about an ordinary function
+
+`@logos.theorem(about=fn)` binds the theorem to `fn`'s own source. The decorated body returns `logos.contract`, whose `ensures` is a postcondition over the parameters and the keyword-only `result`. Logos reads the function's module, recompiles it, and refuses to continue if the imported code object disagrees with the source. Every check, certification and export repeats that binding and compares the fresh signature and translation with the ones the statement was built from, so replacing `__code__`, reordering parameters or editing the source after decoration cannot certify stale mathematics.
+
+```python
+import logos
+
+
+def advance(mid: int) -> int:
+    return mid + 1
+
+
+@logos.theorem(about=advance)
+def advances(mid, *, result):
+    return logos.contract(ensures=(result - mid == 1))
+
+
+advances.check()
+logos.export_proof(advances, "advance.logos")
+```
+
+The checked statement is `∀ mid:int, ∀ result:int, result = advance(mid) → result - mid = 1`, and `advance` is declared to the checker as the transparent function extracted from the source body. Run the [runnable example](examples/function_contract.py) with `python examples/function_contract.py`, then `logos check --strict advance.logos`.
+
+An optional `requires=` becomes an explicit antecedent, so a conditional contract is never silently dropped:
+
+```python
+@logos.theorem(about=advance)
+def advance_at_zero(mid, *, result):
+    return logos.contract(requires=(mid == 0), ensures=(result - mid == 1))
+```
+
+The supported fragment is deliberately small. The function must be an undecorated module-level function whose body is a single `return` of parameters, integer literals and `+`, with every parameter and the return annotated with the built-in `int`. The decorated theorem takes the same input names in the same order plus exactly one keyword-only result. Its `ensures` must be one equality between integer terms over the parameters and the result, with the result on exactly one side; `requires`, when present, is a proposition over the parameters built from integer equalities and `&`, `|`, `~`, `>>`. Branches, loops, calls, globals, closures, wrappers, missing or ambiguous source, postponed annotations and a stale source/code match all raise `logos.LogosContractError` with the file and line. Verification never executes the function with symbolic arguments. Interpreting Python's source and compiling the supported fragment is the trust boundary; the proof about the extracted integer function is checked by Rust.
 
 <details>
 <summary>Choose a witness for an existential claim</summary>
