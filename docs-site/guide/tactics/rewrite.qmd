@@ -74,7 +74,7 @@ print("Proved: quad(x) = 4x")
 
 ## `rewrite(ref)` / `rewrite_rev(ref)`
 
-Rewrites the goal using an Axiom or Theorem object. `rewrite` applies left-to-right; `rewrite_rev` applies right-to-left.
+Rewrites the goal using an Axiom or Theorem object. `rewrite` applies left-to-right and `rewrite_rev` applies right-to-left. In this example, the Rust checker verifies that unfolding the function definition gives the same goal.
 
 ```{python}
 x, y = logos.vars("x y", int)
@@ -88,11 +88,11 @@ logos.check(triple_def.proof(t.intro("x"), t.unfold(triple), t.refl()))
 
 # Use it to rewrite inside another goal
 logos.check(logos.prove(
-    logos.forall(int, lambda x: triple(x) + x == logos.lit(4) * x),
+    logos.forall(int, lambda x: triple(x) == x + x + x),
     [
         t.intro("x"),
         t.rewrite(triple_def),   # replaces triple(x) with x+x+x
-        t.ring(),
+        t.refl(),
     ],
 ))
 print("Proved via rewrite")

@@ -9,7 +9,7 @@ import logos
 import logos.tactics as t
 from logos.goal import Goal
 from logos.runner import run
-from logos.kernel import infer
+import pytest
 from logos.helpers import structural_eq
 ```
 
@@ -32,9 +32,9 @@ print("Proved with intro")
 
 # Introduce hypothesis from implication
 logos.check(logos.prove(
-    logos.forall(int, lambda x: (x > logos.lit(0)) >> (x > logos.lit(0))),
+    logos.forall(int, lambda x: (x == logos.lit(0)) >> (x == logos.lit(0))),
     [
-        t.intro("x", "h"),   # x from Forall, h: x>0 from Implies
+        t.intro("x", "h"),   # x from Forall, h: x=0 from Implies
         t.assumption(),       # close with h
     ],
 ))
@@ -47,7 +47,7 @@ Closes the goal if it appears verbatim in the context.
 
 ```{python}
 x = logos.var("x", int)
-hyp = x > logos.lit(0)
+hyp = x == logos.lit(0)
 
 goal = Goal({"h": hyp}, hyp)
 proof = run(goal, [t.assumption()])
@@ -76,13 +76,13 @@ x, y = logos.vars("x y", int)
 
 logos.check(logos.prove(
     logos.forall(int, int, lambda x, y:
-        (x > logos.lit(0)) >> ((y > logos.lit(0)) >> ((x > logos.lit(0)) & (y > logos.lit(0))))
+        (x == logos.lit(0)) >> ((y == logos.lit(0)) >> ((x == logos.lit(0)) & (y == logos.lit(0))))
     ),
     [
         t.intro("x", "y", "hx", "hy"),
         t.split(),
-        [t.assumption()],   # prove x > 0
-        [t.assumption()],   # prove y > 0
+        [t.assumption()],   # prove x = 0
+        [t.assumption()],   # prove y = 0
     ],
 ))
 print("Proved conjunction")
@@ -95,14 +95,14 @@ For disjunction goals `A | B` — choose which side to prove.
 ```{python}
 x = logos.var("x", int)
 
-# Prove "x > 0 or x > 0" by proving the left side
+# Prove "x = 0 or 1 = 1" by proving the left side
 logos.check(logos.prove(
     logos.forall(int, lambda x:
-        (x > logos.lit(0)) >> ((x > logos.lit(0)) | (x > logos.lit(0)))
+        (x == logos.lit(0)) >> ((x == logos.lit(0)) | (logos.lit(1) == logos.lit(1)))
     ),
     [
         t.intro("x", "h"),
-        t.left(x > logos.lit(0)),   # choose to prove left side; right_type = x > 0
+        t.left(logos.lit(1) == logos.lit(1)),  # supply the right disjunct
         t.assumption(),
     ],
 ))
@@ -111,17 +111,16 @@ print("Proved disjunction via left")
 
 ## `witness(val)`
 
-For existential goals `Exists(x, P(x))` — provide the witness value, reducing to `P[x:=val]`.
+For existential goals `Exists(x, P(x))`, provide the witness value, reducing to `P[x:=val]`. The Rust checker does not yet certify existential proofs.
 
 ```{python}
-logos.check(logos.prove(
-    logos.exists(int, lambda x: x > logos.lit(5)),
-    [
-        t.witness(logos.lit(10)),   # instantiate x := 10
-        t.decide(),                  # verify 10 > 5
-    ],
-))
-print("Proved: ∃x > 5  (witness: 10)")
+candidate = logos.prove(
+    logos.exists(int, lambda x: x * x == logos.lit(25)),
+    [t.witness(logos.lit(5)), t.ring()],
+)
+with pytest.raises(logos.LogosProofError, match="unsupported portable proposition or term ExistsNode"):
+    logos.check(candidate)
+assert not candidate.certified
 ```
 
 ## `contradiction()`
@@ -132,9 +131,9 @@ Closes the goal if the context contains both `P` and `~P` for some proposition `
 from logos.expr import Not
 
 x = logos.var("x", int)
-p = x > logos.lit(0)
+p = x == logos.lit(0)
 
-# Context has both h: x > 0 and hn: ~(x > 0) — contradiction!
+# Context has both h: x = 0 and hn: ~(x = 0) — contradiction!
 goal = Goal({"h": p, "hn": Not(p)}, x == logos.lit(99))
 proof = run(goal, [t.contradiction()])
 print("Closed by contradiction:", type(proof).__name__)  # ExFalso
@@ -165,7 +164,7 @@ You can also apply local hypotheses by name:
 
 ```{python}
 x = logos.var("x", int)
-hyp = x > logos.lit(0)
+hyp = x == logos.lit(0)
 goal = Goal({"h": hyp}, hyp)
 proof = run(goal, [t.apply("h")])
 print("Applied hypothesis:", type(proof).__name__)

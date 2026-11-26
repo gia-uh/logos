@@ -85,7 +85,7 @@ print(example_comm.certified)   # True
 
 ### `logos.check(thm) → thm`
 
-Run the kernel. Marks `thm.certified = True` or raises `LogosProofError`.
+Run the tactics and verify their evidence with the installed Rust checker. A successful check gives the theorem a receipt and makes `thm.certified` true. Rejected evidence raises `LogosProofError`.
 
 ```{python}
 @logos.theorem
@@ -109,9 +109,9 @@ logos.check(gp)
 print(gp.certified)   # True
 ```
 
-### `@logos.axiom` — declare a trusted axiom
+### `@logos.axiom` — declare an assumption
 
-Decorator (or function call) that creates an `Axiom` object — trusted without proof.
+Decorator (or function call) that creates an `Axiom` object. Proofs that use it are conditional on that assumption.
 
 ```{python}
 @logos.axiom
@@ -119,7 +119,7 @@ def my_axiom(x: int):
     return x == x
 
 print(my_axiom)             # Axiom('my_axiom')
-print(my_axiom.certified)   # True
+print(my_axiom.certified)   # False
 ```
 
 ### `logos.define`
@@ -208,7 +208,7 @@ print(type(expr).__name__)   # CaseExpr
 | `split()` | `A & B` → `[A, B]` |
 | `left(right_type)` | `A \| B` → prove `A` |
 | `right(left_type)` | `A \| B` → prove `B` |
-| `witness(val)` | `∃x.P(x)` → `P[x:=val]` |
+| `witness(val)` | Reduce `∃x.P(x)` to `P[x:=val]` during authoring. Portable checking is pending. |
 | `contradiction()` | Close via `P` and `~P` in context |
 
 ### Arithmetic
@@ -216,8 +216,8 @@ print(type(expr).__name__)   # CaseExpr
 | Tactic | Description |
 |--------|-------------|
 | `ring()` | Polynomial ring identities |
-| `linarith()` | Linear arithmetic via Farkas |
-| `decide()` | Evaluate ground boolean propositions |
+| `linarith()` | Generate candidate evidence for linear inequalities. Portable checking is pending. |
+| `decide()` | Evaluate ground propositions in Python. Use `ring()` to certify ground integer equalities. |
 
 ### Rewriting
 
@@ -244,7 +244,7 @@ print(type(expr).__name__)   # CaseExpr
 
 ## Kernel (`logos.kernel`)
 
-The kernel is the only trusted code. Direct use is rare but available:
+The Python kernel provides proof terms and local inference utilities. The standalone Rust checker decides whether their exported evidence certifies a theorem.
 
 ### Proof Terms
 
@@ -254,7 +254,7 @@ The kernel is the only trusted code. Direct use is rare but available:
 | `Symm(p)` | `b == a` (given `p: a==b`) |
 | `Trans(p, q)` | `a == c` (given `p: a==b`, `q: b==c`) |
 | `Subst(p, f)` | `f(a) == f(b)` (given `p: a==b`) |
-| `Axiom(name)` | The named axiom's statement |
+| `AxiomRef(axiom)` | The declared axiom's statement, used as an assumption |
 | `HypRef(name)` | The named hypothesis |
 | `ForallIntro(var, body)` | `∀x. P` |
 | `ForallElim(proof, val)` | `P[x:=val]` |
