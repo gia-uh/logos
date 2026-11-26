@@ -30,22 +30,12 @@ print(structural_eq(p1, p2))   # True — same structure
 
 ## Existential Quantification
 
-`Exists` says "there is some value for which this holds." The Python tactics can build candidate evidence, but the Rust checker does not yet certify existential proofs.
+`Exists` says "there is some value for which this holds." Provide a witness and prove the predicate at that value. For example, 5 witnesses the claim that some integer has square 25.
 
 ```{python}
-import pytest
-
-# There exists an integer greater than 5
-p = logos.exists(int, lambda x: x > logos.lit(5))
-
-# Build a candidate proof by providing a witness
-gp = logos.prove(
-    logos.exists(int, lambda x: x > logos.lit(5)),
-    [t.witness(logos.lit(10)), t.decide()],
-)
-with pytest.raises(logos.LogosProofError, match="unsupported portable proposition or term ExistsNode"):
-    logos.check(gp)
-assert not gp.certified
+p = logos.exists(int, lambda x: x * x == logos.lit(25))
+gp = logos.prove(p, [t.witness(logos.lit(5)), t.ring()])
+assert logos.check(gp).certified
 ```
 
 ## Implications
