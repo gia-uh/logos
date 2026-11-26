@@ -1,17 +1,22 @@
-name: Publish to GitHub Pages
+name: Quarto docs
 
 on:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - '.github/workflows/quarto-publish.yml'
+      - 'docs-site/**'
+      - 'logos/**'
+      - 'checker/**'
+      - 'pyproject.toml'
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 jobs:
-  build-deploy:
+  render:
     runs-on: ubuntu-latest
 
     steps:
@@ -26,20 +31,47 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v3
 
+      - name: Install the standalone Rust checker
+        run: |
+          cargo install --locked --path checker --root "$RUNNER_TEMP/portable"
+          echo "$RUNNER_TEMP/portable/bin" >> "$GITHUB_PATH"
+
       - name: Create venv and install dependencies
         run: |
-          uv venv docs-site/.venv
+          uv venv --python 3.12 docs-site/.venv
           uv pip install -e ".[dev]" jupyter nbformat nbclient ipykernel \
             --python docs-site/.venv/bin/python
 
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: 1.11.9
 
       - name: Render docs
-        run: |
-          cd docs-site
-          QUARTO_PYTHON=.venv/bin/python quarto render
+        working-directory: docs-site
+        run: QUARTO_PYTHON=.venv/bin/python quarto render
 
+      - name: Upload rendered site
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-site
+          path: docs-site/_site
+          if-no-files-found: error
+          include-hidden-files: true
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: render
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download rendered site
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-site
+          path: docs-site/_site
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:

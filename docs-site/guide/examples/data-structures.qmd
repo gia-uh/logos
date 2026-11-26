@@ -14,25 +14,22 @@ import logos.tactics as t
 When you can't inspect a function's source (C extensions, third-party libraries), declare it externally and axiomatize its contract:
 
 ```{python}
-# Declare Python's built-in sorted() as an external function
-my_sorted = logos.extern("my_sorted", [list], list)
+# Declare an external integer function and assume its contract
+external_size = logos.extern("external_size", [int], int)
 
-xs = logos.var("xs", list)
-i = logos.var("i", int)
-j = logos.var("j", int)
-
-# Axiomatize what we know about sorted()
 @logos.axiom
-def sorted_length(xs: list):
-    return my_sorted(xs) == my_sorted(xs)  # placeholder
+def size_contract(n: int):
+    return external_size(n) == n + logos.lit(1)
 
-# Verify concrete behavior with decide()
-logos.check(logos.prove(
-    logos.lit(1) < logos.lit(3),
-    [t.decide()],
-))
-print("Ordering check: 1 < 3 ✓")
+@logos.theorem
+def size_at_three():
+    return external_size(logos.lit(3)) == logos.lit(3) + logos.lit(1)
+
+logos.check(size_at_three.proof(t.apply(size_contract)))
+print("Conditional on size_contract: external_size(3) = 3 + 1")
 ```
+
+The checker verifies the deduction from the declared contract. To verify the actual external implementation, you need evidence for the contract itself.
 
 ## Pure Accumulator Functions
 
@@ -44,43 +41,22 @@ def increment(n: int):
     """n + 1"""
     return n + logos.lit(1)
 
-# increment is strictly greater than its input
+# Two increments add two to the original accumulator
 @logos.theorem
-def increment_gt(n: int):
-    return increment(n) > n
+def increment_twice(n: int):
+    return increment(increment(n)) == n + logos.lit(2)
 
-logos.check(increment_gt.proof(t.intro("n"), t.unfold(increment), t.linarith()))
-print("increment(n) > n ✓")
-
-# increment is non-negative when input is non-negative
-@logos.theorem
-def increment_nonneg(n: int):
-    return (n >= logos.lit(0)) >> (increment(n) >= logos.lit(0))
-
-logos.check(increment_nonneg.proof(t.intro("n", "h"), t.unfold(increment), t.linarith()))
-print("n ≥ 0 → increment(n) ≥ 0 ✓")
+logos.check(increment_twice.proof(
+    t.intro("n"), t.unfold(increment), t.unfold(increment), t.ring(),
+))
+print("increment(increment(n)) = n + 2 ✓")
 ```
 
-## Monotone Functions
+## Polynomial Functions
 
-A function is **monotone** if `x ≤ y → f(x) ≤ f(y)`. This property is essential for binary search correctness:
+For a function defined in Logos, unfold its definition and prove an equation between the resulting polynomials:
 
 ```{python}
-@logos.define
-def linear_fn(x: int):
-    return logos.lit(3) * x + logos.lit(5)
-
-@logos.theorem
-def linear_fn_monotone(x: int, y: int):
-    return (x <= y) >> (linear_fn(x) <= linear_fn(y))
-
-logos.check(linear_fn_monotone.proof(
-    t.intro("x", "y", "h"),
-    t.unfold(linear_fn),
-    t.linarith(),
-))
-print("3x + 5 is monotone ✓")
-
 @logos.define
 def square(x: int):
     return x * x
@@ -125,13 +101,6 @@ logos.check(double_twice_is_quadruple.proof(
 ))
 print("2*(2*x) = 4*x ✓")
 
-# scale_2 preserves the sign
-@logos.theorem
-def scale_2_nonneg(x: int):
-    return (x >= logos.lit(0)) >> (scale_2(x) >= logos.lit(0))
-
-logos.check(scale_2_nonneg.proof(t.intro("x", "h"), t.unfold(scale_2), t.linarith()))
-print("x ≥ 0 → 2x ≥ 0 ✓")
 ```
 
 ## Composing Function Properties
@@ -182,15 +151,15 @@ def apply_flat_discount(price: int):
     """price - 10  (fixed $10 discount)"""
     return price - logos.lit(10)
 
-# Contract 1: discounted price is strictly less than original
+# Contract 1: the discount subtracts exactly 10
 @logos.theorem
-def flat_discount_reduces_price(price: int):
-    return apply_flat_discount(price) < price
+def flat_discount_amount(price: int):
+    return price - apply_flat_discount(price) == logos.lit(10)
 
-logos.check(flat_discount_reduces_price.proof(
-    t.intro("price"), t.unfold(apply_flat_discount), t.linarith()
+logos.check(flat_discount_amount.proof(
+    t.intro("price"), t.unfold(apply_flat_discount), t.ring()
 ))
-print("Discount contract: discounted < original ✓")
+print("Discount contract: original − discounted = 10 ✓")
 
 # A shipping fee function
 @logos.define
@@ -198,22 +167,22 @@ def add_shipping(price: int):
     """price + 5  (fixed $5 shipping)"""
     return price + logos.lit(5)
 
-# Contract 2: after shipping, total is always greater than base price
+# Contract 2: shipping adds exactly 5
 @logos.theorem
-def shipping_increases_price(price: int):
-    return add_shipping(price) > price
+def shipping_fee_amount(price: int):
+    return add_shipping(price) - price == logos.lit(5)
 
-logos.check(shipping_increases_price.proof(
-    t.intro("price"), t.unfold(add_shipping), t.linarith()
+logos.check(shipping_fee_amount.proof(
+    t.intro("price"), t.unfold(add_shipping), t.ring()
 ))
-print("Shipping contract: total > base price ✓")
+print("Shipping contract: total − base price = 5 ✓")
 
 # Contract 3: discount then shipping equals shipping then discount
 @logos.theorem
-def order_matters(price: int):
+def order_independent(price: int):
     return add_shipping(apply_flat_discount(price)) == apply_flat_discount(add_shipping(price))
 
-logos.check(order_matters.proof(
+logos.check(order_independent.proof(
     t.intro("price"),
     t.unfold(add_shipping), t.unfold(apply_flat_discount),
     t.ring(),

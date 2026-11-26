@@ -47,7 +47,7 @@ print("Proved with decorator style")
 
 ## `logos.check` — the compute boundary
 
-`logos.check(thm)` runs the kernel. Nothing executes until this call:
+`logos.check(thm)` runs the attached tactics and submits their evidence to the Rust checker:
 
 ```{python}
 @logos.theorem
@@ -66,14 +66,14 @@ The proof is a list of tactics applied left-to-right. When a tactic produces sub
 
 ```{python}
 @logos.theorem
-def both_positive(x: int, y: int):
-    return (x > logos.lit(0)) >> ((y > logos.lit(0)) >> ((x > logos.lit(0)) & (y > logos.lit(0))))
+def both_zero(x: int, y: int):
+    return (x == logos.lit(0)) >> ((y == logos.lit(0)) >> ((x == logos.lit(0)) & (y == logos.lit(0))))
 
-logos.check(both_positive.proof(
+logos.check(both_zero.proof(
     t.intro("x", "y", "hx", "hy"),   # strip foralls and implications
     t.split(),                          # A & B → two subgoals
-    [t.assumption()],                   # subgoal 1: x > 0  (in context as hx)
-    [t.assumption()],                   # subgoal 2: y > 0  (in context as hy)
+    [t.assumption()],                   # subgoal 1: x = 0  (in context as hx)
+    [t.assumption()],                   # subgoal 2: y = 0  (in context as hy)
 ))
 print("Proved")
 ```
@@ -109,7 +109,7 @@ print(result.certified)  # True
 
 ## `logos.prove(thm)` — automatic proof search
 
-When you pass a `Theorem` object to `logos.prove`, logos tries to prove it automatically using a cascade of decision procedures: ground computation, polynomial arithmetic, linear arithmetic, and structural decomposition.
+When you pass a `Theorem` object to `logos.prove`, logos tries to prove it automatically using tactics such as polynomial arithmetic and structural decomposition. The Rust checker verifies the resulting evidence.
 
 ```{python}
 # No tactic list needed — logos figures it out
@@ -121,26 +121,26 @@ logos.prove(add_comm_auto)
 print(add_comm_auto.certified)   # True
 ```
 
-This works for non-trivial goals too. Here is a chain with three quantified variables and two nested hypotheses — logos automatically introduces all variables, collects the hypotheses, and closes with linear arithmetic:
+Automatic search can also introduce an implication and use its premise:
 
 ```{python}
 @logos.theorem
-def le_trans(x: int, y: int, z: int):
-    return (x <= y) >> ((y <= z) >> (x <= z))
+def zero_implies_zero(x: int):
+    return (x == logos.lit(0)) >> (x == logos.lit(0))
 
-logos.prove(le_trans)
-print("x ≤ y → y ≤ z → x ≤ z ✓")
+logos.prove(zero_implies_zero)
+print("(x = 0) → (x = 0) ✓")
 ```
 
 For goals that need a conjunction proved, `auto` splits it and handles each branch separately:
 
 ```{python}
 @logos.theorem
-def nonneg_increment(x: int):
-    return (x >= logos.lit(0)) >> ((x + logos.lit(1) >= logos.lit(0)) & (x + logos.lit(1) > x))
+def both_identities(x: int):
+    return ((x + logos.lit(0)) == x) & ((x * logos.lit(1)) == x)
 
-logos.prove(nonneg_increment)
-print("x ≥ 0 → (x+1 ≥ 0) ∧ (x+1 > x) ✓")
+logos.prove(both_identities)
+print("x+0 = x and x×1 = x ✓")
 ```
 
 Pass `hints` to help with defined functions — `auto` will try unfolding them and then apply arithmetic:

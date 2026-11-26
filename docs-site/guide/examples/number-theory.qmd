@@ -7,6 +7,7 @@ Proving properties of integer arithmetic — the kind of reasoning that underlie
 ```{python}
 import logos
 import logos.tactics as t
+import pytest
 ```
 
 ## Basic Identities
@@ -63,14 +64,6 @@ def double_is_2n(n: int):
 logos.check(double_is_2n.proof(t.intro("n"), t.unfold(double), t.ring()))
 print("double(n) = 2n ✓")
 
-# double is non-negative for non-negative inputs
-@logos.theorem
-def double_nonneg(n: int):
-    return (n >= logos.lit(0)) >> (double(n) >= logos.lit(0))
-
-logos.check(double_nonneg.proof(t.intro("n", "h"), t.unfold(double), t.linarith()))
-print("n ≥ 0 → double(n) ≥ 0 ✓")
-
 # double of a sum: double(x + y) = double(x) + double(y)
 @logos.theorem
 def double_additive(x: int, y: int):
@@ -106,50 +99,16 @@ print("(a+b)² = a² + 2ab + b² ✓")
 
 ## Linear Inequalities
 
-Reasoning about bounds — essential for algorithm correctness:
+The expression language can describe bounds such as additive monotonicity. The portable checker currently rejects inequalities, even when a tactic can generate candidate evidence:
 
 ```{python}
-x, y = logos.vars("x y", int)
-
-# Additive monotonicity
 @logos.theorem
 def add_mono(x: int, y: int, z: int):
     return (x <= y) >> (x + z <= y + z)
 
-logos.check(add_mono.proof(t.intro("x", "y", "z", "h"), t.linarith()))
-print("x ≤ y → x+z ≤ y+z ✓")
-
-# Transitivity
-@logos.theorem
-def lt_trans(x: int, y: int, z: int):
-    return (x < y) >> ((y < z) >> (x < z))
-
-logos.check(lt_trans.proof(t.intro("x", "y", "z", "hxy", "hyz"), t.linarith()))
-print("x < y ∧ y < z → x < z ✓")
-
-# Sum of non-positives is non-positive
-@logos.theorem
-def neg_add_neg(x: int, y: int):
-    return (x <= logos.lit(0)) >> ((y <= logos.lit(0)) >> (x + y <= logos.lit(0)))
-
-logos.check(neg_add_neg.proof(t.intro("x", "y", "hx", "hy"), t.linarith()))
-print("x ≤ 0 ∧ y ≤ 0 → x + y ≤ 0 ✓")
-```
-
-## Triangle Inequality
-
-Proving `|a + b| ≤ |a| + |b|` requires case analysis. Here's a simplified version for non-negatives:
-
-```{python}
-# For non-negative integers: (a + b) ≤ (a + b) — trivial base case
-# Full triangle inequality needs case splits; here we show the setup:
-
-@logos.theorem
-def abs_nonneg(n: int):
-    return (n >= logos.lit(0)) >> (n >= logos.lit(0))
-
-logos.check(abs_nonneg.proof(t.intro("n", "h"), t.assumption()))
-print("n ≥ 0 → n ≥ 0 (trivial, shows case intro works) ✓")
+with pytest.raises(logos.LogosProofError, match="unsupported portable proposition or term Le"):
+    logos.check(add_mono.proof(t.intro("x", "y", "z", "h"), t.linarith()))
+assert not add_mono.certified
 ```
 
 ## Arithmetic Progressions
@@ -167,55 +126,41 @@ n = logos.var("n", int)
 def gauss_formula(n: int):
     return gauss_sum(n) * logos.lit(2) == n * (n + logos.lit(1))
 
-# Use the axiom: from it and n > 0, we can derive gauss_sum(n) * 2 == n*(n+1)
-# Here we show applying the axiom in a forall proof
-logos.check(logos.prove(
+# Use the axiom in a universal proof
+progression = logos.check(logos.prove(
     logos.forall(int, lambda n: gauss_sum(n) * logos.lit(2) == n * (n + logos.lit(1))),
     [t.intro("n"), t.apply(gauss_formula)],
 ))
-print("gauss_sum(n) * 2 = n*(n+1) ✓")
+print("Conditional on gauss_formula: gauss_sum(n) * 2 = n*(n+1)")
 ```
 
 ## Modular Arithmetic
 
-```{python}
-# Basic mod property: (a * b) mod m = ((a mod m) * (b mod m)) mod m
-# We'll prove a specific case
+Modulo expressions can be authored, but the portable checker does not yet support them. This ground example demonstrates the boundary:
 
-logos.check(logos.prove(
-    logos.lit(7) * logos.lit(8) % logos.lit(5) == (logos.lit(7) % logos.lit(5)) * (logos.lit(8) % logos.lit(5)) % logos.lit(5),
-    [t.norm_num()],
-))
-print("(7 * 8) mod 5 = (7 mod 5)(8 mod 5) mod 5 ✓")
+```{python}
+a, b, m = map(logos.lit, (7, 8, 5))
+candidate = logos.prove(((a * b) % m) == ((a % m) * (b % m)) % m, [t.norm_num()])
+with pytest.raises(logos.LogosProofError, match="unsupported portable proposition or term Mod"):
+    logos.check(candidate)
+assert not candidate.certified
 ```
 
 ## Automatic Proof Search
 
-`logos.prove(thm)` searches for a proof automatically. It handles multi-variable goals with nested hypotheses — no tactic list needed:
+`logos.prove(thm)` searches for tactics and submits the resulting evidence to the Rust checker:
 
 ```{python}
-# Three variables, two nested implications: logos figures out the intro chain
-# and closes with linear arithmetic
 @logos.theorem
-def sum_of_positives(x: int, y: int, z: int):
-    return (x > logos.lit(0)) >> ((y > logos.lit(0)) >> ((z > logos.lit(0)) >> (x + y + z > logos.lit(0))))
+def distribute_and_commute(x: int, y: int, z: int):
+    return (x * (y + z) == x * y + x * z) & (x * y == y * x)
 
-logos.prove(sum_of_positives)
-print("x>0, y>0, z>0 → x+y+z>0 ✓ (auto)")
+logos.prove(distribute_and_commute)
+print("Distributivity and commutativity ✓ (auto)")
 ```
 
 ```{python}
-# Conjunction goals are split and each branch solved independently
-@logos.theorem
-def both_bounds(x: int):
-    return (x >= logos.lit(0)) >> ((x + logos.lit(1) >= logos.lit(0)) & (x + logos.lit(1) > x))
-
-logos.prove(both_bounds)
-print("x≥0 → (x+1≥0) ∧ (x+1>x) ✓ (auto)")
-```
-
-```{python}
-# Function definitions as hints: auto unfolds them and applies ring/linarith
+# Function definitions as hints: auto unfolds them and applies ring
 @logos.define
 def increment(n: int):
     return n + logos.lit(1)

@@ -42,13 +42,13 @@ x, y = logos.vars("x y", int)
 
 logos.check(logos.prove(
     logos.forall(int, int, lambda x, y:
-        (x > logos.lit(0)) >> ((y > logos.lit(0)) >> ((double(x) > logos.lit(0)) & (double(y) > logos.lit(0))))
+        (double(x) == logos.lit(2) * x) & (double(y) == logos.lit(2) * y)
     ),
     [
-        t.intro("x", "y", "hx", "hy"),
+        t.intro("x", "y"),
         t.split(),
-        [t.then(t.unfold(double), t.linarith())],  # subgoal 1 as a compound tactic
-        [t.then(t.unfold(double), t.linarith())],  # subgoal 2
+        [t.then(t.unfold(double), t.ring())],  # subgoal 1 as a compound tactic
+        [t.then(t.unfold(double), t.ring())],  # subgoal 2
     ],
 ))
 print("Proved compound goal")
@@ -77,7 +77,7 @@ This pattern is useful in generic automation:
 
 ```{python}
 # A "cheap auto" tactic that tries simple things first
-cheap_auto = t.first(t.refl(), t.assumption(), t.decide(), t.ring())
+cheap_auto = t.first(t.refl(), t.assumption(), t.ring())
 
 logos.check(logos.prove(logos.forall(int, lambda x: x == x),
             [t.intro("x"), cheap_auto]))
@@ -92,11 +92,9 @@ Applies the tactic; if it fails, silently succeeds (the goal remains open for th
 
 ```{python}
 x = logos.var("x", int)
-hyp = x > logos.lit(0)
-
 # try_(ring()) fails silently on a non-ring goal, then assumption() closes it
 logos.check(logos.prove(
-    logos.forall(int, lambda x: (x > logos.lit(0)) >> (x > logos.lit(0))),
+    logos.forall(int, lambda x: ~(x == logos.lit(0)) >> ~(x == logos.lit(0))),
     [
         t.intro("x", "h"),
         t.try_(t.ring()),    # fails (not a ring goal), but doesn't raise
@@ -136,7 +134,7 @@ close_with_assumption = t.assumption()
 
 logos.check(logos.prove(
     logos.forall(int, int, lambda x, y:
-        (x > logos.lit(0)) >> ((y > logos.lit(0)) >> ((x > logos.lit(0)) & (y > logos.lit(0))))
+        (x == logos.lit(0)) >> ((y == logos.lit(0)) >> ((x == logos.lit(0)) & (y == logos.lit(0))))
     ),
     [
         t.intro("x", "y", "hx", "hy"),
@@ -157,9 +155,7 @@ Combinators let you compose a simple automation tactic without writing Python:
 auto = t.first(
     t.refl(),
     t.assumption(),
-    t.decide(),
     t.ring(),
-    t.linarith(),
 )
 
 # Now use it for simple goals without specifying which tactic applies
@@ -167,7 +163,7 @@ x, y = logos.vars("x y", int)
 
 for stmt, by in [
     (logos.forall(int, lambda x: x == x), [t.intro("x"), auto]),
-    (logos.lit(3) > logos.lit(2), [auto]),
+    (logos.lit(3) + logos.lit(2) == logos.lit(5), [auto]),
     (logos.forall(int, int, lambda x, y: x + y == y + x), [t.intro("x", "y"), auto]),
 ]:
     logos.check(logos.prove(stmt, by))
