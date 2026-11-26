@@ -47,10 +47,12 @@ logos check --strict arithmetic.logos
 python arithmetic.py proofs
 logos check --strict proofs/binomial_square.logos
 logos inspect --json --strict proofs/binomial_square.logos
+logos inspect --markdown --strict proofs/binomial_square.logos > proof.md
 ```
 
 Default inspection prints the checked steps for a reader. JSON inspection
 includes typed conclusions, scopes, rule premises, and law substitutions.
+Markdown inspection writes a numbered proof with LaTeX math.
 See the [portable proof format and migration status](docs/portable-proof-format.md)
 for the supported fragment. The broader authoring API below also documents
 features still being migrated.

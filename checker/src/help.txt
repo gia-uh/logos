@@ -6,13 +6,15 @@ Usage:
   logos commands --json
   logos example [dependencies|arithmetic]
   logos check [--json] [--strict] <FILE>
-  logos inspect [--json] [--strict] <FILE>
+  logos inspect [--json|--markdown] [--strict] <FILE>
 
 FILE is a UTF-8 .logos proof file. Use - to read standard input.
 Check prints the derived statement, theory and used custom axioms.
 Inspect prints a readable trace by default, with rule explanations and premises.
 Use inspect --json for structured conclusions, shared scopes, exact provenance,
 named core-law substitutions and definitional conversions.
+Use inspect --markdown for a standalone Markdown derivation with LaTeX math.
+Redirect the output to a .md file to save it.
 Use --strict to require zero used custom axioms after checking the evidence.
 Exit codes: 0 success, 1 invalid proof or I/O failure, 2 usage, 3 strict policy denial.
 Policy denial prints the used axioms and their checked paths, including with --json.
@@ -46,3 +48,6 @@ To replay and author integer identities:
   python arithmetic.py proofs
   logos check --strict proofs/binomial_square.logos
   logos inspect --json --strict proofs/signed_square.logos
+
+To save the checked binomial derivation as GitHub Markdown:
+  logos inspect --markdown --strict proofs/binomial_square.logos > proof.md

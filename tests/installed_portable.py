@@ -190,6 +190,46 @@ else:
         shutil.copy2(recipient / filename, evidence / filename)
 
 
+def markdown(recipient, evidence, offline):
+    for name in ("addition_commutes", "binomial_square", "signed_square", "authorization"):
+        reply = replay(recipient, "inspect", "--markdown", "--strict", f"{name}.logos",
+                       offline=offline, show_output=False)
+        assert reply.stdout.startswith("# Checked proof\n")
+        assert "Uses zero custom axioms." in reply.stdout
+        assert "\n$$\n" in reply.stdout
+        assert "## Conclusion" in reply.stdout
+        (evidence / f"{name}.md").write_text(reply.stdout)
+
+    square = (evidence / "binomial_square.md").read_text()
+    target_math = square.split("## Theorem\n\n$$\n", 1)[1].split("\n$$", 1)[0]
+    assert r"\left(x + y\right)^{2}" in target_math
+    assert square.count("**Premise conversion.**") >= 2
+    assert r"\text{First middle expression}" in square
+    assert r"\text{Second middle expression}" in square
+    assert r"\text{Common normal form}" in square
+    declared = r"\text{Declared statement}\quad & "
+    assert declared + target_math in square
+    assert target_math in square.split("## Conclusion", 1)[1]
+    assert "Core law `distrib`" in square
+
+    valid = replay(recipient, "inspect", "--markdown", "dependencies.logos",
+                   offline=offline, show_output=False)
+    assert "Assume `A`." in valid.stdout and "Checked lemma `L`." in valid.stdout
+    (evidence / "dependencies.md").write_text(valid.stdout)
+    denied = replay(recipient, "inspect", "--markdown", "--strict", "dependencies.logos",
+                    offline=offline, code=3, show_output=False)
+    assert "Strict policy denied" in denied.stdout and "Assume `A`." in denied.stdout
+    (evidence / "strict-denied.md").write_text(denied.stdout)
+
+    for filename in ("wrong-reflexivity.logos", "wrong-constant.logos"):
+        rejected = replay(recipient, "inspect", "--markdown", "--strict", filename,
+                          offline=offline, code=1)
+        assert not rejected.stdout and "proof conclusion mismatch" in rejected.stderr
+    ambiguous = replay(recipient, "inspect", "--markdown", "--json", "arithmetic.logos",
+                       offline=offline, code=2)
+    assert not ambiguous.stdout and "mutually exclusive" in ambiguous.stderr
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
@@ -351,7 +391,10 @@ def main():
         print(f"Arithmetic · export from the installed wheel, then {isolation}")
         arithmetic(cold, recipient, evidence, help_text, env, options.offline)
 
-    print("6 acceptance stages exercised")
+        print(f"Markdown · render checked evidence in {isolation}")
+        markdown(recipient, evidence, options.offline)
+
+    print("7 acceptance stages exercised")
 
 
 if __name__ == "__main__":

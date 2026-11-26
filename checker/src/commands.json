@@ -50,12 +50,13 @@
       }
     },
     "inspect": {
-      "usage": "logos inspect [--json] [--strict] <FILE>",
+      "usage": "logos inspect [--json|--markdown] [--strict] <FILE>",
       "arguments": {
         "FILE": "UTF-8 proof path or - for standard input"
       },
       "flags": {
         "--json": "Emit versioned structured proof data for reconstructing the argument.",
+        "--markdown": "Emit the checked proof as standalone GitHub Markdown with LaTeX math. Mutually exclusive with --json.",
         "--strict": "Require zero used custom axioms after verifying the proof."
       },
       "success": "All check fields plus claim, shared contexts and checked steps in premise-first order.",

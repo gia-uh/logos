@@ -1,3 +1,5 @@
+mod markdown;
+
 use logos_checker::{Judgment, MAX_ARTIFACT_BYTES, PROTOCOL_VERSION, Step, TraceContext, verify};
 use serde::Serialize;
 use std::{
@@ -116,15 +118,22 @@ fn emit_example(files: [(&str, &str); 2]) -> Result<(), Failure> {
 
 fn check_command(args: &[String], inspect: bool) -> Result<(), Failure> {
     let mut json = false;
+    let mut markdown = false;
     let mut strict = false;
     let mut file = None;
     for arg in args {
         match arg.as_str() {
             "--json" if !json => json = true,
+            "--markdown" if inspect && !markdown => markdown = true,
             "--strict" if !strict => strict = true,
             path if file.is_none() && (!path.starts_with('-') || path == "-") => file = Some(path),
             _ => return Err(Failure::Usage(format!("unexpected argument {arg:?}"))),
         }
+    }
+    if markdown && json {
+        return Err(Failure::Usage(
+            "--markdown and --json are mutually exclusive".into(),
+        ));
     }
     let file = file.ok_or_else(|| Failure::Usage("a proof file is required".into()))?;
     let input: Box<dyn Read> = if file == "-" {
@@ -142,7 +151,9 @@ fn check_command(args: &[String], inspect: bool) -> Result<(), Failure> {
     if denied {
         judgment.status = "policy_denied";
     }
-    if json {
+    if markdown {
+        print!("{}", markdown::render(&checked));
+    } else if json {
         let output = if inspect {
             serde_json::to_string(&Inspection {
                 judgment,
