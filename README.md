@@ -163,11 +163,42 @@ Accidentally using an expression in a Python `if` or `assert` raises
 ```python
 # Lambda form — variables are created implicitly
 logos.forall(int, int, lambda x, y: x + y == y + x)
-logos.exists(int, lambda x: x > logos.lit(0))
+logos.exists(int, lambda x: x == 1)
 
 # Explicit form — declare vars first
 x, y = logos.vars("x y", int)
 Forall(x, y, x + y == y + x)
+```
+
+To prove that every integer has a successor, use the current arbitrary
+integer from the proof goal when choosing the witness.
+
+```python
+import logos
+import logos.tactics as t
+
+
+@logos.theorem
+def integer_successor(x: int):
+    return logos.exists(int, lambda y: y == x + 1)
+
+
+def choose_successor(goal):
+    return t.witness(goal.context["x"] + 1)(goal)
+
+
+logos.check(integer_successor.proof(t.intro("x"), choose_successor, t.refl()))
+logos.export_proof(integer_successor, "successor.logos")
+```
+
+The witness `x + 1` leaves the equality `x + 1 == x + 1` to prove.
+Rust checks that the witness has the binder's sort and that the evidence
+establishes the instantiated predicate in the surrounding scope.
+
+```bash
+logos check --strict successor.logos
+logos inspect --markdown --strict successor.logos
+logos inspect --json --strict successor.logos
 ```
 
 ---

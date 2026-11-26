@@ -11,7 +11,7 @@ from logos.kernel import (
     OrIntroL, OrIntroR, CaseAnalysis, NotIntro, NotElim, ExFalso,
     ExistsIntro, AxiomRef, TheoremRef,
 )
-from logos.helpers import substitute, substitute_symbols, structural_eq, try_unify
+from logos.helpers import substitute_symbols, structural_eq, try_unify
 from logos.runner import TacticFailed
 
 
@@ -169,10 +169,11 @@ def right(left_type: Expr):
 
 
 def witness(val: Expr):
+    """Choose a witness and open the instantiated predicate as a proof goal."""
     def tactic(goal: Goal):
         match goal.statement:
             case ExistsNode(var, body):
-                new_stmt = substitute(body, var, val)
+                new_stmt = substitute_symbols(body, {id(var): val})
                 exists_goal = goal.statement
                 return (
                     [Goal(goal.context, new_stmt)],

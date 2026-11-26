@@ -238,7 +238,7 @@ pub fn render(checked: &Verified) -> String {
             )
             .unwrap();
         }
-        if step.rule == "forall_elim" {
+        if matches!(step.rule, "forall_elim" | "exists_intro") {
             let witness = &step.substitutions.as_ref().expect("checked witness")[0];
             writeln!(
                 out,
@@ -267,6 +267,8 @@ pub fn render(checked: &Verified) -> String {
         display(&mut out, &calculation);
         let (first_premise, second_premise) = if step.rule == "trans" {
             ("First middle expression", "Second middle expression")
+        } else if step.rule == "exists_intro" {
+            ("Instantiated predicate", "Checked premise")
         } else {
             ("First compared expression", "Second compared expression")
         };
@@ -333,7 +335,10 @@ fn has_power(expr: &Proposition) -> bool {
         | And { left, right }
         | Or { left, right }
         | Implies { left, right } => has_power(left) || has_power(right),
-        Forall { body, .. } | Neg { operand: body } | Not { operand: body } => has_power(body),
+        Forall { body, .. }
+        | Exists { body, .. }
+        | Neg { operand: body }
+        | Not { operand: body } => has_power(body),
         App { args, .. } => args.iter().any(has_power),
         _ => false,
     }
@@ -476,13 +481,18 @@ impl<'a> Math<'a> {
                     nested,
                 );
             }
-            Forall { name, sort, body } => {
+            Forall { name, sort, body } | Exists { name, sort, body } => {
+                let quantifier = if matches!(formula, Exists { .. }) {
+                    "\\exists"
+                } else {
+                    "\\forall"
+                };
                 push_name(vars, name, &self.reserved);
                 let label = vars.last().unwrap().clone();
                 let body = self.term(body, vars, false, formal);
                 vars.pop();
                 return grouped(
-                    format!("\\forall {label} \\in {},\\quad {body}", domain(*sort)),
+                    format!("{quantifier} {label} \\in {},\\quad {body}", domain(*sort)),
                     nested,
                 );
             }

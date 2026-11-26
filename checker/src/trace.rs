@@ -77,6 +77,7 @@ pub fn rule_explanation(rule: &str, reference: Option<&str>) -> &'static str {
         "forall_elim" => {
             "Substitute the given term for the quantified variable, preserving scope and sort."
         }
+        "exists_intro" => "The checked premise establishes the predicate with this witness.",
         "refl" => "An expression equals itself.",
         "symm" => "Reverse the two sides of the premise equality.",
         "trans" => "Compose two equalities whose middle expressions are definitionally equal.",

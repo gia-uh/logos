@@ -75,6 +75,11 @@ pub enum Proposition {
         sort: Sort,
         body: Box<Self>,
     },
+    Exists {
+        name: String,
+        sort: Sort,
+        body: Box<Self>,
+    },
     App {
         id: String,
         args: Vec<Self>,
@@ -133,6 +138,11 @@ impl Proposition {
                 sort: *sort,
                 body: Box::new(body.map_bound(depth + 1, f)),
             },
+            Exists { name, sort, body } => Exists {
+                name: name.clone(),
+                sort: *sort,
+                body: Box::new(body.map_bound(depth + 1, f)),
+            },
             App { id, args } => App {
                 id: id.clone(),
                 args: args.iter().map(recurse).collect(),
@@ -179,14 +189,15 @@ impl Proposition {
                 + match term {
                     Symbol { id } | App { id, .. } => id.len(),
                     Int { value } => value.len(),
-                    Forall { name, .. } => name.len(),
+                    Forall { name, .. } | Exists { name, .. } => name.len(),
                     _ => 0,
                 };
             match term {
                 Neg { operand }
                 | Not { operand }
                 | Pow { base: operand, .. }
-                | Forall { body: operand, .. } => visit(operand, depth + 1, weight)?,
+                | Forall { body: operand, .. }
+                | Exists { body: operand, .. } => visit(operand, depth + 1, weight)?,
                 Add { left, right }
                 | Sub { left, right }
                 | Mul { left, right }
@@ -330,6 +341,11 @@ fn normalize(
             sort: *sort,
             body: Box::new(child(body, fuel)?),
         }),
+        Exists { sort, body, .. } => Ok(Exists {
+            name: String::new(),
+            sort: *sort,
+            body: Box::new(child(body, fuel)?),
+        }),
         App { id, args } => {
             let mut args = args
                 .iter()
@@ -406,7 +422,7 @@ fn instantiate_with_fuel(
             64 + match term {
                 Symbol { id } | App { id, .. } => id.len(),
                 Int { value } => value.len(),
-                Forall { name, .. } => name.len(),
+                Forall { name, .. } | Exists { name, .. } => name.len(),
                 _ => 0,
             },
         );
@@ -415,7 +431,7 @@ fn instantiate_with_fuel(
             Neg { operand } | Not { operand } | Pow { base: operand, .. } => {
                 visit(operand, depth, rest, bound)
             }
-            Forall { body, .. } => visit(body, depth + 1, rest, bound),
+            Forall { body, .. } | Exists { body, .. } => visit(body, depth + 1, rest, bound),
             Add { left, right }
             | Sub { left, right }
             | Mul { left, right }
