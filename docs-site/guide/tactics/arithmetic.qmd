@@ -52,9 +52,31 @@ except LogosProofError as e:
     print(f"Correctly rejected: {e}")
 ```
 
+## `order()`
+
+Strict integer order is a small checker-owned fragment. `t.order(law)` reads the integer terms from the goal and its local hypotheses, then emits the matching core-law instance. The Rust checker recomputes it, so the proof uses no custom axiom. The laws are `lt_irrefl`, `lt_trans`, `lt_add` and `lt_neq`.
+
+```{python}
+@logos.theorem
+def lt_add_transport(x: int, y: int, c: int):
+    return (x < y) >> ((x + c) < (y + c))
+
+logos.check(lt_add_transport.proof(t.intro("x", "y", "c", "h"), t.order("lt_add")))
+print("x < y implies x + c < y + c ✓")
+
+@logos.theorem
+def lt_neq_from_lt(x: int, y: int):
+    return (x < y) >> ~(x == y)
+
+logos.check(lt_neq_from_lt.proof(t.intro("x", "y", "h"), t.order("lt_neq")))
+print("x < y rules out x = y ✓")
+```
+
+The complement of `x < y` is `~(x < y)`, so equality belongs to the else path of a source-bound contract.
+
 ## `linarith()`
 
-The Python tactic can generate candidate evidence for linear inequalities. The portable checker does not yet support inequality propositions, so this attempt fails certification:
+The Python tactic can generate candidate evidence for linear inequalities. The portable checker now supports strict order propositions through the explicit `order()` laws, but it has no general inequality decision procedure, so this attempt fails certification:
 
 ```{python}
 candidate = logos.prove(

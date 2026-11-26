@@ -4,11 +4,12 @@ The defining module's source is the binding. Logos re-reads it, recompiles it
 and refuses to continue when the imported code object disagrees with the file.
 The supported fragment is deliberately small: either one ``return`` whose value
 is a sum of parameters and integer literals, or one ``if``/``else`` over a
-single ``==`` or ``!=`` comparison, with one such ``return`` per branch. Every
-parameter and the result are annotated with the built-in ``int``. A branching
-function needs a ``requires=`` that selects one branch, so each path gets its
-own theorem. Anything else fails closed with a source diagnostic instead of
-being approximated.
+single ``<``, ``==`` or ``!=`` comparison, with one such ``return`` per branch.
+Every parameter and the result are annotated with the built-in ``int``. A
+branching function needs a ``requires=`` that selects one branch, so each path
+gets its own theorem. For ``<`` the complement is its negation, so the equal
+case belongs to the else path. Anything else fails closed with a source
+diagnostic instead of being approximated.
 """
 from __future__ import annotations
 
@@ -21,8 +22,8 @@ from types import CodeType, FunctionType
 
 from logos.define import Function
 from logos.expr import (
-    Add, And, App, Eq, Expr, ExistsNode, ForallNode, Implies, Lit, Mul, Neg,
-    Neq, Not, Or, Pow, Sub, Var,
+    Add, And, App, Eq, Expr, ExistsNode, ForallNode, Implies, Lit, Lt, Mul,
+    Neg, Neq, Not, Or, Pow, Sub, Var,
 )
 from logos.goal import Goal
 from logos.helpers import structural_eq
@@ -434,7 +435,7 @@ def _condition(node, variables, fn, path):
     ):
         raise LogosContractError(
             f"{path}:{getattr(node, 'lineno', '?')}: the condition of {fn.__name__!r} must "
-            "be one == or != comparison between integer expressions"
+            "be one <, == or != comparison between integer expressions"
         )
     left = _term(node.left, variables, fn, path)
     right = _term(node.comparators[0], variables, fn, path)
@@ -443,10 +444,11 @@ def _condition(node, variables, fn, path):
         return Eq(left, right)
     if isinstance(operation, ast.NotEq):
         return Not(Eq(left, right))
+    if isinstance(operation, ast.Lt):
+        return Lt(left, right)
     raise LogosContractError(
-        f"{path}:{node.lineno}: the condition of {fn.__name__!r} uses an ordered or "
-        "identity comparison; the core theory has no order, so only == and != are "
-        "supported"
+        f"{path}:{node.lineno}: the condition of {fn.__name__!r} uses an unsupported "
+        "comparison; only <, == and != are supported"
     )
 
 
@@ -483,7 +485,7 @@ def _normalize(expr):
     """Rewrite ``!=`` to ``~(... == ...)`` before the portable encoding."""
     if isinstance(expr, Neq):
         return Not(Eq(_normalize(expr.left), _normalize(expr.right)))
-    if isinstance(expr, (Add, Sub, Mul, Eq, And, Or, Implies)):
+    if isinstance(expr, (Add, Sub, Mul, Eq, Lt, And, Or, Implies)):
         return type(expr)(_normalize(expr.left), _normalize(expr.right))
     if isinstance(expr, Pow):
         return Pow(_normalize(expr.base), _normalize(expr.exp))
@@ -610,7 +612,7 @@ def _variables(expr):
         yield expr
     elif isinstance(expr, Lit):
         return
-    elif isinstance(expr, (Add, Sub, Mul, Eq, And, Or)):
+    elif isinstance(expr, (Add, Sub, Mul, Eq, Lt, And, Or)):
         yield from _variables(expr.left)
         yield from _variables(expr.right)
     elif isinstance(expr, Implies):
@@ -629,7 +631,7 @@ def _variables(expr):
     else:
         raise LogosContractError(
             f"logos.contract: unsupported expression {type(expr).__name__}; use +, -, *, "
-            "integer literals, equality, &, |, ~ and >>"
+            "integer literals, equality, <, &, |, ~ and >>"
         )
 
 
@@ -678,6 +680,12 @@ def _sort(expr):
                 "logos.contract: equality compares terms of different sorts"
             )
         return bool
+    if isinstance(expr, Lt):
+        if _sort(expr.left) is not int or _sort(expr.right) is not int:
+            raise LogosContractError(
+                "logos.contract: < expects integer operands"
+            )
+        return bool
     if isinstance(expr, (And, Or)):
         if _sort(expr.left) is not bool or _sort(expr.right) is not bool:
             raise LogosContractError(
@@ -694,7 +702,7 @@ def _sort(expr):
         return bool
     raise LogosContractError(
         f"logos.contract: unsupported expression {type(expr).__name__}; the portable format "
-        "supports integer +, -, *, ** with literal exponents, equality, &, |, ~ and >>"
+        "supports integer +, -, *, ** with literal exponents, equality, <, &, |, ~ and >>"
     )
 
 
@@ -707,7 +715,7 @@ def _replace(expr, needle, value):
         return value if expr is needle else expr
     if isinstance(expr, Lit):
         return expr
-    if isinstance(expr, (Add, Sub, Mul, Eq, And, Or)):
+    if isinstance(expr, (Add, Sub, Mul, Eq, Lt, And, Or)):
         return type(expr)(_replace(expr.left, needle, value), _replace(expr.right, needle, value))
     if isinstance(expr, Implies):
         return Implies(
