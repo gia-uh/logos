@@ -3,6 +3,7 @@
 ## [0.1.0] - 2026-06-17
 
 ### Features
+- `logos.contract` / `@logos.theorem(about=...)` — prove a contract about an ordinary function from its source
 - Trusted proof kernel with 14 inference rules
 - Expression language with full operator overloading (`+`, `-`, `*`, `//`, `%`, `**`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `&`, `|`, `~`, `>>`)
 - `@logos.define` — symbolic function definitions with auto-generated axioms

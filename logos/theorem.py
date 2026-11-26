@@ -56,6 +56,9 @@ class _Proof:
         except TacticFailed as error:
             raise LogosProofError(f"Theorem '{self.name}': {error}") from error
 
+    def _revalidate(self):
+        """Hook for proofs bound to external state; most proofs need nothing."""
+
     def _dependency_evidence(self, refresh):
         if self._proof_spec is None:
             raise LogosProofError(f"Lemma '{self.name}' has no proof attached")
@@ -74,6 +77,7 @@ class _Proof:
         if receipt is None:
             return None
         try:
+            self._revalidate()
             current = artifact_bytes(self.name, self.statement, self.declarations, self._evidence)
             same_spec = _matches_spec(self._proof_spec, self._checked_spec)
         except (LogosProofError, TypeError, RecursionError):
@@ -127,6 +131,10 @@ class Theorem(_Proof):
         status = "certified" if self.certified else "unverified"
         return f"Theorem[{status}]({self.name!r})"
 
+    def check(self):
+        """Check this theorem now and certify its actual evidence."""
+        return check(self)
+
 
 def _build_from_fn(fn, cls):
     try:
@@ -153,8 +161,19 @@ def axiom(fn_or_stmt):
     return Axiom(fn_or_stmt)
 
 
-def theorem(fn):
-    """@logos.theorem decorator — creates a Theorem object (no proof yet)."""
+def theorem(fn=None, *, about=None):
+    """@logos.theorem decorator — creates a Theorem object (no proof yet).
+
+    With ``about=<function>`` the decorator builds a contract theorem bound to
+    that function's source; the decorated body must return ``logos.contract``.
+    """
+    if about is not None:
+        if fn is not None:
+            raise TypeError("logos.theorem: pass a function or about=<function>, not both")
+        from logos.contracts import theorem_about
+        return lambda body: theorem_about(body, about)
+    if fn is None:
+        raise TypeError("logos.theorem: expected a function or about=<function>")
     return _build_from_fn(fn, Theorem)
 
 
