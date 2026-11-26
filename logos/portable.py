@@ -8,7 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 
-from logos.expr import Add, And, App, Eq, Expr, ExistsNode, ForallNode, Implies, Lit, Mul, Neg, Not, Or, Pow, Sub, Var
+from logos.expr import Add, And, App, Eq, Expr, ExistsNode, ForallNode, Implies, Lit, Lt, Mul, Neg, Not, Or, Pow, Sub, Var
 from logos.kernel import (
     AndElimL, AndElimR, AndIntro, AxiomRef, Block, Congr, CoreLaw, ExistsIntro, ForallElim,
     CaseAnalysis, ExFalso, ForallIntro, HypRef, ImpliesElim, ImpliesIntro,
@@ -45,7 +45,7 @@ def statement_declarations(statement: Expr) -> tuple[Var, ...]:
             case App(_, args):
                 for arg in args:
                     visit(arg, bound)
-            case Add(left, right) | Sub(left, right) | Mul(left, right) | Eq(left, right) | And(left, right) | Or(left, right) | Implies(left, right) | Pow(left, right):
+            case Add(left, right) | Sub(left, right) | Mul(left, right) | Eq(left, right) | Lt(left, right) | And(left, right) | Or(left, right) | Implies(left, right) | Pow(left, right):
                 visit(left, bound)
                 visit(right, bound)
             case Neg(operand) | Not(operand):
@@ -87,7 +87,7 @@ def _result_type(expr):
             return type(value)
         case Add() | Sub() | Mul() | Pow() | Neg():
             return int
-        case Eq() | And() | Or() | Not() | Implies() | ForallNode() | ExistsNode():
+        case Eq() | Lt() | And() | Or() | Not() | Implies() | ForallNode() | ExistsNode():
             return bool
         case App(_, _, symbol) if symbol is not None:
             return symbol.result_type or _result_type(symbol.body)
@@ -190,7 +190,7 @@ def artifact_bytes(
                         "body": proposition(body, scope, (*bound, var))}
             case App(_, args, symbol):
                 return {"tag": "app", "id": function_id(symbol), "args": [encode(arg) for arg in args]}
-            case Add(left, right) | Sub(left, right) | Mul(left, right) | Eq(left, right) | And(left, right) | Or(left, right) | Implies(left, right):
+            case Add(left, right) | Sub(left, right) | Mul(left, right) | Eq(left, right) | Lt(left, right) | And(left, right) | Or(left, right) | Implies(left, right):
                 return {"tag": type(expr).__name__.lower(), "left": encode(left), "right": encode(right)}
             case _:
                 raise LogosProofError(f"unsupported portable proposition or term {type(expr).__name__}")

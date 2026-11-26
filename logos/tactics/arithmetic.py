@@ -1,10 +1,11 @@
 # logos/tactics/arithmetic.py
 from logos.expr import (
-    Expr, Lit, Var, Add, Sub, Mul, Neg, Eq,
+    Expr, Lit, Var, Add, Sub, Mul, Neg, Eq, Not,
     Lt, Le, Gt, Ge,
 )
 from logos.goal import Goal
-from logos.kernel import ProofTerm, Refl
+from logos.kernel import CoreLaw, HypRef, ImpliesElim, ProofTerm, Refl
+from logos.helpers import structural_eq
 from logos.runner import TacticFailed
 
 def ring():
@@ -17,6 +18,94 @@ def ring():
         except RecursionError as error:
             raise TacticFailed("ring: expression exceeds the depth limit") from error
     return tactic
+
+
+def order(law: str):
+    """Close a strict-order goal with one core order law.
+
+    The law's integer arguments are read from the goal and its local
+    hypotheses, so the evidence uses the exact terms in scope. The Rust
+    checker recomputes the law instance; this tactic is untrusted.
+    """
+    from logos.order import order_law, split_implications
+
+    def tactic(goal: Goal) -> ProofTerm:
+        args = _order_arguments(law, goal)
+        if args is None:
+            raise TacticFailed(
+                f"order: goal {goal.statement!r} does not match the {law} schema"
+            )
+        premises, conclusion = split_implications(order_law(law, args))
+        if not structural_eq(conclusion, goal.statement):
+            raise TacticFailed(
+                f"order: {law} concludes {conclusion!r}, not {goal.statement!r}"
+            )
+        proof: ProofTerm = CoreLaw(law, args)
+        for premise in premises:
+            name = _matching_hypothesis(goal, premise)
+            if name is None:
+                raise TacticFailed(f"order: {law} needs a hypothesis {premise!r}")
+            proof = ImpliesElim(proof, HypRef(name))
+        return proof
+
+    return tactic
+
+
+def _matching_hypothesis(goal: Goal, premise: Expr) -> str | None:
+    for name, hypothesis in goal.context.items():
+        if structural_eq(hypothesis, premise):
+            return name
+    return None
+
+
+def _lt_hypotheses(goal: Goal):
+    for hypothesis in goal.context.values():
+        if isinstance(hypothesis, Lt):
+            yield hypothesis.left, hypothesis.right
+
+
+def _order_arguments(law: str, goal: Goal):
+    statement = goal.statement
+    if law == "lt_irrefl":
+        if isinstance(statement, Not) and isinstance(statement.operand, Lt):
+            left, right = statement.operand.left, statement.operand.right
+            if structural_eq(left, right):
+                return (left,)
+        return None
+    if law == "lt_neq":
+        if isinstance(statement, Not) and isinstance(statement.operand, Eq):
+            left, right = statement.operand.left, statement.operand.right
+            for low, high in _lt_hypotheses(goal):
+                if structural_eq(low, left) and structural_eq(high, right):
+                    return (left, right)
+        return None
+    if law == "lt_trans":
+        if isinstance(statement, Lt):
+            left, right = statement.left, statement.right
+            hypotheses = list(_lt_hypotheses(goal))
+            for first_left, middle in hypotheses:
+                if not structural_eq(first_left, left):
+                    continue
+                for second_left, second_right in hypotheses:
+                    if structural_eq(second_left, middle) and structural_eq(
+                        second_right, right
+                    ):
+                        return (left, middle, right)
+        return None
+    if law == "lt_add":
+        if (
+            isinstance(statement, Lt)
+            and isinstance(statement.left, Add)
+            and isinstance(statement.right, Add)
+        ):
+            a, offset = statement.left.left, statement.left.right
+            b, other_offset = statement.right.left, statement.right.right
+            if structural_eq(offset, other_offset):
+                for low, high in _lt_hypotheses(goal):
+                    if structural_eq(low, a) and structural_eq(high, b):
+                        return (a, b, offset)
+        return None
+    raise TacticFailed(f"order: unknown core order law {law!r}")
 
 
 def decide():
