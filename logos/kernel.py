@@ -1,12 +1,15 @@
 # logos/kernel.py
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 from logos.expr import (
-    Expr, Var, Eq, And, Or, Not, Implies,
+    Expr, Lit, Var, Eq, And, Or, Not, Implies,
     ForallNode, ExistsNode,
 )
 from logos.helpers import structural_eq, substitute
+
+if TYPE_CHECKING:
+    from logos.theorem import Axiom as AuthorAxiom, Theorem
 
 
 class KernelError(Exception):
@@ -48,6 +51,30 @@ class Trans(ProofTerm):
     right: ProofTerm                  # proves b==c  →  together prove a==c
 
 @dataclass(frozen=True)
+class CoreLaw(ProofTerm):
+    id: str
+    args: tuple[Expr, ...]
+
+
+@dataclass(frozen=True)
+class Congr(ProofTerm):
+    var: Var
+    context: Expr
+    proof: ProofTerm
+
+
+@dataclass(frozen=True)
+class Block(ProofTerm):
+    steps: tuple[ProofTerm, ...]
+    result: int
+
+
+@dataclass(frozen=True)
+class StepRef(ProofTerm):
+    index: int
+
+
+@dataclass(frozen=True)
 class Subst(ProofTerm):
     proof: ProofTerm                  # proves a==b
     func: Callable[[Expr], Expr]      # f(a)==f(b)
@@ -55,6 +82,16 @@ class Subst(ProofTerm):
 @dataclass(frozen=True)
 class Axiom(ProofTerm):
     name: str                         # proves the named axiom's statement
+
+@dataclass(frozen=True)
+class AxiomRef(ProofTerm):
+    axiom: AuthorAxiom
+
+
+@dataclass(frozen=True)
+class TheoremRef(ProofTerm):
+    theorem: Theorem
+
 
 @dataclass(frozen=True)
 class HypRef(ProofTerm):
@@ -118,6 +155,12 @@ class NotIntro(ProofTerm):
     impl_proof: ProofTerm
 
 @dataclass(frozen=True)
+class NotElim(ProofTerm):
+    """Proves False from proofs of ~A and A."""
+    negation: ProofTerm
+    premise: ProofTerm
+
+@dataclass(frozen=True)
 class ExFalso(ProofTerm):
     """Proves anything given proof of False (ex falso quodlibet)."""
     false_proof: ProofTerm
@@ -164,6 +207,9 @@ def infer(term: ProofTerm, ctx: Context) -> Expr:
                 case Eq(a, b):
                     return Eq(func(a), func(b))
             raise KernelError(f"Subst: expected Eq, got {stmt!r}")
+
+        case AxiomRef(axiom):
+            return ctx.lookup(axiom.name)
 
         case Axiom(name) | HypRef(name):
             return ctx.lookup(name)
@@ -229,20 +275,23 @@ def infer(term: ProofTerm, ctx: Context) -> Expr:
             raise KernelError("CaseAnalysis: expected Or")
 
         case NotIntro(impl_proof):
-            stmt = infer(impl_proof, ctx)
-            match stmt:
-                case Implies(ant, cons):
-                    # For v0.1: accept any Implies(ant, anything) as ~ant
-                    # Ideally we'd check that cons is Lit(False), but that requires evaluation
+            match infer(impl_proof, ctx):
+                case Implies(ant, Lit(value)) if value is False:
                     return Not(ant)
-            raise KernelError(f"NotIntro: expected Implies, got {stmt!r}")
+            raise KernelError("NotIntro: expected an implication to False")
+
+        case NotElim(negation, premise):
+            given = infer(premise, ctx)
+            match infer(negation, ctx):
+                case Not(operand) if structural_eq(operand, given):
+                    return Lit(False)
+            raise KernelError("NotElim: expected a negation and its matching premise")
 
         case ExFalso(false_proof, conclusion):
-            # Note: v0.1 limitation — we don't validate that false_proof actually proves False.
-            # To properly validate, we'd need a full evaluator to check whether the consequent
-            # is Lit(False). For now, we accept any proof and return the conclusion as-is.
-            # This is known and acceptable for v0.1. The contradiction() tactic depends on this behavior.
-            return conclusion
+            match infer(false_proof, ctx):
+                case Lit(value) if value is False:
+                    return conclusion
+            raise KernelError("ExFalso: expected a proof of False")
 
         case ExistsIntro(witness, body, exists_goal):
             # body proves P[x := witness].

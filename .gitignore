@@ -36,3 +36,7 @@ htmlcov/
 *.swo
 *~
 .DS_Store
+
+# Standalone checker and local acceptance artifacts
+/checker/target/
+/.acceptance/

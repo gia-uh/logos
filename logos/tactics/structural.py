@@ -1,6 +1,6 @@
 # logos/tactics/structural.py
 from logos.expr import (
-    Expr, Var, ForallNode, ExistsNode, And, Or, Not, Implies,
+    Expr, Lit, Var, ForallNode, ExistsNode, And, Or, Not, Implies,
 )
 from logos.goal import Goal
 from logos.kernel import (
@@ -8,10 +8,10 @@ from logos.kernel import (
     Refl, HypRef, ForallIntro, ForallElim,
     ImpliesIntro, ImpliesElim,
     AndIntro, AndElimL, AndElimR,
-    OrIntroL, OrIntroR, CaseAnalysis, ExFalso,
-    ExistsIntro, Axiom as KernelAxiom,
+    OrIntroL, OrIntroR, CaseAnalysis, NotIntro, NotElim, ExFalso,
+    ExistsIntro, AxiomRef, TheoremRef,
 )
-from logos.helpers import substitute, structural_eq, try_unify
+from logos.helpers import substitute, substitute_symbols, structural_eq, try_unify
 from logos.runner import TacticFailed
 
 
@@ -26,12 +26,16 @@ def intro(*names: str):
                 case ForallNode(var, body):
                     new_var = Var(name, var.type)
                     ctx[name] = new_var   # note the var in context
-                    stmt = substitute(body, var, new_var)
+                    stmt = substitute_symbols(body, {id(var): new_var})
                     steps.append(("forall", name, new_var))
                 case Implies(ant, cons):
                     ctx[name] = ant
                     stmt = cons
                     steps.append(("implies", name, ant))
+                case Not(operand):
+                    ctx[name] = operand
+                    stmt = Lit(False)
+                    steps.append(("not", name, operand))
                 case _:
                     raise TacticFailed(f"intro '{name}': cannot introduce into {stmt!r}")
 
@@ -45,6 +49,8 @@ def intro(*names: str):
                     result = ForallIntro(info, result)
                 else:
                     result = ImpliesIntro(info, name, result)
+                    if kind == "not":
+                        result = NotIntro(result)
             return result
 
         return [new_goal], compose
@@ -71,10 +77,11 @@ def apply(ref):
 
     ref can be:
     - str: local hypothesis name only
-    - Axiom or Theorem object: use ref.statement directly
+    - Axiom object: reference the custom assumption
+    - Theorem object: reference the lemma and its proof
     """
     def tactic(goal: Goal):
-        from logos.theorem import Theorem, Axiom as LogosAxiom, check as logos_check, LogosProofError
+        from logos.theorem import Theorem, Axiom as LogosAxiom
 
         if isinstance(ref, str):
             # Local hypothesis only
@@ -82,17 +89,14 @@ def apply(ref):
                 raise TacticFailed(f"apply '{ref}': not in local context")
             stmt = goal.context[ref]
             proof_base = HypRef(ref)
-        elif isinstance(ref, (LogosAxiom, Theorem)):
-            # Axiom or Theorem object — auto-check uncertified theorems
-            if isinstance(ref, Theorem) and not ref.certified:
-                try:
-                    logos_check(ref)
-                except LogosProofError as e:
-                    raise TacticFailed(f"apply: dependency '{ref.name}' failed: {e}") from e
+        elif isinstance(ref, Theorem):
             stmt = ref.statement
-            proof_base = KernelAxiom(ref.name)
+            proof_base = TheoremRef(ref)
+        elif isinstance(ref, LogosAxiom):
+            stmt = ref.statement
+            proof_base = AxiomRef(ref)
         else:
-            raise TacticFailed(f"apply: expected str, Axiom, or Theorem, got {type(ref).__name__!r}")
+            raise TacticFailed(f"apply: expected str, Axiom or Theorem, got {type(ref).__name__!r}")
 
         # Direct structural match
         if structural_eq(stmt, goal.statement):
@@ -215,7 +219,10 @@ def have(new_name: str, impl_hyp: str, ant_hyp: str):
                     raise TacticFailed(
                         f"have: type of '{ant_hyp}' does not match antecedent of '{impl_hyp}'"
                     )
-                return [goal.with_hyp(new_name, cons)], lambda ps: ps[0]
+                derived = ImpliesElim(HypRef(impl_hyp), HypRef(ant_hyp))
+                return [goal.with_hyp(new_name, cons)], lambda ps: ImpliesElim(
+                    ImpliesIntro(cons, new_name, ps[0]), derived
+                )
             case other:
                 raise TacticFailed(
                     f"have: '{impl_hyp}' has type {other!r}, expected an implication"
@@ -261,40 +268,47 @@ def conj(h1: str, h2: str, result_name: str):
     return tactic
 
 
-def _trivially_provable(expr: Expr, ctx_vals: list) -> bool:
-    """True if expr is directly in context, or is And/Or of trivially provable parts."""
-    if any(structural_eq(expr, v) for v in ctx_vals):
-        return True
+def _trivial_proof(expr: Expr, context: dict[str, Expr]) -> ProofTerm | None:
+    """Construct evidence for a hypothesis or a conjunction or disjunction of them."""
+    for name, statement in context.items():
+        if structural_eq(expr, statement):
+            return HypRef(name)
     match expr:
-        case And(a, b):
-            return _trivially_provable(a, ctx_vals) and _trivially_provable(b, ctx_vals)
-        case Or(a, b):
-            return _trivially_provable(a, ctx_vals) or _trivially_provable(b, ctx_vals)
-    return False
+        case And(left, right):
+            a = _trivial_proof(left, context)
+            b = _trivial_proof(right, context)
+            if a is not None and b is not None:
+                return AndIntro(a, b)
+        case Or(left, right):
+            a = _trivial_proof(left, context)
+            if a is not None:
+                return OrIntroL(a, right)
+            b = _trivial_proof(right, context)
+            if b is not None:
+                return OrIntroR(left, b)
+    return None
 
 
 def contradiction():
     def tactic(goal: Goal) -> ProofTerm:
-        ctx   = list(goal.context.items())
-        names = [k for k, _ in ctx]
-        stmts = [v for _, v in ctx]
+        def close(false_proof: ProofTerm) -> ProofTerm:
+            if isinstance(goal.statement, Lit) and goal.statement.value is False:
+                return false_proof
+            return ExFalso(false_proof, goal.statement)
 
-        # Not(P) in context where P is trivially provable (handles P/~P, ~(A|B) with A or B,
-        # ~(A&B) with both, and nested cases like ~((A&B)|C) with A and B present).
-        for i, s in enumerate(stmts):
-            match s:
-                case Not(inner):
-                    if _trivially_provable(inner, stmts):
-                        return ExFalso(HypRef(names[i]), goal.statement)
-
-        # One-step forward: Implies(P, Not(Q)) in context with P and Q both trivially provable.
-        # Sound: P known + Q known + P→~Q known → ~Q + Q → False → ExFalso.
-        for i, s in enumerate(stmts):
-            match s:
-                case Implies(ant, Not(result)):
-                    if (_trivially_provable(ant, stmts) and
-                            _trivially_provable(result, stmts)):
-                        return ExFalso(HypRef(names[i]), goal.statement)
+        for name, statement in goal.context.items():
+            match statement:
+                case Lit(value) if value is False:
+                    return close(HypRef(name))
+                case Not(operand):
+                    premise = _trivial_proof(operand, goal.context)
+                    if premise is not None:
+                        return close(NotElim(HypRef(name), premise))
+                case Implies(antecedent, Not(operand)):
+                    argument = _trivial_proof(antecedent, goal.context)
+                    premise = _trivial_proof(operand, goal.context)
+                    if argument is not None and premise is not None:
+                        return close(NotElim(ImpliesElim(HypRef(name), argument), premise))
 
         raise TacticFailed("contradiction: no contradictory hypotheses found")
     return tactic

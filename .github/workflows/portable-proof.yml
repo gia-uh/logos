@@ -1,0 +1,50 @@
+name: Portable proof
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Test the Rust checker
+        run: |
+          cargo fmt --manifest-path checker/Cargo.toml --check
+          cargo test --locked --manifest-path checker/Cargo.toml
+
+      - name: Install the standalone checker and Python wheel
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/checker/target
+        run: |
+          cargo install --locked --path checker --root "$RUNNER_TEMP/portable"
+          uv build --wheel --out-dir "$RUNNER_TEMP/wheels"
+          uv venv --python 3.12 "$RUNNER_TEMP/author"
+          uv pip install --python "$RUNNER_TEMP/author/bin/python" "$RUNNER_TEMP"/wheels/*.whl pytest
+
+      - name: Exercise the installed artifacts
+        run: |
+          export PATH="$RUNNER_TEMP/portable/bin:$PATH"
+          author="$RUNNER_TEMP/author/bin/python"
+          python tests/installed_portable.py "$RUNNER_TEMP/portable/bin/logos" "$author" "$RUNNER_TEMP/evidence" > "$RUNNER_TEMP/installed-proof-transcript.txt"
+          cp tests/test_portable.py "$RUNNER_TEMP/test_portable.py"
+          (cd "$RUNNER_TEMP" && "$author" -I -m pytest -q test_portable.py)
+          "$author" -m pytest -q -rx
+
+      - name: Upload installed proof transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-proof-transcript
+          path: ${{ runner.temp }}/installed-proof-transcript.txt
+          if-no-files-found: ignore

@@ -4,30 +4,94 @@ from typing import get_type_hints
 from logos.expr import Expr, Var, ForallNode
 from logos.goal import Goal
 from logos.runner import run, TacticFailed
-
-
-class LogosProofError(Exception):
-    pass
+from logos.portable import (
+    LogosProofError, ProofReceipt, artifact_bytes, statement_declarations, verify_artifact,
+)
 
 
 class Axiom:
-    """A trusted statement — no proof required."""
+    """An author-declared assumption."""
     def __init__(self, statement: Expr, *, name: str = ""):
         self.name = name
         self.statement = statement
-        self.certified = True
+        self.certified = False
 
     def __repr__(self):
         return f"Axiom({self.name!r})"
 
 
-class Theorem:
-    """A statement to be proved. Attach proof with .proof(...), validate with logos.check()."""
-    def __init__(self, statement: Expr, *, name: str = ""):
-        self.name = name
+def _freeze_spec(spec):
+    if isinstance(spec, list):
+        return tuple(_freeze_spec(item) for item in spec)
+    return spec
+
+
+def _matches_spec(spec, snapshot):
+    if isinstance(spec, list):
+        return (
+            isinstance(snapshot, tuple)
+            and len(spec) == len(snapshot)
+            and all(_matches_spec(item, saved) for item, saved in zip(spec, snapshot))
+        )
+    return spec is snapshot
+
+
+class _Proof:
+    def __init__(self, statement: Expr, *, name: str, declarations=None):
         self.statement = statement
-        self._proof_spec: list | None = None
-        self.certified = False
+        self.name = name
+        self.declarations = (
+            statement_declarations(statement) if declarations is None else tuple(declarations)
+        )
+        self._proof_spec = None
+        self._receipt = None
+        self._evidence = None
+        self._checked_spec = None
+
+    def _run_proof(self, statement):
+        if self._proof_spec is None:
+            raise LogosProofError(f"Theorem '{self.name}' has no proof attached")
+        try:
+            return run(Goal({}, statement), self._proof_spec)
+        except TacticFailed as error:
+            raise LogosProofError(f"Theorem '{self.name}': {error}") from error
+
+    def _dependency_evidence(self, refresh):
+        if self._proof_spec is None:
+            raise LogosProofError(f"Lemma '{self.name}' has no proof attached")
+        if self._evidence is None or not _matches_spec(self._proof_spec, self._checked_spec):
+            if not refresh:
+                raise LogosProofError(f"Lemma '{self.name}' evidence has changed")
+            self._receipt = None
+            self._checked_spec = _freeze_spec(self._proof_spec)
+            self._evidence = None
+            self._evidence = self._run_proof(self.statement)
+        return self._evidence
+
+    @property
+    def receipt(self) -> ProofReceipt | None:
+        receipt = self._receipt
+        if receipt is None:
+            return None
+        try:
+            current = artifact_bytes(self.name, self.statement, self.declarations, self._evidence)
+            same_spec = _matches_spec(self._proof_spec, self._checked_spec)
+        except (LogosProofError, TypeError, RecursionError):
+            current, same_spec = None, False
+        if not same_spec or current != receipt.artifact:
+            self._receipt = None
+        return self._receipt
+
+    @property
+    def certified(self) -> bool:
+        return self.receipt is not None
+
+
+class Theorem(_Proof):
+    """A statement with tactics that can be verified by logos.check()."""
+
+    def __init__(self, statement: Expr, *, name: str = "", declarations=None):
+        super().__init__(statement, name=name, declarations=declarations)
 
     def proof(self, *args):
         """Attach proof spec.
@@ -36,6 +100,9 @@ class Theorem:
         - @thm.proof def _(): return [...]  decorator (0-param fn returning list)
         Returns self for chaining with logos.check().
         """
+        self._receipt = None
+        self._checked_spec = None
+        self._evidence = None
         if len(args) == 1 and callable(args[0]) and not isinstance(args[0], list):
             fn = args[0]
             # Distinguish decorator (0 params) from tactic (1+ params)
@@ -91,40 +158,34 @@ def theorem(fn):
     return _build_from_fn(fn, Theorem)
 
 
-class _GroundProof:
-    """Intermediate result of logos.prove() — pass to logos.check() to validate."""
+class _GroundProof(_Proof):
+    """Intermediate result of logos.prove() for an anonymous statement."""
+
     def __init__(self, statement: Expr, proof: list):
-        self.statement = statement
+        super().__init__(statement, name="<anonymous>")
         self._proof_spec = proof
-        self.certified = False
-        self.name = "<anonymous>"
 
 
 def check(thm):
-    """Validate a Theorem or _GroundProof. Raises LogosProofError on failure."""
-    if isinstance(thm, _GroundProof):
-        goal = Goal({}, thm.statement)
-        try:
-            run(goal, thm._proof_spec)
-        except TacticFailed as e:
-            raise LogosProofError(f"Proof failed: {e}") from e
-        thm.certified = True
-        return thm
-    if isinstance(thm, Theorem):
-        if thm.certified:
-            return thm
-        if thm._proof_spec is None:
-            raise LogosProofError(f"Theorem '{thm.name}' has no proof attached")
-        goal = Goal({}, thm.statement)
-        try:
-            run(goal, thm._proof_spec)
-        except TacticFailed as e:
-            raise LogosProofError(f"Theorem '{thm.name}': {e}") from e
-        thm.certified = True
-        return thm
-    raise TypeError(
-        f"logos.check: expected Theorem or _GroundProof, got {type(thm).__name__!r}"
-    )
+    """Run the tactics and certify their actual evidence with the Rust checker."""
+    if not isinstance(thm, _Proof):
+        raise TypeError(
+            f"logos.check: expected Theorem or _GroundProof, got {type(thm).__name__!r}"
+        )
+    thm._receipt = None
+    saved_spec = _freeze_spec(thm._proof_spec)
+    statement = thm.statement
+    declarations = tuple(thm.declarations)
+    name = thm.name
+    evidence = thm._run_proof(statement)
+    artifact = artifact_bytes(name, statement, declarations, evidence, refresh_lemmas=True)
+    receipt = verify_artifact(artifact)
+    thm._checked_spec = saved_spec
+    thm._evidence = evidence
+    thm._receipt = receipt
+    if thm.receipt is None:
+        raise LogosProofError("proof changed during Rust verification")
+    return thm
 
 
 def prove(thm_or_stmt, tactics=None, *, hints=None, depth: int = 5, timeout: float | None = None):

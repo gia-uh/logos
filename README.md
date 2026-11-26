@@ -4,18 +4,76 @@
 
 **Package:** `logos-ai` | **Status:** v0.1.0
 
-Logos brings formal proof to Python. Write propositions about your functions,
-then prove them using a composable tactic system. A small trusted kernel
-(~200 lines) validates every proof term — tactics, automation, even LLM
-oracles are untrusted, and the kernel catches any invalid proof.
+Logos brings formal proof to Python. Write propositions and compose tactics
+that produce proof terms. The standalone Rust checker independently verifies
+proofs exported as data.
 
----
+## First portable proof
 
-## Install
+From this integration branch, install both tools with a Rust toolchain and
+Python 3.12 or newer:
 
 ```bash
-pip install logos-ai
+cargo install --locked --path checker
+python -m pip install .
 ```
+
+From an empty directory, with the Rust `logos` on PATH:
+
+```bash
+logos --help
+logos example
+logos inspect authorization.logos
+python authorization.py authored.logos
+logos check --strict authored.logos
+```
+
+To derive `Q` from the custom axiom `A` (`P ∧ Q`) through a checked lemma `L`:
+
+```bash
+logos example dependencies
+python dependencies.py authored-dependencies.logos
+logos inspect authored-dependencies.logos
+```
+
+The emitted `dependencies.logos` can also be replayed with the checker alone.
+Default verification accepts conditional proofs. `logos check --strict dependencies.logos` exits 3 and prints the assumption and its proof path.
+
+To solve a Knights and Knaves puzzle, describe the inhabitants and what they say:
+
+```python
+from logos.domains.logic_puzzles import KnightsKnaves
+
+puzzle = KnightsKnaves()
+a, b = puzzle.entity("A"), puzzle.entity("B")
+a.says(a.is_knave() & b.is_knave())
+print(puzzle.solve())  # {'A': 'knave', 'B': 'knight'}
+puzzle.export_proof("puzzle.logos")
+```
+
+Run `logos example knights-knaves` to get a runnable script, then
+`python solve_knights_knaves.py puzzle.logos` and `logos check --strict puzzle.logos`.
+Run `python guide_knights_knaves.py` to describe an utterance and a proposed
+conclusion with `puzzle.describe(claim)`. Add a `.logos` output path to guide
+and export a checked conditional proof. See the [domain guide](docs/portable-proof-format.md#knights-and-knaves-example).
+
+For integer polynomial proofs and structured inspection:
+
+```bash
+logos example arithmetic
+logos check --strict arithmetic.logos
+python arithmetic.py proofs
+logos check --strict proofs/binomial_square.logos
+logos inspect --json --strict proofs/binomial_square.logos
+logos inspect --markdown --strict proofs/binomial_square.logos > proof.md
+```
+
+Default inspection prints the checked steps for a reader. JSON inspection
+includes typed conclusions, scopes, rule premises, and law substitutions.
+Markdown inspection writes a numbered proof with LaTeX math.
+See the [portable proof format and migration status](docs/portable-proof-format.md)
+for the supported fragment. The broader authoring API below also documents
+features still being migrated.
 
 ---
 
@@ -25,18 +83,17 @@ pip install logos-ai
 import logos
 import logos.tactics as t
 
-x, y = logos.vars("x y", int)
+@logos.theorem
+def add_comm(x: int, y: int):
+    return x + y == y + x
 
-# State a theorem and prove it — checked at call time
-logos.theorem(
-    "add_comm",
-    logos.forall(int, int, lambda x, y: x + y == y + x),
-    proof=[t.intro("x", "y"), t.ring()],
-)
+logos.check(add_comm.proof(t.intro("x", "y"), t.ring()))
+logos.export_proof(add_comm, "add_comm.logos")
 ```
 
-If the proof is wrong, `LogosProofError` is raised immediately. If it passes,
-the theorem is registered as a trusted axiom you can build on.
+`LogosProofError` reports rejected evidence. A successful portable theorem
+has an immutable verification receipt. Use `logos.tactics.apply(lemma)` to
+reference a theorem with a proof attached.
 
 ---
 
@@ -44,15 +101,14 @@ the theorem is registered as a trusted axiom you can build on.
 
 `@logos.define` runs your function body in *expression-tree mode* — the
 parameters become symbolic variables, and operators build a tree rather than
-evaluating. A definition axiom is generated automatically.
+evaluating. The checker unfolds the typed definition during conversion.
 
 ```python
-from logos.expr import Var
 import logos
 import logos.tactics as t
 
 @logos.define
-def double(x: Var) -> "Expr":
+def double(x: int) -> int:
     return x + x
 
 # Calling with a real value evaluates normally
@@ -63,11 +119,11 @@ x = logos.var("x", int)
 double(x)   # → App("double", [Var("x")])
 
 # Prove a property: unfold the definition, then use ring arithmetic
-logos.theorem(
-    "double_is_2x",
-    logos.forall(int, lambda x: double(x) == logos.lit(2) * x),
-    proof=[t.intro("x"), t.unfold("double"), t.ring()],
-)
+@logos.theorem
+def double_is_2x(x: int):
+    return double(x) == 2 * x
+
+logos.check(double_is_2x.proof(t.intro("x"), t.unfold(double), t.ring()))
 ```
 
 ---

@@ -3,7 +3,7 @@ import pytest
 from logos.expr import Var, Lit
 from logos.goal import Goal
 from logos.kernel import Refl, AndIntro, ProofTerm
-from logos.runner import run, TacticFailed
+from logos.runner import run, TacticFailed, TrailingTactics
 from logos.helpers import structural_eq
 
 def closing_tactic(goal: Goal) -> ProofTerm:
@@ -50,5 +50,26 @@ def test_no_tactics_raises(x):
 
 def test_extra_tactics_raises(x):
     goal = Goal({}, x == x)
-    with pytest.raises(TacticFailed, match="tactics remain"):
+    with pytest.raises(TrailingTactics) as raised:
         run(goal, [closing_tactic, closing_tactic])
+    assert raised.value.remaining == 1
+    assert "already closed" in str(raised.value)
+
+
+def test_extra_tactics_after_nested_list_raises(x):
+    goal = Goal({}, x == x)
+    with pytest.raises(TrailingTactics) as raised:
+        run(goal, [[closing_tactic], closing_tactic])
+    assert raised.value.remaining == 1
+    assert "already closed" in str(raised.value)
+
+
+def test_extra_tactics_after_all_goals_raises(x, y):
+    from logos.expr import And
+    from logos.tactics.combinators import all_goals
+    from logos.tactics.structural import assumption, split
+
+    goal = Goal({"hx": x == x, "hy": y == y}, (x == x) & (y == y))
+    with pytest.raises(TrailingTactics) as raised:
+        run(goal, [split(), all_goals(assumption()), assumption()])
+    assert raised.value.remaining == 1

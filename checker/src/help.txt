@@ -1,0 +1,84 @@
+Logos checks portable proofs offline.
+
+Usage:
+  logos --help
+  logos --version
+  logos commands --json
+  logos example [dependencies|arithmetic|knights-knaves]
+  logos check [--json] [--strict] <FILE>
+  logos inspect [--json|--markdown] [--strict] <FILE>
+
+FILE is a UTF-8 .logos proof file. Use - to read standard input.
+Check prints the derived statement, theory and used custom axioms.
+Inspect prints a readable trace by default, with rule explanations and premises.
+Use inspect --json for structured conclusions, shared scopes, exact provenance,
+named core-law substitutions and definitional conversions.
+Use inspect --markdown for a standalone Markdown derivation with LaTeX math.
+Redirect the output to a .md file to save it.
+Use --strict to require zero used custom axioms after checking the evidence.
+Exit codes: 0 success, 1 invalid proof or I/O failure, 2 usage, 3 strict policy denial.
+Policy denial prints the used axioms and their checked paths, including with --json.
+Run logos commands --json for the bundle grammar and result fields.
+
+Writing a proof for a reader:
+  Use inspect to understand and check the argument.
+  State the claim, then introduce the variables and hypotheses in words.
+  Group routine rewrites into equations and name mathematical laws when useful.
+  Explain the final conversion in ordinary mathematical language.
+  Distinguish assumptions from results proved by lemmas.
+  Omit internal step IDs, binder IDs, artifact names and hashes from the proof.
+  Use --json for the complete trace and identifiers when auditing the proof.
+
+From an empty directory:
+  logos commands --json
+  logos example
+  logos check --strict authorization.logos
+  logos inspect --json authorization.logos
+
+To author the same proof, install Python 3.12+ and the logos-ai wheel.
+Keep the Rust logos executable on PATH, then run:
+  python authorization.py authored.logos
+  logos check --json authored.logos
+
+To replay a result that uses a checked lemma and one custom axiom:
+  logos example dependencies
+  logos inspect --json dependencies.logos
+  python dependencies.py authored-dependencies.logos
+  logos check authored-dependencies.logos
+  logos check --strict authored-dependencies.logos
+
+The last command exits 3 and reports the assumption. Python is required
+only to author the file. The emitted dependencies.logos is ready to replay.
+
+To replay and author integer identities:
+  logos example arithmetic
+  logos check --strict arithmetic.logos
+  logos inspect --json arithmetic.logos
+  python arithmetic.py proofs
+  logos check --strict proofs/binomial_square.logos
+  logos inspect --json --strict proofs/signed_square.logos
+
+To save the checked binomial derivation as GitHub Markdown:
+  logos inspect --markdown --strict proofs/binomial_square.logos > proof.md
+
+To solve a Knights and Knaves puzzle from its inhabitants and utterances:
+  logos example knights-knaves
+  python solve_knights_knaves.py puzzle.logos
+  logos check --strict puzzle.logos
+
+Edit the Python example to describe another puzzle. Call solve() for the
+assignments and export_proof(path) to check and export a unique conclusion.
+
+To describe A's utterance and a proposed conclusion before proving:
+  python guide_knights_knaves.py
+
+This invocation uses puzzle.describe(claim) to render claim content in English.
+It writes no proof and does not need the checker.
+
+To guide a proof of a specific claim in the same puzzle:
+  python guide_knights_knaves.py guided.logos
+  logos check --strict guided.logos
+
+The guided example uses prove(claim, by=[...]), cases_on_role(), and
+use_statements(). Use puzzle.auto() to finish an open proof branch. The
+checked proof includes the role and utterance premises as antecedents.

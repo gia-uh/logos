@@ -1,6 +1,7 @@
 from logos.expr import Var, Lit, Forall, Exists, Expr, Implies
 from logos.define import define, extern, cases, if_
 from logos.theorem import theorem, axiom, check, prove, LogosProofError, Axiom, Theorem
+from logos.portable import ProofReceipt, export_proof
 from logos import tactics
 import logos.builtins  # ensure builtin Axiom objects are available
 
