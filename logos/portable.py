@@ -8,9 +8,9 @@ from pathlib import Path
 import shutil
 import subprocess
 
-from logos.expr import Add, And, App, Eq, Expr, ForallNode, Implies, Lit, Mul, Neg, Not, Or, Pow, Sub, Var
+from logos.expr import Add, And, App, Eq, Expr, ExistsNode, ForallNode, Implies, Lit, Mul, Neg, Not, Or, Pow, Sub, Var
 from logos.kernel import (
-    AndElimL, AndElimR, AndIntro, AxiomRef, Block, Congr, CoreLaw, ForallElim,
+    AndElimL, AndElimR, AndIntro, AxiomRef, Block, Congr, CoreLaw, ExistsIntro, ForallElim,
     CaseAnalysis, ExFalso, ForallIntro, HypRef, ImpliesElim, ImpliesIntro,
     NotElim, NotIntro, OrIntroL, OrIntroR, ProofTerm, Refl, StepRef, Symm, TheoremRef, Trans,
 )
@@ -40,7 +40,7 @@ def statement_declarations(statement: Expr) -> tuple[Var, ...]:
         match expr:
             case Var() if id(expr) not in bound:
                 declarations.setdefault(id(expr), expr)
-            case ForallNode(var, body):
+            case ForallNode(var, body) | ExistsNode(var, body):
                 visit(body, bound | {id(var)})
             case App(_, args):
                 for arg in args:
@@ -87,7 +87,7 @@ def _result_type(expr):
             return type(value)
         case Add() | Sub() | Mul() | Pow() | Neg():
             return int
-        case Eq() | And() | Or() | Not() | Implies() | ForallNode():
+        case Eq() | And() | Or() | Not() | Implies() | ForallNode() | ExistsNode():
             return bool
         case App(_, _, symbol) if symbol is not None:
             return symbol.result_type or _result_type(symbol.body)
@@ -184,8 +184,9 @@ def artifact_bytes(
                 return {"tag": type(expr).__name__.lower(), "operand": encode(operand)}
             case Pow(base, Lit(exponent)) if type(exponent) is int and 0 <= exponent <= 2**32 - 1:
                 return {"tag": "pow", "base": encode(base), "exponent": exponent}
-            case ForallNode(var, body):
-                return {"tag": "forall", "name": var.name, "sort": _sort(var.type),
+            case ForallNode(var, body) | ExistsNode(var, body):
+                tag = "forall" if isinstance(expr, ForallNode) else "exists"
+                return {"tag": tag, "name": var.name, "sort": _sort(var.type),
                         "body": proposition(body, scope, (*bound, var))}
             case App(_, args, symbol):
                 return {"tag": "app", "id": function_id(symbol), "args": [encode(arg) for arg in args]}
@@ -207,6 +208,9 @@ def artifact_bytes(
                         "body": proof(body, scope, (*bound, var))}
             case ForallElim(child, value):
                 return {"tag": "forall_elim", "proof": derive(child), "term": encode(value)}
+            case ExistsIntro(witness, body, ExistsNode() as goal):
+                return {"tag": "exists_intro", "goal": encode(goal),
+                        "witness": encode(witness), "proof": derive(body)}
             case Refl(expr):
                 return {"tag": "refl", "term": encode(expr)}
             case Symm(child):

@@ -389,3 +389,58 @@ def test_installed_checker_rejects_bogus_logic_evidence(mistake, diagnostic, inv
         ]))
     assert invocations[-1][2].returncode == 1
     assert not invocations[-1][2].stdout
+
+
+def test_closed_existential_accepts_convertible_evidence():
+    goal = logos.exists(int, lambda y: y == 3)
+    proof = logos.prove(goal, [logos.tactics.witness(logos.lit(1) + 2), logos.tactics.eval_()])
+    assert logos.check(proof).certified
+
+
+def test_witness_substitution_preserves_outer_variable_under_nested_binders(tmp_path):
+    # Both universals have the same display label in the statement.
+    goal = logos.forall(int, lambda x: logos.exists(int, lambda y: logos.forall(
+        int, lambda x: logos.exists(int, lambda z: (z == y) & (x == x))
+    )))
+
+    def choose_from_outer_x(goal):
+        return logos.tactics.witness(goal.context["x"] + 1)(goal)
+
+    proof = logos.prove(goal, [
+        intro("x"), choose_from_outer_x, intro("inner"), choose_from_outer_x, split(),
+        [logos.tactics.refl()], [logos.tactics.refl()],
+    ])
+    assert logos.check(proof).certified
+    path = tmp_path / "nested.logos"
+    logos.export_proof(proof, path)
+    args = ["logos", "inspect", "--strict"]
+    trace = json.loads(subprocess.check_output([*args, "--json", path], text=True))
+    outer, inner = sorted(
+        (step for step in trace["steps"] if step["rule"] == "exists_intro"),
+        key=lambda step: len(step["id"]),
+    )
+    assert outer["binder_sort"] == inner["binder_sort"] == "int"
+    assert outer["substitutions"][0]["left"] == {"tag": "bound", "index": 0}
+    assert inner["substitutions"][0]["left"] == {"tag": "bound", "index": 1}
+    assert len(outer["premises"]) == len(inner["premises"]) == 1
+    assert inner["conclusion_text"].endswith("(inner = inner)")
+    assert outer["premise_conversion"]  # The inner universal was introduced as "inner".
+    markdown = subprocess.check_output([*args, "--markdown", path], text=True)
+    assert r"\forall x \in \mathbb{Z},\quad \exists y \in \mathbb{Z}" in markdown
+    assert r"\forall x_{2} \in \mathbb{Z}" in markdown
+    assert "The witness term is $`x + 1`$." in markdown
+
+
+@pytest.mark.parametrize(("value", "diagnostic"), [
+    (logos.lit(False), "existential witness has sort prop, expected int"),
+    (logos.lit(2), "proof does not establish the instantiated existential predicate"),
+])
+def test_python_rejects_unchecked_witness_evidence(value, diagnostic, invocations):
+    from logos.kernel import Refl
+
+    goal = logos.exists(int, lambda y: y == 1)
+    proof = logos.prove(goal, [logos.tactics.witness(value), exact(Refl(logos.lit(1)))])
+    with pytest.raises(logos.LogosProofError, match=diagnostic):
+        logos.check(proof)
+    assert invocations[-1][2].returncode == 1
+    assert not proof.certified

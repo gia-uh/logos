@@ -35,7 +35,7 @@ Proof terms      Refl · Trans · Subst · ForallIntro · ...
 Standalone Rust checker  ←  verifies exported evidence
 ```
 
-The checker currently supports propositional logic, universal quantification, and integer polynomial identities. See the [portable proof format](https://github.com/gia-uh/logos/blob/main/docs/portable-proof-format.md#migration-status) for the migration status.
+The checker currently supports propositional logic, universal quantification, existential introduction, and integer polynomial identities. See the [portable proof format](https://github.com/gia-uh/logos/blob/main/docs/portable-proof-format.md#migration-status) for the migration status.
 
 ## Install
 

@@ -97,6 +97,11 @@ enum Evidence {
         proof: Box<Self>,
         term: Proposition,
     },
+    ExistsIntro {
+        goal: Proposition,
+        witness: Proposition,
+        proof: Box<Self>,
+    },
     CoreLaw {
         id: String,
         args: Vec<Proposition>,
@@ -124,7 +129,8 @@ impl Evidence {
             | Self::ExFalso { proof, .. }
             | Self::Symm { proof }
             | Self::Congr { proof, .. }
-            | Self::ForallElim { proof, .. } => [Some(proof), None, None],
+            | Self::ForallElim { proof, .. }
+            | Self::ExistsIntro { proof, .. } => [Some(proof), None, None],
             Self::AndIntro { left, right }
             | Self::Trans { left, right }
             | Self::ImpliesElim {
@@ -617,7 +623,7 @@ impl<'a> Checker<'a> {
                 require(right, Sort::Prop)?;
                 Ok(Sort::Prop)
             }
-            Forall { sort, body, .. } => {
+            Forall { sort, body, .. } | Exists { sort, body, .. } => {
                 let mut nested = scope.to_vec();
                 nested.push(*sort);
                 self.sort(body, &nested)?.expect(Sort::Prop)?;
@@ -759,7 +765,12 @@ impl<'a> Checker<'a> {
                     .join(", ");
                 return format!("{label}({args})");
             }
-            Proposition::Forall { name, sort, body } => {
+            Proposition::Forall { name, sort, body } | Proposition::Exists { name, sort, body } => {
+                let quantifier = if matches!(proposition, Proposition::Exists { .. }) {
+                    "∃"
+                } else {
+                    "∀"
+                };
                 let label = if !name.is_empty()
                     && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
                 {
@@ -770,7 +781,7 @@ impl<'a> Checker<'a> {
                 binders.push((name, *sort));
                 let body = self.render_scoped(body, false, typed, binders);
                 binders.pop();
-                let text = format!("∀{label}:{}, {body}", sort.name());
+                let text = format!("{quantifier}{label}:{}, {body}", sort.name());
                 return if nested { format!("({text})") } else { text };
             }
             Proposition::Add { left, right } => (left, "+", right),
@@ -1159,6 +1170,41 @@ impl<'a> Checker<'a> {
                 substitutions = Some(vec![term.clone()]);
                 let conclusion = instantiate_bounded(&body, std::slice::from_ref(term))?;
                 ("forall_elim", vec![proof_path], conclusion, None, None)
+            }
+            Evidence::ExistsIntro {
+                goal,
+                witness,
+                proof,
+            } => {
+                let Proposition::Exists { name, sort, body } = goal else {
+                    return Err(format!("{path}: exists_intro requires an existential goal"));
+                };
+                self.sort(goal, &scope.binders)
+                    .map_err(|error| format!("{path}: existential goal {error}"))?;
+                self.sort(witness, &scope.binders)
+                    .and_then(|actual| actual.expect(*sort))
+                    .map_err(|error| format!("{path}: existential witness {error}"))?;
+
+                // The existential binder scopes only over its predicate. Both the
+                // witness and its evidence use the surrounding proof scope.
+                let expected = instantiate_bounded(body, std::slice::from_ref(witness))?;
+                let proof_path = format!("{path}.proof");
+                let actual = self.infer(proof, scope, &proof_path)?;
+                premise_conversion = self.compare(&expected, &actual)?.ok_or_else(|| {
+                    format!(
+                        "{path}: proof does not establish the instantiated existential predicate"
+                    )
+                })?;
+                self.charge(witness)?;
+                substitutions = Some(vec![witness.clone()]);
+                binder_sort = Some(*sort);
+                (
+                    "exists_intro",
+                    vec![proof_path],
+                    goal.clone(),
+                    Some(name.clone()),
+                    None,
+                )
             }
             Evidence::Refl { term } => {
                 self.sort(term, &scope.binders)?;

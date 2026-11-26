@@ -65,6 +65,42 @@ logos.export_proof(square_of_sum, "square.logos")
 
 A custom tactic can inspect the current goal and return evidence, or split it into subgoals and combine their proofs. Rust checks the resulting derivation independently of the tactic. For software verification, the theorem is about the encoded model; relating a deployed program to that model is a separate obligation.
 
+<details>
+<summary>Choose a witness for an existential claim</summary>
+
+To prove that every integer has a successor, use the current arbitrary
+integer from the proof goal when choosing the witness.
+
+```python
+import logos
+import logos.tactics as t
+
+
+@logos.theorem
+def integer_successor(x: int):
+    return logos.exists(int, lambda y: y == x + 1)
+
+
+def choose_successor(goal):
+    return t.witness(goal.context["x"] + 1)(goal)
+
+
+logos.check(integer_successor.proof(t.intro("x"), choose_successor, t.refl()))
+logos.export_proof(integer_successor, "successor.logos")
+```
+
+The witness `x + 1` leaves the equality `x + 1 == x + 1` to prove.
+Rust checks that the witness has the binder's sort and that the evidence
+establishes the instantiated predicate in the surrounding scope.
+
+```bash
+logos check --strict successor.logos
+logos inspect --markdown --strict successor.logos
+logos inspect --json --strict successor.logos
+```
+
+</details>
+
 ## Read a proof or build on it
 
 | Command | What it gives you |

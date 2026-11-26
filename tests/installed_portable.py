@@ -190,6 +190,90 @@ else:
         shutil.copy2(recipient / filename, evidence / filename)
 
 
+def existentials(cold, recipient, evidence, env, offline):
+    author = cold / "successor.py"
+    author.write_text("""\
+import logos
+import logos.tactics as t
+from logos.kernel import Refl
+
+
+@logos.theorem
+def integer_successor(x: int):
+    return logos.exists(int, lambda y: y == x + 1)
+
+
+def choose_successor(goal):
+    return t.witness(goal.context["x"] + 1)(goal)
+
+
+logos.check(integer_successor.proof(t.intro("x"), choose_successor, t.refl()))
+logos.export_proof(integer_successor, "successor.logos")
+
+
+def choose_two_more(goal):
+    return t.witness(goal.context["x"] + 2)(goal)
+
+
+def same_evidence(goal):
+    return Refl(goal.context["x"] + 1)
+
+
+try:
+    logos.check(integer_successor.proof(t.intro("x"), choose_two_more, same_evidence))
+except logos.LogosProofError as error:
+    assert "proof does not establish the instantiated existential predicate" in str(error)
+    assert not integer_successor.certified
+    print(error)
+else:
+    raise AssertionError("Python accepted the changed witness")
+""")
+    run(["python", "-I", author.name], cold, env=env)
+    author.unlink()
+    source = recipient / "successor.logos"
+    shutil.move(cold / source.name, source)
+
+    checked = replay(recipient, "check", "--strict", source.name, offline=offline)
+    assert "∀x:int, ∃y:int, y = (x + 1)" in checked.stdout
+    assert "Verified with 0 custom axioms" in checked.stdout
+    inspected = replay(recipient, "inspect", "--json", "--strict", source.name, offline=offline)
+    data = json.loads(inspected.stdout)
+    [step] = [step for step in data["steps"] if step["rule"] == "exists_intro"]
+    [witness] = step["substitutions"]
+    assert step["binder_sort"] == "int"
+    assert witness["left"] == {"tag": "bound", "index": 0}
+    assert witness["right"] == {"tag": "int", "value": "1"}
+    [premise] = [item for item in data["steps"] if item["id"] in step["premises"]]
+    assert premise["context_id"] == step["context_id"]
+    assert premise["conclusion_text"] == "(x + 1) = (x + 1)"
+    md = replay(recipient, "inspect", "--markdown", "--strict", source.name, offline=offline)
+    assert r"\exists y \in \mathbb{Z}" in md.stdout
+    assert "The checked premise establishes the predicate with this witness. From (" in md.stdout
+    assert "The witness term is $`x + 1`$." in md.stdout
+    shutil.copy2(source, evidence / source.name)
+    (evidence / "successor.inspect.json").write_text(inspected.stdout)
+    (evidence / "successor.md").write_text(md.stdout)
+
+    for name, witness, diagnostic in [
+        (
+            "different",
+            {**witness, "right": {"tag": "int", "value": "2"}},
+            "proof does not establish the instantiated existential predicate",
+        ),
+        ("wrong-sort", {"tag": "false"}, "existential witness has sort prop, expected int"),
+        ("escaped", {"tag": "bound", "index": 1}, "out-of-scope bound variable 1"),
+    ]:
+        bundle = json.loads(source.read_text())
+        bundle["proof"]["body"]["witness"] = witness
+        path = recipient / f"successor-{name}.logos"
+        path.write_text(json.dumps(bundle) + "\n")
+        for operation in ("check", "inspect"):
+            invalid = replay(recipient, operation, "--json", "--strict", path.name, offline=offline, code=1)
+            assert not invalid.stdout
+            assert diagnostic in json.loads(invalid.stderr)["error"]
+        shutil.copy2(path, evidence / path.name)
+
+
 def markdown(recipient, evidence, offline):
     for name in ("addition_commutes", "binomial_square", "signed_square", "authorization"):
         reply = replay(recipient, "inspect", "--markdown", "--strict", f"{name}.logos",
@@ -563,6 +647,9 @@ def main():
         print(f"Arithmetic · export from the installed wheel, then {isolation}")
         arithmetic(cold, recipient, evidence, help_text, env, options.offline)
 
+        print(f"Existentials · export a successor proof from the installed wheel, then {isolation}")
+        existentials(cold, recipient, evidence, env, options.offline)
+
         print(f"Markdown · render checked evidence in {isolation}")
         markdown(recipient, evidence, options.offline)
 
@@ -572,7 +659,7 @@ def main():
         print(f"Domain solve · discover from installed help, then {isolation}")
         solve_knights_knaves(cold, recipient, evidence, help_text, env, options.offline)
 
-    print("9 acceptance stages exercised")
+    print("10 acceptance stages exercised")
 
 
 if __name__ == "__main__":

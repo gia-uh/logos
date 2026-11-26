@@ -6,7 +6,7 @@ from logos.expr import (
     Expr, Lit, Var, Eq, And, Or, Not, Implies,
     ForallNode, ExistsNode,
 )
-from logos.helpers import structural_eq, substitute
+from logos.helpers import structural_eq, substitute, substitute_symbols
 
 if TYPE_CHECKING:
     from logos.theorem import Axiom as AuthorAxiom, Theorem
@@ -170,9 +170,8 @@ class ExFalso(ProofTerm):
 class ExistsIntro(ProofTerm):
     """Proves Exists(x, P) given a witness w and a proof of P[x := w].
 
-    `exists_goal` carries the original ExistsNode so infer can return the
-    correct existential type. Optional for v0.1 backward compat; if absent,
-    returns the substituted body statement instead.
+    `exists_goal` carries the existential statement. Portable verification
+    checks the witness sort and substitution in the active variable scope.
     """
     witness: Expr
     body: ProofTerm   # proof of P[x := witness]
@@ -293,14 +292,12 @@ def infer(term: ProofTerm, ctx: Context) -> Expr:
                     return conclusion
             raise KernelError("ExFalso: expected a proof of False")
 
-        case ExistsIntro(witness, body, exists_goal):
-            # body proves P[x := witness].
-            # If we have the original ExistsNode, return it (the existential is proven).
-            # Otherwise fall back to returning the substituted body statement.
-            body_stmt = infer(body, ctx)   # validate the sub-proof
-            if exists_goal is not None:
-                return exists_goal
-            return body_stmt
+        case ExistsIntro(witness, proof, ExistsNode(var, body) as goal):
+            check(proof, substitute_symbols(body, {id(var): witness}), ctx)
+            return goal
+
+        case ExistsIntro():
+            raise KernelError("ExistsIntro: expected an existential goal")
 
         case _:
             raise KernelError(f"Unknown proof term: {term!r}")

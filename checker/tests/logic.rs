@@ -233,3 +233,54 @@ fn falsehood_is_a_proposition_with_elimination_and_no_introduction() {
     let error = check(falsehood.clone(), falsehood).err().unwrap();
     assert!(error.contains("unknown variant"), "{error}");
 }
+
+#[test]
+fn existential_evidence_resolves_block_steps_and_checked_lemmas() {
+    let witness = json!({"tag": "int", "value": "1"});
+    let predicate = binary("eq", &witness, &witness);
+    let goal = json!({
+        "tag": "exists", "name": "x", "sort": "int",
+        "body": binary("eq", &json!({"tag": "bound", "index": 0}), &witness),
+    });
+    let proof = json!({
+        "tag": "block", "result": 1, "steps": [
+            {"tag": "theorem_ref", "id": "equality"},
+            {"tag": "exists_intro", "goal": goal, "witness": witness,
+             "proof": {"tag": "step_ref", "index": 0}},
+        ],
+    });
+    let checked = check_with(
+        goal,
+        proof,
+        json!([{"id": "fact", "statement": predicate}]),
+        json!([{"id": "equality", "statement": predicate,
+                "proof": {"tag": "axiom_ref", "id": "fact"}}]),
+    )
+    .unwrap();
+    assert_eq!(checked.judgment.custom_axioms.len(), 1);
+    assert_eq!(checked.judgment.custom_axioms[0].id, "fact");
+}
+
+#[test]
+fn existential_binder_does_not_scope_over_the_witness_or_its_proof() {
+    let bound = json!({"tag": "bound", "index": 0});
+    let one = json!({"tag": "int", "value": "1"});
+    let goal = json!({
+        "tag": "exists", "name": "x", "sort": "int", "body": binary("eq", &bound, &one),
+    });
+    let base = json!({
+        "tag": "exists_intro", "goal": goal, "witness": one,
+        "proof": {"tag": "refl", "term": one},
+    });
+
+    for key in ["witness", "proof"] {
+        let mut escaped = base.clone();
+        escaped[key] = if key == "witness" {
+            bound.clone()
+        } else {
+            json!({"tag": "refl", "term": bound})
+        };
+        let error = check(goal.clone(), escaped).err().unwrap();
+        assert!(error.contains("out-of-scope bound variable 0"), "{error}");
+    }
+}

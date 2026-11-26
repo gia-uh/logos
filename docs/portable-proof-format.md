@@ -31,7 +31,7 @@ Omitting a body declares an opaque function.
 | `and`, `or`, `implies` | Propositions `left` and `right` |
 | `not` | Proposition `operand` |
 | `false` | No fields. The proposition falsehood (⊥). |
-| `forall` | Display `name`, binder `sort`, and proposition `body` |
+| `forall`, `exists` | Display `name`, binder `sort`, and proposition `body` |
 | `app` | Function `id` and corresponding `args` |
 
 | Evidence tag | Other fields and checked rule |
@@ -49,6 +49,7 @@ Omitting a body declares an opaque function.
 | `axiom_ref`, `theorem_ref` | `id` of a custom axiom or a checked lemma, respectively. |
 | `forall_intro` | Binder `name`, `sort`, and proof `body` under the fresh arbitrary variable. |
 | `forall_elim` | Universal `proof` and instantiation `term` of the binder's sort. |
+| `exists_intro` | Existential `goal`, same-sort `witness`, and `proof` of the predicate after capture-avoiding substitution. The witness and proof use the surrounding scope. |
 | `refl` | A well-sorted `term`. Derives equality of that term with itself. |
 | `symm` | Equality `proof`. |
 | `trans` | Equality proofs `left` and `right` with convertible middle expressions. |
@@ -131,6 +132,10 @@ signatures, and `custom_axioms` for assumptions.
   and local hypotheses. A `law` gives the formal equality and the named
   formal-to-actual substitution. Symbols in that formal equality name
   law parameters rather than bundle declarations.
+- For `exists_intro`, `substitutions` holds the witness in the step’s
+  variable scope, `binder_sort` gives its required sort, and `premises`
+  links to the proof that establishes the instantiated predicate. Markdown
+  inspection shows the witness and refers to that proof by its step number.
 - `premise_conversion` records the common normal form when a transitivity
   step composes syntactically different middle expressions, or when a
   logic rule compares syntactically different but convertible premises.
@@ -344,4 +349,5 @@ judgment for the target.
 
 The portable checker also supports conjunction, disjunction, negation,
 falsehood, implication, local hypotheses, and checked dependencies.
-Existential rules and other domains remain milestone work.
+The checker supports existential introduction with checked witnesses.
+Existential elimination and other domains remain milestone work.

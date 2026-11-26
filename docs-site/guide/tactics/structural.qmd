@@ -111,16 +111,14 @@ print("Proved disjunction via left")
 
 ## `witness(val)`
 
-For existential goals `Exists(x, P(x))`, provide the witness value, reducing to `P[x:=val]`. The Rust checker does not yet certify existential proofs.
+For existential goals `Exists(x, P(x))`, provide the witness value, reducing to `P[x:=val]`. Rust checks the witness type and the proof of the instantiated predicate.
 
 ```{python}
 candidate = logos.prove(
     logos.exists(int, lambda x: x * x == logos.lit(25)),
     [t.witness(logos.lit(5)), t.ring()],
 )
-with pytest.raises(logos.LogosProofError, match="unsupported portable proposition or term ExistsNode"):
-    logos.check(candidate)
-assert not candidate.certified
+assert logos.check(candidate).certified
 ```
 
 ## `contradiction()`

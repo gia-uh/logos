@@ -208,7 +208,7 @@ print(type(expr).__name__)   # CaseExpr
 | `split()` | `A & B` → `[A, B]` |
 | `left(right_type)` | `A \| B` → prove `A` |
 | `right(left_type)` | `A \| B` → prove `B` |
-| `witness(val)` | Reduce `∃x.P(x)` to `P[x:=val]` during authoring. Portable checking is pending. |
+| `witness(val)` | Supply a witness for `∃x.P(x)` and prove `P[x:=val]`; the checker verifies both. |
 | `contradiction()` | Close via `P` and `~P` in context |
 
 ### Arithmetic
