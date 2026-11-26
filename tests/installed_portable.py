@@ -494,6 +494,104 @@ def first(x: int, y: int) -> int:
     return x
 """
 
+CONTRACT_BRANCH_APP = """\
+def step(x: int) -> int:
+    if x == 0:
+        return 1
+    else:
+        return x + 1
+"""
+
+CONTRACT_BRANCH_TEST = """\
+import logos
+import app
+
+
+@logos.theorem(about=app.step)
+def step_at_zero(x, *, result):
+    return logos.contract(requires=(x == 0), ensures=(result == 1))
+
+
+@logos.theorem(about=app.step)
+def step_away_from_zero(x, *, result):
+    return logos.contract(requires=(x != 0), ensures=(result == x + 1))
+
+
+@logos.theorem(about=app.step)
+def step_at_boundary(x, *, result):
+    return logos.contract(requires=(x == 0), ensures=(result == x + 1))
+
+
+def test_branches():
+    for theorem in (step_at_zero, step_away_from_zero, step_at_boundary):
+        theorem.check()
+        assert theorem.certified
+        logos.export_proof(theorem, theorem.name + ".logos")
+"""
+
+CONTRACT_BRANCH_STALE = """\
+import pathlib
+import types
+
+import app
+import logos
+
+
+@logos.theorem(about=app.step)
+def at_zero(x, *, result):
+    return logos.contract(requires=(x == 0), ensures=(result == 1))
+
+
+@logos.theorem(about=app.step)
+def away(x, *, result):
+    return logos.contract(requires=(x != 0), ensures=(result == x + 1))
+
+
+at_zero.check()
+away.check()
+path = pathlib.Path(app.__file__)
+source = path.read_text()
+original = app.step.__code__
+
+
+def install(text):
+    path.write_text(text)
+    compiled = compile(text, str(path), "exec")
+    app.step.__code__ = next(
+        value for value in compiled.co_consts
+        if isinstance(value, types.CodeType) and value.co_name == "step"
+    )
+
+
+def refused(label, needle):
+    for action in (at_zero.check, away.check,
+                   lambda: logos.export_proof(at_zero, "stale.logos")):
+        try:
+            action()
+        except logos.LogosProofError as error:
+            assert needle in str(error), (needle, str(error))
+        else:
+            raise AssertionError(f"{label} accepted stale evidence")
+    assert not pathlib.Path("stale.logos").exists()
+
+
+for label, text, needle in (
+    ("guard", source.replace("x == 0", "x == 1"), "guard changed"),
+    ("then branch", source.replace("return 1", "return 2"), "then branch changed"),
+    ("else branch", source.replace("return x + 1", "return x"), "else branch changed"),
+):
+    install(text)
+    assert not at_zero.certified and not away.certified
+    refused(label, needle)
+    print(f"refused both paths after a changed {label}")
+
+install(source)
+at_zero.check()
+away.check()
+assert at_zero.certified and away.certified
+print("restored source certified both paths again")
+"""
+
 CONTRACT_TEST = """\
 import logos
 import app
@@ -748,6 +846,49 @@ def contracts(python, cold, recipient, evidence, env, offline):
     fresh_source(app, CONTRACT_APP)
     restored = run([python, "-m", "pytest", "-q", "test_advance.py"], application, env=env)
     assert "1 passed" in restored.stdout
+
+    print("Contracts · pytest and strict-check one equality branch per path")
+    branch_application = cold / "branch_application"
+    branch_application.mkdir()
+    branch_app = branch_application / "app.py"
+    fresh_source(branch_app, CONTRACT_BRANCH_APP)
+    (branch_application / "test_branch.py").write_text(CONTRACT_BRANCH_TEST)
+    branched = run(
+        [python, "-m", "pytest", "-q", "test_branch.py"], branch_application, env=env
+    )
+    assert "1 passed" in branched.stdout
+    for name in ("step_at_zero", "step_away_from_zero", "step_at_boundary"):
+        artifact = branch_application / f"{name}.logos"
+        assert artifact.is_file()
+        shutil.move(artifact, recipient / artifact.name)
+        strict = replay(recipient, "check", "--strict", artifact.name, offline=offline)
+        assert "Verified with 0 custom axioms" in strict.stdout
+        inspected = replay(
+            recipient, "inspect", "--json", "--strict", artifact.name,
+            offline=offline, show_output=False,
+        )
+        trace = json.loads(inspected.stdout)
+        assert trace["status"] == "verified" and trace["custom_axioms"] == []
+        [symbol] = trace["functions"]
+        expected = "step[else]" if name == "step_away_from_zero" else "step[then]"
+        assert symbol["name"] == expected
+        shutil.copy2(recipient / artifact.name, evidence / artifact.name)
+        (evidence / f"{name}.inspect.json").write_text(inspected.stdout)
+    then_trace = json.loads((evidence / "step_at_zero.inspect.json").read_text())
+    assert then_trace["functions"][0]["body"] == {"tag": "int", "value": "1"}
+    else_trace = json.loads((evidence / "step_away_from_zero.inspect.json").read_text())
+    assert else_trace["functions"][0]["body"] == {
+        "tag": "add", "left": {"tag": "bound", "index": 0},
+        "right": {"tag": "int", "value": "1"},
+    }
+    boundary_trace = json.loads((evidence / "step_at_boundary.inspect.json").read_text())
+    assert "x = 0" in boundary_trace["statement_text"]
+
+    print("Contracts · invalidate both paths after a changed guard or either branch")
+    (branch_application / "stale_branch.py").write_text(CONTRACT_BRANCH_STALE)
+    stale_branch = run([python, "stale_branch.py"], branch_application, env=env)
+    assert "restored source certified both paths again" in stale_branch.stdout
+    (evidence / "branch-stale.txt").write_text(stale_branch.stdout)
 
     print("Contracts · refuse source and statement gaps")
     limits = application / "limits"

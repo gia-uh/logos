@@ -4,6 +4,7 @@
 
 ### Features
 - `logos.contract` / `@logos.theorem(about=...)` — prove a contract about an ordinary function from its source
+- `@logos.theorem(about=...)` — prove one path of a function with a single `==` or `!=` branch, with the guard or its negation as `requires`
 - Trusted proof kernel with 14 inference rules
 - Expression language with full operator overloading (`+`, `-`, `*`, `//`, `%`, `**`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `&`, `|`, `~`, `>>`)
 - `@logos.define` — symbolic function definitions with auto-generated axioms
