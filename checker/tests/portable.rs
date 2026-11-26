@@ -83,8 +83,8 @@ fn checks_scope_and_rejects_malformed_inputs() {
     let original: Value = serde_json::from_slice(GOOD).unwrap();
     for (field, value, expected) in [
         ("theory", json!("unknown-theory"), "unsupported theory"),
-        ("custom_axioms", json!([{}]), "dependencies are unsupported"),
-        ("lemmas", json!([{}]), "dependencies are unsupported"),
+        ("custom_axioms", json!([{}]), "missing field `id`"),
+        ("lemmas", json!([{}]), "missing field `id`"),
         ("declarations", json!([]), "undeclared symbol"),
         (
             "proof",
@@ -119,12 +119,7 @@ fn a_shadowed_binder_resolves_to_its_nearest_scope() {
 #[test]
 fn json_preserves_declaration_identity_with_shared_labels() {
     let output = Command::new(env!("CARGO_BIN_EXE_logos"))
-        .args([
-            "check",
-            "--json",
-            "--deny-custom-axioms",
-            &fixture("shared-label"),
-        ])
+        .args(["check", "--json", "--strict", &fixture("shared-label")])
         .output()
         .unwrap();
     assert!(output.status.success());

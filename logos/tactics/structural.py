@@ -9,7 +9,7 @@ from logos.kernel import (
     ImpliesIntro, ImpliesElim,
     AndIntro, AndElimL, AndElimR,
     OrIntroL, OrIntroR, CaseAnalysis, ExFalso,
-    ExistsIntro, Axiom as KernelAxiom,
+    ExistsIntro, AxiomRef, TheoremRef,
 )
 from logos.helpers import substitute, structural_eq, try_unify
 from logos.runner import TacticFailed
@@ -71,7 +71,8 @@ def apply(ref):
 
     ref can be:
     - str: local hypothesis name only
-    - Axiom object: generate an external proof term for a tactic preview
+    - Axiom object: reference the custom assumption
+    - Theorem object: reference the lemma and its proof
     """
     def tactic(goal: Goal):
         from logos.theorem import Theorem, Axiom as LogosAxiom
@@ -83,12 +84,13 @@ def apply(ref):
             stmt = goal.context[ref]
             proof_base = HypRef(ref)
         elif isinstance(ref, Theorem):
-            raise TacticFailed(f"apply: portable theorem dependency '{ref.name}' is unsupported")
+            stmt = ref.statement
+            proof_base = TheoremRef(ref)
         elif isinstance(ref, LogosAxiom):
             stmt = ref.statement
-            proof_base = KernelAxiom(ref.name)
+            proof_base = AxiomRef(ref)
         else:
-            raise TacticFailed(f"apply: expected str or Axiom, got {type(ref).__name__!r}")
+            raise TacticFailed(f"apply: expected str, Axiom or Theorem, got {type(ref).__name__!r}")
 
         # Direct structural match
         if structural_eq(stmt, goal.statement):

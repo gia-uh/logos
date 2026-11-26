@@ -48,6 +48,26 @@ class _Proof:
         self._evidence = None
         self._checked_spec = None
 
+    def _run_proof(self, statement):
+        if self._proof_spec is None:
+            raise LogosProofError(f"Theorem '{self.name}' has no proof attached")
+        try:
+            return run(Goal({}, statement), self._proof_spec)
+        except TacticFailed as error:
+            raise LogosProofError(f"Theorem '{self.name}': {error}") from error
+
+    def _dependency_evidence(self, refresh):
+        if self._proof_spec is None:
+            raise LogosProofError(f"Lemma '{self.name}' has no proof attached")
+        if self._evidence is None or not _matches_spec(self._proof_spec, self._checked_spec):
+            if not refresh:
+                raise LogosProofError(f"Lemma '{self.name}' evidence has changed")
+            self._receipt = None
+            self._checked_spec = _freeze_spec(self._proof_spec)
+            self._evidence = None
+            self._evidence = self._run_proof(self.statement)
+        return self._evidence
+
     @property
     def receipt(self) -> ProofReceipt | None:
         receipt = self._receipt
@@ -81,6 +101,8 @@ class Theorem(_Proof):
         Returns self for chaining with logos.check().
         """
         self._receipt = None
+        self._checked_spec = None
+        self._evidence = None
         if len(args) == 1 and callable(args[0]) and not isinstance(args[0], list):
             fn = args[0]
             # Distinguish decorator (0 params) from tactic (1+ params)
@@ -151,19 +173,12 @@ def check(thm):
             f"logos.check: expected Theorem or _GroundProof, got {type(thm).__name__!r}"
         )
     thm._receipt = None
-    if thm._proof_spec is None:
-        raise LogosProofError(f"Theorem '{thm.name}' has no proof attached")
-
     saved_spec = _freeze_spec(thm._proof_spec)
     statement = thm.statement
     declarations = tuple(thm.declarations)
     name = thm.name
-    try:
-        evidence = run(Goal({}, statement), thm._proof_spec)
-    except TacticFailed as error:
-        raise LogosProofError(f"Theorem '{name}': {error}") from error
-
-    artifact = artifact_bytes(name, statement, declarations, evidence)
+    evidence = thm._run_proof(statement)
+    artifact = artifact_bytes(name, statement, declarations, evidence, refresh_lemmas=True)
     receipt = verify_artifact(artifact)
     thm._checked_spec = saved_spec
     thm._evidence = evidence

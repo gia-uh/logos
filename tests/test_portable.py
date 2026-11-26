@@ -6,8 +6,8 @@ import subprocess
 import pytest
 
 import logos
-from logos.kernel import AndElimL, AndElimR, HypRef, ImpliesIntro
-from logos.tactics import apply, exact, intro
+from logos.kernel import AndElimL, AndElimR, AxiomRef, HypRef, ImpliesIntro
+from logos.tactics import apply, exact, intro, split
 
 
 pytestmark = pytest.mark.skipif(shutil.which("logos") is None, reason="install the Rust logos CLI")
@@ -142,29 +142,137 @@ def test_automatic_replacement_needs_a_new_rust_check(invocations):
     replacement = proof.receipt
     assert original.artifact_sha256 != replacement.artifact_sha256
     assert len(invocations) == 2
-    assert invocations[-1][0][1:] == ["check", "--json", "--deny-custom-axioms", "-"]
+    assert invocations[-1][0][1:] == ["check", "--json", "-"]
     assert invocations[-1][1] == replacement.artifact
     verdict = json.loads(invocations[-1][2].stdout)
     assert verdict["artifact_sha256"] == replacement.artifact_sha256
     assert verdict["statement_text"] == EXPECTED
 
 
-def test_rejects_external_dependencies_even_with_stale_flags(invocations):
+def test_stale_theorem_flag_does_not_bypass_lemma_verification(invocations):
     dependency = prepared("named")
     logos.check(dependency)
     dependency.__dict__["certified"] = True
     dependency.statement.consequent = dependency.declarations[0]
     assert not dependency.certified
     target = logos.Theorem(dependency.statement, name="via_theorem").proof(apply(dependency))
-    axiom = logos.Axiom(dependency.statement, name="external_axiom")
-    axiom.certified = True
-    via_axiom = logos.prove(dependency.statement, [apply(axiom)])
-    with pytest.raises(logos.LogosProofError, match="portable theorem dependency"):
+    with pytest.raises(logos.LogosProofError, match=r'lemma\["authorization"\].*proof conclusion mismatch'):
         logos.check(target)
-    with pytest.raises(logos.LogosProofError, match="unsupported portable proof term Axiom"):
-        logos.check(via_axiom)
-    assert len(invocations) == 1
-    assert not target.certified and not via_axiom.certified
+    assert len(invocations) == 2
+    assert invocations[-1][2].returncode == 1
+    assert not target.certified
+
+
+def dependency_bundle():
+    p, q = logos.vars("P Q", bool)
+    axiom = logos.Axiom(p & q, name="A")
+    lemma = logos.Theorem(q, name="L").proof(exact(AndElimR(AxiomRef(axiom))))
+    target = logos.Theorem(q, name="T").proof(apply(lemma))
+    return p, q, axiom, lemma, target
+
+
+@pytest.mark.parametrize("change", ["axiom-statement", "lemma-attachment", "lemma-term"])
+def test_transitive_mutation_clears_current_certification_before_recheck(change, tmp_path, invocations):
+    p, q, axiom, lemma, target = dependency_bundle()
+    logos.check(lemma)
+    logos.check(target)
+    original_path = tmp_path / "original.logos"
+    original_receipt = logos.export_proof(target, original_path)
+    original = json.loads(original_receipt.artifact)
+    assert original["proof"] == {"tag": "theorem_ref", "id": "L"}
+    assert original["lemmas"][0]["proof"]["proof"] == {"tag": "axiom_ref", "id": "A"}
+    assert original["custom_axioms"][0]["id"] == "A"
+    assert len(invocations) == 2
+    valid = axiom.statement if change == "axiom-statement" else lemma._evidence
+    invalid_term = AndElimL(AxiomRef(axiom))
+    if change == "axiom-statement":
+        axiom.statement = p & p
+    elif change == "lemma-attachment":
+        lemma.proof(exact(invalid_term))
+    else:
+        lemma._evidence = invalid_term
+
+    assert not target.certified
+    assert target.receipt is None
+    assert len(invocations) == 2
+    with pytest.raises(logos.LogosProofError, match=r'lemma\["L"\].*proof conclusion mismatch'):
+        logos.check(target)
+    _, rejected, result = invocations[-1]
+    assert len(invocations) == 3 and result.returncode == 1
+    assert result.stdout == b""
+    assert json.loads(result.stderr)["status"] == "error"
+    changed = json.loads(rejected)
+    assert changed["target"] == original["target"]
+    assert changed["proof"] == original["proof"]
+    expected = json.loads(original_receipt.artifact)
+    if change == "axiom-statement":
+        expected["custom_axioms"][0]["statement"]["right"] = {"tag": "symbol", "id": "p2"}
+    else:
+        expected["lemmas"][0]["proof"]["tag"] = "and_elim_l"
+    assert changed == expected
+    assert not target.certified
+    assert original_path.read_bytes() == original_receipt.artifact
+
+    if change == "axiom-statement":
+        axiom.statement = valid
+    elif change == "lemma-attachment":
+        lemma.proof(exact(valid))
+    else:
+        lemma._evidence = valid
+    assert not target.certified
+    logos.check(target)
+    assert len(invocations) == 4 and invocations[-1][2].returncode == 0
+    assert target.certified
+    assert target.receipt is not original_receipt
+    assert target.receipt.artifact == original_receipt.artifact == invocations[-1][1]
+    assert target.receipt.artifact_sha256 == original_receipt.artifact_sha256
+
+
+def test_apply_accepts_an_axiom_and_automatic_proof_accepts_a_lemma_hint(invocations):
+    _, q, axiom, lemma, target = dependency_bundle()
+    axiom.certified = True  # Author flags cannot certify anything.
+    direct = logos.prove(axiom.statement, [apply(axiom)])
+    logos.check(direct)
+    assert json.loads(direct.receipt.artifact)["proof"] == {"tag": "axiom_ref", "id": "A"}
+    assert not lemma.certified
+    assert logos.prove(target, hints=[lemma]).certified
+    assert not lemma.certified  # Target check validates the bundle as a unit.
+    assert json.loads(invocations[-1][2].stdout)["custom_axioms"][0]["id"] == "A"
+    assert json.loads(target.receipt.artifact)["target"] == {"tag": "symbol", "id": "p1"}
+
+    pair = logos.prove(q & q, [split(), [apply(lemma)], [apply(lemma)]])
+    logos.check(pair)
+    bundle = json.loads(pair.receipt.artifact)
+    assert len(bundle["lemmas"]) == len(bundle["custom_axioms"]) == 1
+    assert bundle["proof"]["left"] == bundle["proof"]["right"] == {"tag": "theorem_ref", "id": "L"}
+    assert len(json.loads(invocations[-1][2].stdout)["custom_axioms"]) == 1
+
+
+def test_missing_lemma_proof_cannot_become_an_assumption(invocations):
+    _, q, _, lemma, _ = dependency_bundle()
+    missing = logos.Theorem(q, name="missing")
+    missing.__dict__["certified"] = True
+    target = logos.prove(q, [apply(missing)])
+    with pytest.raises(logos.LogosProofError, match="has no proof attached"):
+        logos.check(target)
+    with pytest.raises(logos.LogosProofError, match="unsupported portable proof term AxiomRef"):
+        logos.check(logos.prove(q, [exact(AxiomRef(missing))]))
+    assert not invocations
+    assert not target.certified
+
+    lemma.proof(apply(lemma))
+    with pytest.raises(logos.LogosProofError, match="cyclic theorem dependency"):
+        logos.check(logos.prove(q, [apply(lemma)]))
+    assert invocations[-1][2].returncode == 1
+
+
+def test_conflicting_dependency_ids_are_rejected(invocations):
+    _, _, axiom, lemma, target = dependency_bundle()
+    axiom.name = lemma.name
+    with pytest.raises(logos.LogosProofError, match="duplicate portable ID 'L'"):
+        logos.check(target)
+    assert not invocations
+    assert not target.certified
 
 
 def test_local_apply_is_scoped_and_checks(invocations):

@@ -7,16 +7,17 @@
     "--version": {"usage": "logos --version", "output": "Installed checker version."},
     "commands": {"usage": "logos commands --json", "output": "This versioned command description."},
     "example": {
-      "usage": "logos example",
+      "usage": "logos example [dependencies]",
       "output": "Writes authorization.logos and authorization.py in the current directory.",
+      "dependencies": "Writes dependencies.logos and dependencies.py in the current directory.",
       "python_prerequisites": "Python 3.12+, logos-ai wheel, and the logos executable on PATH."
     },
     "check": {
-      "usage": "logos check [--json] [--deny-custom-axioms] <FILE>",
+      "usage": "logos check [--json] [--strict] <FILE>",
       "arguments": {"FILE": "UTF-8 proof path or - for standard input"},
       "flags": {
         "--json": "Emit the versioned JSON result.",
-        "--deny-custom-axioms": "Require zero custom axioms. All dependencies are unsupported in this fragment."
+        "--strict": "Require zero used custom axioms after verifying the proof."
       },
       "success": {
         "protocol_version": "integer",
@@ -28,15 +29,15 @@
         "declarations": "array of {id, name, sort}",
         "statement": "derived proposition tree with declaration IDs",
         "statement_text": "human-readable derived proposition",
-        "custom_axioms": "array of used custom axiom propositions"
+        "custom_axioms": "array of {id, statement, statement_text, path} for each used custom axiom, with a checked step path from the target"
       }
     },
     "inspect": {
-      "usage": "logos inspect [--json] [--deny-custom-axioms] <FILE>",
+      "usage": "logos inspect [--json] [--strict] <FILE>",
       "arguments": {"FILE": "UTF-8 proof path or - for standard input"},
       "flags": {
         "--json": "Emit the versioned JSON result.",
-        "--deny-custom-axioms": "Require zero custom axioms. All dependencies are unsupported in this fragment."
+        "--strict": "Require zero used custom axioms after verifying the proof."
       },
       "success": "All check fields plus steps, in premise-first order.",
       "steps": {
@@ -45,6 +46,7 @@
         "premises": "array of earlier step IDs",
         "conclusion": "derived proposition tree",
         "conclusion_text": "human-readable proposition",
+        "reference_id": "custom axiom or lemma ID, when applicable",
         "binder": "hypothesis binder name, when applicable",
         "discharged": "local assumption step ID, when applicable"
       }
@@ -53,7 +55,35 @@
   "exit_codes": {
     "0": "Success",
     "1": "Verification rejected or I/O failed",
-    "2": "Invalid command or arguments"
+    "2": "Invalid command or arguments",
+    "3": "Valid proof with custom axioms denied by strict policy"
+  },
+  "proof_format": {
+    "encoding": "UTF-8 JSON, unknown fields and tags rejected",
+    "bundle": "{format, theory, name?, declarations, custom_axioms, lemmas, target, proof}",
+    "declaration": "{id, name, sort}, sort is prop or int; only prop symbols can occur in propositions",
+    "ids": "Nonempty strings, unique across declarations, custom axioms and lemmas",
+    "custom_axiom": "{id, statement}",
+    "lemma": "{id, statement, proof}, independently checked in an empty hypothesis scope",
+    "propositions": {
+      "symbol": "{tag: symbol, id}",
+      "and": "{tag: and, left, right}",
+      "implies": "{tag: implies, left, right}"
+    },
+    "evidence": {
+      "axiom_ref": "{tag: axiom_ref, id}",
+      "theorem_ref": "{tag: theorem_ref, id}",
+      "hyp_ref": "{tag: hyp_ref, binder}",
+      "implies_intro": "{tag: implies_intro, binder, premise, body}",
+      "and_intro": "{tag: and_intro, left, right}",
+      "and_elim_l": "{tag: and_elim_l, proof}",
+      "and_elim_r": "{tag: and_elim_r, proof}"
+    }
+  },
+  "json_policy_denied": {
+    "stream": "stdout",
+    "status": "policy_denied",
+    "output": "Same judgment fields and used axiom paths as default mode. Inspect includes checked steps."
   },
   "json_failure": {
     "stream": "stderr",

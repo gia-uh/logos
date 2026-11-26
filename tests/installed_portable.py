@@ -1,4 +1,4 @@
-"""Exercise P1–P4 with an installed binary, wheel, and empty directories.
+"""Exercise P1–P4 and dependencies with an installed binary and wheel.
 
 Authoring is a scripted smoke: the test writes its own caller code. An
 independent recipient trial is separate and is not claimed here.
@@ -100,7 +100,7 @@ def main():
         assert f"Statement   {EXPECTED}" in verdict.stdout
         assert "Theory      logos-core-v1" in verdict.stdout
         assert "Verified with 0 custom axioms" in verdict.stdout
-        replay(recipient, "check", "--deny-custom-axioms", "authorization.logos", offline=options.offline)
+        replay(recipient, "check", "--strict", "authorization.logos", offline=options.offline)
         hand_written = json.loads(replay(
             recipient, "inspect", "--json", "authorization.logos", offline=options.offline
         ).stdout)
@@ -135,7 +135,7 @@ def main():
         cold.mkdir()
         help_text = run(["logos", "--help"], cold, env=env).stdout
         commands = help_text.split("From an empty directory:\n")[1].split("\n\n")[0].splitlines()
-        author_commands = help_text.split("then run:\n")[1].splitlines()
+        author_commands = help_text.split("then run:\n")[1].split("\n\n")[0].splitlines()
         for line in [*commands, *author_commands]:
             reply = run(shlex.split(line), cold, env=env)
             if line.strip() == "logos commands --json":
@@ -144,6 +144,11 @@ def main():
                 assert contract["proof_formats"] == ["logos-proof-v1"]
                 assert "steps" in contract["commands"]["inspect"]
                 assert "1" in contract["exit_codes"]
+                assert "3" in contract["exit_codes"]
+                for operation in ("check", "inspect"):
+                    assert "--strict" in contract["commands"][operation]["flags"]
+                assert "theorem_ref" in contract["proof_format"]["evidence"]
+                assert "axiom_ref" in contract["proof_format"]["evidence"]
         run(
             ["python", "-c", "import logos; print(logos.__file__); "
              "assert 'site-packages' in logos.__file__"],
@@ -175,7 +180,53 @@ def main():
         shutil.copy2(cold / "cold_author.py", evidence / "cold_author.py")
         shutil.copy2(cold / "cold.logos", evidence / "cold.logos")
 
-    print("4 acceptance stages exercised")
+        print(f"Dependencies · discover and author, then {isolation}")
+        heading = "To replay a result that uses a checked lemma and one custom axiom:\n"
+        commands = help_text.split(heading)[1].split("\n\n")[0].splitlines()
+        for line in commands:
+            argv = shlex.split(line)
+            run(argv, cold, env=env, code=3 if "--strict" in argv else 0)
+        (cold / "dependencies.py").unlink()
+        for filename in ("dependencies.logos", "authored-dependencies.logos"):
+            shutil.move(cold / filename, recipient / filename)
+        reference = json.loads(replay(
+            recipient, "inspect", "--json", "dependencies.logos", offline=options.offline
+        ).stdout)
+        filename = "authored-dependencies.logos"
+        conditional = json.loads(replay(
+            recipient, "inspect", "--json", filename, offline=options.offline
+        ).stdout)
+        for field in ("theory", "declarations", "statement", "statement_text", "custom_axioms", "steps"):
+            assert conditional[field] == reference[field]
+        assert conditional["statement_text"] == "Q"
+        [used] = conditional["custom_axioms"]
+        assert used["id"] == "A"
+        assert used["statement_text"] == 'P["p2"]:prop ∧ Q["p1"]:prop'
+        assert used["path"] == ["proof", 'lemma["L"].proof', 'lemma["L"].proof.proof']
+
+        changed = json.loads((recipient / filename).read_text())
+        changed["lemmas"][0]["proof"]["tag"] = "and_elim_l"
+        (recipient / "invalid-dependencies.logos").write_text(json.dumps(changed))
+        for operation in ("check", "inspect"):
+            denied = replay(recipient, operation, "--json", "--strict", filename,
+                            offline=options.offline, code=3)
+            policy = json.loads(denied.stdout)
+            assert policy["status"] == "policy_denied"
+            assert policy["custom_axioms"] == [used]
+            assert ("steps" in policy) == (operation == "inspect")
+            old_flag = replay(recipient, operation, "--deny-custom-axioms", filename,
+                              offline=options.offline, code=2)
+            assert "unexpected argument" in old_flag.stderr
+            for flags in ([], ["--strict"]):
+                invalid = replay(recipient, operation, "--json", *flags, "invalid-dependencies.logos",
+                                 offline=options.offline, code=1)
+                assert not invalid.stdout
+                error = json.loads(invalid.stderr)
+                assert error["status"] == "error" and "proof conclusion mismatch" in error["error"]
+        for artifact in ("dependencies.logos", filename, "invalid-dependencies.logos"):
+            shutil.copy2(recipient / artifact, evidence / artifact)
+
+    print("5 acceptance stages exercised")
 
 
 if __name__ == "__main__":

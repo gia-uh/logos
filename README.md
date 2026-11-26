@@ -25,14 +25,25 @@ logos --help
 logos example
 logos inspect authorization.logos
 python authorization.py authored.logos
-logos check --deny-custom-axioms authored.logos
+logos check --strict authored.logos
 ```
+
+To derive `Q` from the custom axiom `A` (`P ∧ Q`) through a checked lemma `L`:
+
+```bash
+logos example dependencies
+python dependencies.py authored-dependencies.logos
+logos inspect authored-dependencies.logos
+```
+
+The emitted `dependencies.logos` can also be replayed with the checker alone.
+Default verification accepts conditional proofs. `logos check --strict dependencies.logos` exits 3 and prints the assumption and its proof path.
 
 See the [portable proof format and migration status](docs/portable-proof-format.md).
 The legacy authoring examples below document the broader API's intended
 behavior. This branch can certify propositions and scoped projection proofs
 in the first portable fragment. Arithmetic, quantifiers, other logical rules,
-definitions, and external dependencies await checker support.
+and definitions await checker support.
 
 ---
 
@@ -54,8 +65,8 @@ logos.theorem(
 ```
 
 `LogosProofError` reports rejected evidence. A successful portable theorem
-has a verification receipt. Reusing theorems as checked lemmas is part of
-the broader milestone.
+has an immutable verification receipt. Use `logos.tactics.apply(lemma)` to
+reference a theorem with a proof attached.
 
 ---
 

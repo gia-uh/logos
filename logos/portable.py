@@ -1,4 +1,4 @@
-"""Export the first portable proof fragment and call the installed Rust verifier."""
+"""Export portable proofs and call the installed Rust verifier."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,7 +9,9 @@ import shutil
 import subprocess
 
 from logos.expr import And, Expr, Implies, Var
-from logos.kernel import AndElimL, AndElimR, HypRef, ImpliesIntro, ProofTerm
+from logos.kernel import (
+    AndElimL, AndElimR, AndIntro, AxiomRef, HypRef, ImpliesIntro, ProofTerm, TheoremRef,
+)
 
 FORMAT = "logos-proof-v1"
 THEORY = "logos-core-v1"
@@ -45,61 +47,116 @@ def statement_declarations(statement: Expr) -> tuple[Var, ...]:
 
 
 def artifact_bytes(
-    name: str, statement: Expr, declarations: tuple[Var, ...], evidence: ProofTerm
+    name: str, statement: Expr, declarations: tuple[Var, ...], evidence: ProofTerm,
+    *, refresh_lemmas: bool = False,
 ) -> bytes:
+    from logos.theorem import Axiom, Theorem
+
     symbol_ids = {}
     declared = []
-    for index, symbol in enumerate(declarations, 1):
-        if type(symbol) is not Var or not isinstance(symbol.name, str):
-            raise LogosProofError("portable declarations must be named Var objects")
-        if id(symbol) in symbol_ids:
-            raise LogosProofError(f"duplicate portable declaration {symbol.name!r}")
-        if symbol.type is bool:
-            sort = "prop"
-        elif symbol.type is int:
-            sort = "int"
-        else:
-            raise LogosProofError(f"unsupported declaration sort for {symbol.name!r}")
-        symbol_id = f"p{index}"
-        symbol_ids[id(symbol)] = symbol_id
-        declared.append({"id": symbol_id, "name": symbol.name, "sort": sort})
+    used_ids = set()
+    refs = {}
+    pending = []
+    axioms = []
+    lemmas = []
 
-    def proposition(expr):
+    def declare(symbols):
+        scope = set()
+        for symbol in symbols:
+            if type(symbol) is not Var or not isinstance(symbol.name, str):
+                raise LogosProofError("portable declarations must be named Var objects")
+            key = id(symbol)
+            if key in scope:
+                raise LogosProofError(f"duplicate portable declaration {symbol.name!r}")
+            scope.add(key)
+            if key in symbol_ids:
+                continue
+            if symbol.type is bool:
+                sort = "prop"
+            elif symbol.type is int:
+                sort = "int"
+            else:
+                raise LogosProofError(f"unsupported declaration sort for {symbol.name!r}")
+            symbol_id = f"p{len(declared) + 1}"
+            register(symbol_id)
+            symbol_ids[key] = symbol_id
+            declared.append({"id": symbol_id, "name": symbol.name, "sort": sort})
+        return scope
+
+    def register(id_):
+        if id_ in used_ids:
+            raise LogosProofError(f"duplicate portable ID {id_!r}")
+        used_ids.add(id_)
+
+    def reference(ref, kind):
+        key = id(ref)
+        if key not in refs:
+            if not isinstance(ref.name, str):
+                raise LogosProofError("portable dependency IDs must be strings")
+            id_ = ref.name or f"{kind}:{len(refs) + 1}"
+            register(id_)
+            refs[key] = id_
+            pending.append((ref, id_))
+        return {"tag": f"{kind}_ref", "id": refs[key]}
+
+    def proposition(expr, scope):
         match expr:
             case Var(name, _):
-                symbol_id = symbol_ids.get(id(expr))
-                if symbol_id is None:
+                key = id(expr)
+                if key not in scope:
                     raise LogosProofError(f"undeclared proposition {name!r}")
-                return {"tag": "symbol", "id": symbol_id}
+                return {"tag": "symbol", "id": symbol_ids[key]}
             case And(left, right):
-                return {"tag": "and", "left": proposition(left), "right": proposition(right)}
+                tag = "and"
             case Implies(left, right):
-                return {"tag": "implies", "left": proposition(left), "right": proposition(right)}
+                tag = "implies"
             case _:
                 raise LogosProofError(f"unsupported portable proposition {type(expr).__name__}")
+        return {"tag": tag, "left": proposition(left, scope), "right": proposition(right, scope)}
 
-    def proof(term):
+    def proof(term, scope):
         match term:
             case ImpliesIntro(hyp, binder, body):
                 return {
                     "tag": "implies_intro", "binder": binder,
-                    "premise": proposition(hyp), "body": proof(body),
+                    "premise": proposition(hyp, scope), "body": proof(body, scope),
                 }
             case HypRef(binder):
                 return {"tag": "hyp_ref", "binder": binder}
+            case AndIntro(left, right):
+                return {"tag": "and_intro", "left": proof(left, scope), "right": proof(right, scope)}
             case AndElimL(child):
-                return {"tag": "and_elim_l", "proof": proof(child)}
+                return {"tag": "and_elim_l", "proof": proof(child, scope)}
             case AndElimR(child):
-                return {"tag": "and_elim_r", "proof": proof(child)}
+                return {"tag": "and_elim_r", "proof": proof(child, scope)}
+            case AxiomRef(axiom) if isinstance(axiom, Axiom):
+                return reference(axiom, "axiom")
+            case TheoremRef(theorem) if isinstance(theorem, Theorem):
+                return reference(theorem, "theorem")
             case _:
                 raise LogosProofError(f"unsupported portable proof term {type(term).__name__}")
 
     try:
+        scope = declare(declarations)
+        target = proposition(statement, scope)
+        target_proof = proof(evidence, scope)
+        # References retain their live objects. Serializing each once lets Rust
+        # detect cycles and check shared dependencies without trusting receipts.
+        for ref, id_ in pending:
+            if isinstance(ref, Axiom):
+                scope = declare(statement_declarations(ref.statement))
+                axioms.append({"id": id_, "statement": proposition(ref.statement, scope)})
+            else:
+                scope = declare(ref.declarations)
+                lemmas.append({
+                    "id": id_, "statement": proposition(ref.statement, scope),
+                    "proof": proof(ref._dependency_evidence(refresh_lemmas), scope),
+                })
         return (
             json.dumps({
                 "format": FORMAT, "theory": THEORY, "name": name,
-                "declarations": declared, "custom_axioms": [], "lemmas": [],
-                "target": proposition(statement), "proof": proof(evidence),
+                "declarations": declared, "custom_axioms": axioms, "lemmas": lemmas,
+                "target": target, "proof": target_proof,
             }, separators=(",", ":")) + "\n"
         ).encode("utf-8")
     except (TypeError, ValueError, RecursionError) as error:
@@ -122,6 +179,12 @@ def verify_artifact(artifact: bytes) -> ProofReceipt:
     def response(result, operation):
         if result.returncode != 0:
             diagnostic = result.stderr.decode("utf-8", errors="replace").strip()
+            try:
+                details = json.loads(diagnostic)
+            except ValueError:
+                details = None
+            if isinstance(details, dict) and isinstance(details.get("error"), str):
+                diagnostic = details["error"]
             raise LogosProofError(f"Rust logos {operation} failed ({result.returncode}): {diagnostic}")
         try:
             data = json.loads(result.stdout)
@@ -136,14 +199,14 @@ def verify_artifact(artifact: bytes) -> ProofReceipt:
     contract = response(invoke(["commands", "--json"]), "commands")
     if contract.get("proof_formats") != [FORMAT] or contract.get("theories") != [THEORY]:
         raise LogosProofError("Rust logos checker does not advertise the required proof format and theory")
-    result = response(invoke(["check", "--json", "--deny-custom-axioms", "-"], artifact), "check")
+    result = response(invoke(["check", "--json", "-"], artifact), "check")
     digest = sha256(artifact).hexdigest()
     if (
         result.get("status") != "verified"
         or result.get("artifact_sha256") != digest
         or result.get("format") != FORMAT
         or result.get("theory") != THEORY
-        or result.get("custom_axioms") != []
+        or not isinstance(result.get("custom_axioms"), list)
         or result.get("statement") != json.loads(artifact)["target"]
     ):
         raise LogosProofError("Rust logos checker returned no matching verification")

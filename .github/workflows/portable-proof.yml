@@ -36,7 +36,7 @@ jobs:
         run: |
           export PATH="$RUNNER_TEMP/portable/bin:$PATH"
           author="$RUNNER_TEMP/author/bin/python"
-          python tests/installed_portable.py "$RUNNER_TEMP/portable/bin/logos" "$author" "$RUNNER_TEMP/evidence" > "$RUNNER_TEMP/installed-P1-P4.txt"
+          python tests/installed_portable.py "$RUNNER_TEMP/portable/bin/logos" "$author" "$RUNNER_TEMP/evidence" > "$RUNNER_TEMP/installed-proof-transcript.txt"
           cp tests/test_portable.py "$RUNNER_TEMP/test_portable.py"
           (cd "$RUNNER_TEMP" && "$author" -I -m pytest -q test_portable.py)
           "$author" -m pytest -q -rx
@@ -46,5 +46,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: installed-proof-transcript
-          path: ${{ runner.temp }}/installed-P1-P4.txt
+          path: ${{ runner.temp }}/installed-proof-transcript.txt
           if-no-files-found: ignore

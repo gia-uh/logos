@@ -10,6 +10,8 @@ use std::{
 const HELP: &str = include_str!("help.txt");
 const COMMANDS: &str = include_str!("commands.json");
 const EXAMPLE: &str = include_str!("../examples/authorization.py");
+const DEPENDENCY_EXAMPLE: &str = include_str!("../examples/dependencies.py");
+const DEPENDENCY_FIXTURE: &str = include_str!("../tests/fixtures/portable/dependencies.logos");
 const FIXTURE: &str = include_str!("../tests/fixtures/portable/authorization.logos");
 
 #[derive(Serialize)]
@@ -22,6 +24,7 @@ struct Inspection<'a> {
 enum Failure {
     Usage(String),
     Operation(String),
+    Policy,
 }
 
 impl From<io::Error> for Failure {
@@ -36,6 +39,7 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             let (code, message) = match error {
+                Failure::Policy => return ExitCode::from(3),
                 Failure::Usage(message) => (2, message),
                 Failure::Operation(message) => (1, message),
             };
@@ -60,7 +64,14 @@ fn run(args: &[String]) -> Result<(), Failure> {
         [arg] if arg == "--help" || arg == "-h" => print!("{HELP}"),
         [arg] if arg == "--version" => println!("logos {}", env!("CARGO_PKG_VERSION")),
         [cmd, flag] if cmd == "commands" && flag == "--json" => print!("{COMMANDS}"),
-        [cmd] if cmd == "example" => emit_example()?,
+        [cmd] if cmd == "example" => emit_example([
+            ("authorization.logos", FIXTURE),
+            ("authorization.py", EXAMPLE),
+        ])?,
+        [cmd, selection] if cmd == "example" && selection == "dependencies" => emit_example([
+            ("dependencies.logos", DEPENDENCY_FIXTURE),
+            ("dependencies.py", DEPENDENCY_EXAMPLE),
+        ])?,
         [cmd, flag]
             if matches!(cmd.as_str(), "check" | "inspect" | "example" | "commands")
                 && matches!(flag.as_str(), "--help" | "-h") =>
@@ -75,11 +86,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
     Ok(())
 }
 
-fn emit_example() -> Result<(), Failure> {
-    let files = [
-        ("authorization.logos", FIXTURE),
-        ("authorization.py", EXAMPLE),
-    ];
+fn emit_example(files: [(&str, &str); 2]) -> Result<(), Failure> {
     for (name, _) in files {
         if Path::new(name).symlink_metadata().is_ok() {
             return Err(Failure::Operation(format!("{name} already exists")));
@@ -99,7 +106,7 @@ fn check_command(args: &[String], inspect: bool) -> Result<(), Failure> {
     for arg in args {
         match arg.as_str() {
             "--json" if !json => json = true,
-            "--deny-custom-axioms" if !strict => strict = true,
+            "--strict" if !strict => strict = true,
             path if file.is_none() && (!path.starts_with('-') || path == "-") => file = Some(path),
             _ => return Err(Failure::Usage(format!("unexpected argument {arg:?}"))),
         }
@@ -112,10 +119,11 @@ fn check_command(args: &[String], inspect: bool) -> Result<(), Failure> {
     } else {
         fs::read(file)?
     };
-    let checked = verify(&bytes).map_err(Failure::Operation)?;
-    let judgment = &checked.judgment;
-    if strict && !judgment.custom_axioms.is_empty() {
-        return Err(Failure::Operation("custom axioms denied by policy".into()));
+    let mut checked = verify(&bytes).map_err(Failure::Operation)?;
+    let judgment = &mut checked.judgment;
+    let denied = strict && !judgment.custom_axioms.is_empty();
+    if denied {
+        judgment.status = "policy_denied";
     }
     if json {
         let output = if inspect {
@@ -131,20 +139,30 @@ fn check_command(args: &[String], inspect: bool) -> Result<(), Failure> {
             output.map_err(|error| Failure::Operation(error.to_string()))?
         );
     } else {
-        println!(
-            "Verified with {} custom axioms",
-            judgment.custom_axioms.len()
-        );
+        if denied {
+            println!("Policy denied: custom axioms are forbidden (--strict)");
+        } else {
+            let count = judgment.custom_axioms.len();
+            let noun = if count == 1 { "axiom" } else { "axioms" };
+            println!("Verified with {count} custom {noun}");
+        }
         println!("Statement   {}", judgment.statement_text);
         println!("Theory      {}", judgment.theory);
         if let Some(label) = &judgment.unverified_author_label {
             println!("Unverified author label {label:?}");
+        }
+        for axiom in &judgment.custom_axioms {
+            println!("Assumed     {:?}: {}", axiom.id, axiom.statement_text);
+            println!("Path        {}", axiom.path.join(" → "));
         }
         if inspect {
             for step in checked.steps {
                 println!("{} {}: {}", step.id, step.rule, step.conclusion_text);
                 if !step.premises.is_empty() {
                     println!("  Premises: {}", step.premises.join(", "));
+                }
+                if let Some(id) = step.reference_id {
+                    println!("  Reference: {id:?}");
                 }
                 if let Some(binder) = step.binder {
                     println!("  Binder: {binder:?}");
@@ -155,5 +173,5 @@ fn check_command(args: &[String], inspect: bool) -> Result<(), Failure> {
             }
         }
     }
-    Ok(())
+    if denied { Err(Failure::Policy) } else { Ok(()) }
 }

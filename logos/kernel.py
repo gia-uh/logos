@@ -1,12 +1,15 @@
 # logos/kernel.py
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 from logos.expr import (
     Expr, Var, Eq, And, Or, Not, Implies,
     ForallNode, ExistsNode,
 )
 from logos.helpers import structural_eq, substitute
+
+if TYPE_CHECKING:
+    from logos.theorem import Axiom as AuthorAxiom, Theorem
 
 
 class KernelError(Exception):
@@ -55,6 +58,16 @@ class Subst(ProofTerm):
 @dataclass(frozen=True)
 class Axiom(ProofTerm):
     name: str                         # proves the named axiom's statement
+
+@dataclass(frozen=True)
+class AxiomRef(ProofTerm):
+    axiom: AuthorAxiom
+
+
+@dataclass(frozen=True)
+class TheoremRef(ProofTerm):
+    theorem: Theorem
+
 
 @dataclass(frozen=True)
 class HypRef(ProofTerm):
@@ -164,6 +177,9 @@ def infer(term: ProofTerm, ctx: Context) -> Expr:
                 case Eq(a, b):
                     return Eq(func(a), func(b))
             raise KernelError(f"Subst: expected Eq, got {stmt!r}")
+
+        case AxiomRef(axiom):
+            return ctx.lookup(axiom.name)
 
         case Axiom(name) | HypRef(name):
             return ctx.lookup(name)

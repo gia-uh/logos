@@ -1,0 +1,17 @@
+{
+  "format": "logos-proof-v1",
+  "theory": "logos-core-v1",
+  "name": "T",
+  "declarations": [
+    {"id": "p1", "name": "Q", "sort": "prop"},
+    {"id": "p2", "name": "P", "sort": "prop"}
+  ],
+  "custom_axioms": [
+    {"id": "A", "statement": {"tag": "and", "left": {"tag": "symbol", "id": "p2"}, "right": {"tag": "symbol", "id": "p1"}}}
+  ],
+  "lemmas": [
+    {"id": "L", "statement": {"tag": "symbol", "id": "p1"}, "proof": {"tag": "and_elim_r", "proof": {"tag": "axiom_ref", "id": "A"}}}
+  ],
+  "target": {"tag": "symbol", "id": "p1"},
+  "proof": {"tag": "theorem_ref", "id": "L"}
+}

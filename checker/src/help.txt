@@ -4,23 +4,35 @@ Usage:
   logos --help
   logos --version
   logos commands --json
-  logos example
-  logos check [--json] [--deny-custom-axioms] <FILE>
-  logos inspect [--json] [--deny-custom-axioms] <FILE>
+  logos example [dependencies]
+  logos check [--json] [--strict] <FILE>
+  logos inspect [--json] [--strict] <FILE>
 
 FILE is a UTF-8 .logos proof file. Use - to read standard input.
 Check prints the derived statement, theory and used custom axioms.
 Inspect also prints the ordered checked steps and discharged premises.
-Exit codes: 0 for success, 1 for rejected input or I/O failure, 2 for usage.
-The first proof fragment rejects all custom-axiom and lemma dependencies.
+Use --strict to require zero used custom axioms after checking the evidence.
+Exit codes: 0 success, 1 invalid proof or I/O failure, 2 usage, 3 strict policy denial.
+Policy denial prints the used axioms and their checked paths, including with --json.
+Run logos commands --json for the bundle grammar and result fields.
 
 From an empty directory:
   logos commands --json
   logos example
-  logos check --deny-custom-axioms authorization.logos
+  logos check --strict authorization.logos
   logos inspect --json authorization.logos
 
 To author the same proof, install Python 3.12+ and the logos-ai wheel.
 Keep the Rust logos executable on PATH, then run:
   python authorization.py authored.logos
   logos check --json authored.logos
+
+To replay a result that uses a checked lemma and one custom axiom:
+  logos example dependencies
+  logos inspect --json dependencies.logos
+  python dependencies.py authored-dependencies.logos
+  logos check authored-dependencies.logos
+  logos check --strict authored-dependencies.logos
+
+The last command exits 3 and reports the assumption. Python is required
+only to author the file. The emitted dependencies.logos is ready to replay.
