@@ -96,7 +96,37 @@ def advance_at_zero(mid, *, result):
     return logos.contract(requires=(mid == 0), ensures=(result - mid == 1))
 ```
 
-The supported fragment is deliberately small. The function must be an undecorated module-level function whose body is a single `return` of parameters, integer literals and `+`, with every parameter and the return annotated with the built-in `int`. The decorated theorem takes the same input names in the same order plus exactly one keyword-only result. Its `ensures` must be one equality between integer terms over the parameters and the result, with the result on exactly one side; `requires`, when present, is a proposition over the parameters built from integer equalities and `&`, `|`, `~`, `>>`. Branches, loops, calls, globals, closures, wrappers, missing or ambiguous source, postponed annotations and a stale source/code match all raise `logos.LogosContractError` with the file and line. Verification never executes the function with symbolic arguments. Interpreting Python's source and compiling the supported fragment is the trust boundary; the proof about the extracted integer function is checked by Rust.
+A function with one equality branch is proved one path at a time. The `requires=` must select the path: the condition selects the then branch and its negation selects the else branch. The exported transparent definition is that branch, labelled `step[then]` or `step[else]`, so the certificate is not read as defining the whole function.
+
+```python
+def step(x: int) -> int:
+    if x == 0:
+        return 1
+    else:
+        return x + 1
+
+
+@logos.theorem(about=step)
+def step_at_zero(x, *, result):
+    return logos.contract(requires=(x == 0), ensures=(result == 1))
+
+
+@logos.theorem(about=step)
+def step_away_from_zero(x, *, result):
+    return logos.contract(requires=(x != 0), ensures=(result == x + 1))
+```
+
+A single `requires=(parameter == integer)` is also substituted into the arithmetic check, so a claim at the guard boundary can use the other path's formula:
+
+```python
+@logos.theorem(about=step)
+def step_at_boundary(x, *, result):
+    return logos.contract(requires=(x == 0), ensures=(result == x + 1))
+```
+
+Run the [branch example](examples/branch_contract.py) with `python examples/branch_contract.py`, then strict-check the three artifacts with `logos check --strict`. Run the [single-return example](examples/function_contract.py) the same way.
+
+The supported fragment is deliberately small. A function is either an undecorated module-level function whose body is a single `return` of parameters, integer literals and `+`, or one `if`/`else` over a single `==` or `!=` comparison of such integer expressions with one `return` per branch. Ordered comparisons are not supported because the core theory has no order. Every parameter and the return are annotated with the built-in `int`. The decorated theorem takes the same input names in the same order plus exactly one keyword-only result. Its `ensures` must be one equality between integer terms over the parameters and the result, with the result on exactly one side; `requires`, when present, is a proposition over the parameters built from integer equalities and `&`, `|`, `~`, `>>`. A branching function needs a `requires=` that selects a path. Loops, `elif`, nested branches, missing `else`, calls, globals, closures, wrappers, missing or ambiguous source, postponed annotations and a stale source/code match all raise `logos.LogosContractError` with the file and line. Revalidation binds the whole fragment, so changing the guard, either branch, the parameter binding, the source or the imported code object invalidates every theorem for that function. Verification never executes the function with symbolic arguments. Interpreting Python's source and compiling the supported fragment is the trust boundary; the proof about the extracted integer function is checked by Rust.
 
 <details>
 <summary>Choose a witness for an existential claim</summary>

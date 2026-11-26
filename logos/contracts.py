@@ -2,10 +2,13 @@
 
 The defining module's source is the binding. Logos re-reads it, recompiles it
 and refuses to continue when the imported code object disagrees with the file.
-The supported fragment is deliberately small: one ``return`` whose value is a
-sum of parameters and integer literals, with every parameter and the result
-annotated with the built-in ``int``. Anything else fails closed with a source
-diagnostic instead of being approximated.
+The supported fragment is deliberately small: either one ``return`` whose value
+is a sum of parameters and integer literals, or one ``if``/``else`` over a
+single ``==`` or ``!=`` comparison, with one such ``return`` per branch. Every
+parameter and the result are annotated with the built-in ``int``. A branching
+function needs a ``requires=`` that selects one branch, so each path gets its
+own theorem. Anything else fails closed with a source diagnostic instead of
+being approximated.
 """
 from __future__ import annotations
 
@@ -19,7 +22,7 @@ from types import CodeType, FunctionType
 from logos.define import Function
 from logos.expr import (
     Add, And, App, Eq, Expr, ExistsNode, ForallNode, Implies, Lit, Mul, Neg,
-    Not, Or, Pow, Sub, Var,
+    Neq, Not, Or, Pow, Sub, Var,
 )
 from logos.goal import Goal
 from logos.helpers import structural_eq
@@ -56,16 +59,46 @@ def contract(*, ensures: Expr, requires: Expr | None = None) -> Contract:
     return Contract(ensures, requires)
 
 
+@dataclass(frozen=True)
+class _Fragment:
+    """The translated source of one supported function."""
+
+    body: Expr | None = None
+    guard: Expr | None = None
+    then_body: Expr | None = None
+    else_body: Expr | None = None
+
+    def selected(self, branch: str | None) -> Expr | None:
+        if branch == "then":
+            return self.then_body
+        if branch == "else":
+            return self.else_body
+        return self.body
+
+
 def theorem_about(theorem_body, about: FunctionType):
     """Build the contract theorem for an ordinary function."""
-    names, variables, body = _bind_source(about)
+    names, variables, fragment = _bind_source(about)
     result_name = _theorem_signature(theorem_body, names, about)
     parameters = [variables[name] for name in names]
     result = Var(result_name, int)
     value = theorem_body(*parameters, **{result_name: result})
+    if isinstance(value, Contract):
+        value = Contract(
+            _normalize(value.ensures),
+            _normalize(value.requires) if value.requires is not None else None,
+        )
     _validate(value, variables, result, theorem_body)
-    symbol = Function(about.__name__, list(variables.values()), body, result_type=int)
-    equality = Eq(result, App(about.__name__, parameters, symbol))
+    branch = None
+    if fragment.guard is not None:
+        branch = _select_branch(value.requires, fragment.guard, about.__name__)
+    body = fragment.selected(branch)
+    # A branch certificate defines only the path its requires selects. The
+    # qualified label keeps that transparent definition from being read as the
+    # whole source function; the full fragment is still bound by revalidation.
+    symbol_name = about.__name__ if branch is None else f"{about.__name__}[{branch}]"
+    symbol = Function(symbol_name, list(variables.values()), body, result_type=int)
+    equality = Eq(result, App(symbol_name, parameters, symbol))
     statement = Implies(equality, value.ensures)
     if value.requires is not None:
         statement = Implies(value.requires, statement)
@@ -75,7 +108,7 @@ def theorem_about(theorem_body, about: FunctionType):
     return ContractTheorem(
         statement, name=theorem_body.__name__, about=about, symbol=symbol,
         parameters=parameters, result=result, requires=value.requires,
-        ensures=value.ensures,
+        ensures=value.ensures, fragment=fragment, branch=branch,
     )
 
 
@@ -83,7 +116,8 @@ class ContractTheorem(Theorem):
     """A theorem whose statement comes from a source-bound function contract."""
 
     def __init__(
-        self, statement, *, name, about, symbol, parameters, result, requires, ensures
+        self, statement, *, name, about, symbol, parameters, result, requires, ensures,
+        fragment, branch,
     ):
         super().__init__(statement, name=name)
         self.about = about
@@ -92,6 +126,8 @@ class ContractTheorem(Theorem):
         self.result = result
         self.requires = requires
         self.ensures = ensures
+        self._fragment = fragment
+        self._branch = branch
         self._proof_spec = [self._contract_evidence]
 
     def _revalidate(self):
@@ -100,21 +136,47 @@ class ContractTheorem(Theorem):
         Decoration is not enough: ``__code__`` can be replaced and the file can
         change while the theorem object lives on. Every proof run, receipt read
         and export calls this, comparing the fresh signature and translation
-        with the ones the statement was built from.
+        with the ones the statement was built from. A branching function binds
+        the whole fragment, so changing either branch or the guard invalidates
+        both paths, not only the one this theorem proves.
         """
-        names, _variables, body = _bind_source(self.about)
+        names, _variables, fragment = _bind_source(self.about)
         bound = [parameter.name for parameter in self.parameters]
         if names != bound:
             self._receipt = None
             raise LogosContractError(
-                f"contract for {self.symbol.name!r} no longer matches its source: the "
+                f"contract for {self.about.__name__!r} no longer matches its source: the "
                 f"parameter binding changed from ({', '.join(bound)}) to "
                 f"({', '.join(names)}); redeclare the theorem from the current function"
             )
-        if not structural_eq(body, self.symbol.body):
+        stored = self._fragment
+        if stored.guard is None:
+            if not structural_eq(fragment.body, stored.body):
+                self._receipt = None
+                raise LogosContractError(
+                    f"contract for {self.about.__name__!r} no longer matches its source: the "
+                    "translated body changed after the theorem was declared; redeclare the "
+                    "theorem from the current function"
+                )
+        else:
+            changed = None
+            if not structural_eq(fragment.guard, stored.guard):
+                changed = "guard"
+            elif not structural_eq(fragment.then_body, stored.then_body):
+                changed = "then branch"
+            elif not structural_eq(fragment.else_body, stored.else_body):
+                changed = "else branch"
+            if changed is not None:
+                self._receipt = None
+                raise LogosContractError(
+                    f"contract for {self.about.__name__!r} no longer matches its source: the "
+                    f"{changed} changed after the theorem was declared; redeclare the "
+                    "theorem from the current function"
+                )
+        if not structural_eq(self.symbol.body, stored.selected(self._branch)):
             self._receipt = None
             raise LogosContractError(
-                f"contract for {self.symbol.name!r} no longer matches its source: the "
+                f"contract for {self.about.__name__!r} no longer matches its source: the "
                 "translated body changed after the theorem was declared; redeclare the "
                 "theorem from the current function"
             )
@@ -316,14 +378,118 @@ def _fragment(definition, fn, path):
             "postponed annotations are not supported"
         )
     body = definition.body
+    variables = {name: Var(name, int) for name in names}
+    if (
+        len(body) == 1
+        and isinstance(body[0], ast.If)
+        and body[0].orelse
+    ):
+        node = body[0]
+        if isinstance(node.orelse[0], ast.If):
+            raise LogosContractError(
+                f"{path}:{node.orelse[0].lineno}: {fn.__name__!r} uses elif; only one "
+                "if/else with a return in each branch is supported"
+            )
+        guard = _condition(node.test, variables, fn, path)
+        return names, variables, _Fragment(
+            guard=guard,
+            then_body=_return_term(node.body, variables, fn, path, "then branch"),
+            else_body=_return_term(node.orelse, variables, fn, path, "else branch"),
+        )
+    if len(body) == 1 and isinstance(body[0], ast.If):
+        raise LogosContractError(
+            f"{path}:{body[0].lineno}: the if in {fn.__name__!r} needs an else branch with "
+            "a return; add one so both paths are explicit"
+        )
     if len(body) != 1 or not isinstance(body[0], ast.Return) or body[0].value is None:
         raise LogosContractError(
             f"{path}:{definition.lineno}: the body of {fn.__name__!r} must be a single "
-            "return statement; branches, loops, assignments and other statements are not "
-            "supported"
+            "return statement or one if/else with a return in each branch; loops, "
+            "assignments and other statements are not supported"
         )
-    variables = {name: Var(name, int) for name in names}
-    return names, variables, _term(body[0].value, variables, fn, path)
+    return names, variables, _Fragment(
+        body=_term(body[0].value, variables, fn, path)
+    )
+
+
+def _return_term(statements, variables, fn, path, branch):
+    if (
+        len(statements) != 1
+        or not isinstance(statements[0], ast.Return)
+        or statements[0].value is None
+    ):
+        line = statements[0].lineno if statements else "?"
+        raise LogosContractError(
+            f"{path}:{line}: the {branch} of {fn.__name__!r} must be a single return "
+            "statement; nested branches and other statements are not supported"
+        )
+    return _term(statements[0].value, variables, fn, path)
+
+
+def _condition(node, variables, fn, path):
+    if (
+        not isinstance(node, ast.Compare)
+        or len(node.ops) != 1
+        or len(node.comparators) != 1
+    ):
+        raise LogosContractError(
+            f"{path}:{getattr(node, 'lineno', '?')}: the condition of {fn.__name__!r} must "
+            "be one == or != comparison between integer expressions"
+        )
+    left = _term(node.left, variables, fn, path)
+    right = _term(node.comparators[0], variables, fn, path)
+    operation = node.ops[0]
+    if isinstance(operation, ast.Eq):
+        return Eq(left, right)
+    if isinstance(operation, ast.NotEq):
+        return Not(Eq(left, right))
+    raise LogosContractError(
+        f"{path}:{node.lineno}: the condition of {fn.__name__!r} uses an ordered or "
+        "identity comparison; the core theory has no order, so only == and != are "
+        "supported"
+    )
+
+
+def _negate(expr):
+    return expr.operand if isinstance(expr, Not) else Not(expr)
+
+
+def _conjuncts(expr):
+    if isinstance(expr, And):
+        yield from _conjuncts(expr.left)
+        yield from _conjuncts(expr.right)
+    else:
+        yield expr
+
+
+def _select_branch(requires, guard, name):
+    if requires is None:
+        raise LogosContractError(
+            f"contract for {name!r}: the source branches, so requires= must select one "
+            "path with the condition or its negation; declare one theorem per branch"
+        )
+    for clause in _conjuncts(requires):
+        if structural_eq(clause, guard):
+            return "then"
+        if structural_eq(clause, _negate(guard)):
+            return "else"
+    raise LogosContractError(
+        f"contract for {name!r}: requires= does not select a branch; use the condition or "
+        "its negation so the proof only covers that path"
+    )
+
+
+def _normalize(expr):
+    """Rewrite ``!=`` to ``~(... == ...)`` before the portable encoding."""
+    if isinstance(expr, Neq):
+        return Not(Eq(_normalize(expr.left), _normalize(expr.right)))
+    if isinstance(expr, (Add, Sub, Mul, Eq, And, Or, Implies)):
+        return type(expr)(_normalize(expr.left), _normalize(expr.right))
+    if isinstance(expr, Pow):
+        return Pow(_normalize(expr.base), _normalize(expr.exp))
+    if isinstance(expr, (Neg, Not)):
+        return type(expr)(_normalize(expr.operand))
+    return expr
 
 
 def _term(node, variables, fn, path):
@@ -564,13 +730,17 @@ def _derive(symbol, parameters, result, requires, ensures):
         template = _replace(ensures.left, result, hole)
         other = ensures.right
         certificate = Congr(hole, template, HypRef("value"))
-        arithmetic = _ring(_replace(template, hole, symbol.body), other, symbol)
+        arithmetic = _arithmetic(
+            _replace(template, hole, symbol.body), other, requires, symbol
+        )
         proof = Trans(certificate, arithmetic)
     else:
         template = _replace(ensures.right, result, hole)
         other = ensures.left
         certificate = Congr(hole, template, HypRef("value"))
-        arithmetic = _ring(other, _replace(template, hole, symbol.body), symbol)
+        arithmetic = _arithmetic(
+            other, _replace(template, hole, symbol.body), requires, symbol
+        )
         proof = Trans(arithmetic, Symm(certificate))
     proof = ImpliesIntro(equality, "value", proof)
     if requires is not None:
@@ -579,6 +749,46 @@ def _derive(symbol, parameters, result, requires, ensures):
     for parameter in reversed(list(parameters)):
         proof = ForallIntro(parameter, proof)
     return proof
+
+
+def _arithmetic(left, right, requires, symbol):
+    """Prove ``left = right``, using one parameter equals a literal premise.
+
+    A branch theorem can state its claim at the guard boundary, for example
+    ``requires=(x == 0)`` with a postcondition in the other branch's formula.
+    In that case the premise is substituted into both sides before the ring
+    checker runs, and the substitution is replayed as checked congruences.
+    """
+    substitution = _literal_substitution(requires)
+    if substitution is None:
+        return _ring(left, right, symbol)
+    variable, value, premise, hole = substitution
+    left_premise = Congr(hole, _replace(left, variable, hole), premise)
+    right_premise = Congr(hole, _replace(right, variable, hole), premise)
+    core = _ring(
+        _replace(left, variable, value), _replace(right, variable, value), symbol
+    )
+    return Trans(Trans(left_premise, core), Symm(right_premise))
+
+
+def _literal_substitution(requires):
+    """Return (parameter, integer literal, proof, hole) for one simple premise."""
+    if not isinstance(requires, Eq):
+        return None
+    hole = Var("hole", int)
+    if (
+        isinstance(requires.left, Var)
+        and isinstance(requires.right, Lit)
+        and type(requires.right.value) is int
+    ):
+        return requires.left, requires.right, HypRef("requires"), hole
+    if (
+        isinstance(requires.right, Var)
+        and isinstance(requires.left, Lit)
+        and type(requires.left.value) is int
+    ):
+        return requires.right, requires.left, Symm(HypRef("requires")), hole
+    return None
 
 
 def _ring(left, right, symbol):
