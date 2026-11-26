@@ -4,20 +4,38 @@
 
 **Package:** `logos-ai` | **Status:** v0.1.0
 
-Logos brings formal proof to Python. Write propositions about your functions,
-then prove them using a composable tactic system. A small trusted kernel
-(~200 lines) validates every proof term — tactics, automation, even LLM
-oracles are untrusted, and the kernel catches any invalid proof.
+Logos brings formal proof to Python. Write propositions and compose tactics
+that produce proof terms. The standalone Rust checker independently verifies
+proofs exported as data.
 
----
+## First portable proof
 
-## Install
+From this integration branch, install both tools with a Rust toolchain and
+Python 3.12 or newer:
 
 ```bash
-pip install logos-ai
+cargo install --locked --path checker
+python -m pip install .
 ```
 
+From an empty directory, with the Rust `logos` on PATH:
+
+```bash
+logos --help
+logos example
+logos inspect authorization.logos
+python authorization.py authored.logos
+logos check --deny-custom-axioms authored.logos
+```
+
+See the [portable proof format and migration status](docs/portable-proof-format.md).
+The legacy authoring examples below document the broader API's intended
+behavior. This branch can certify propositions and scoped projection proofs
+in the first portable fragment. Arithmetic, quantifiers, other logical rules,
+definitions, and external dependencies await checker support.
+
 ---
+
 
 ## Core Idea
 
@@ -35,8 +53,9 @@ logos.theorem(
 )
 ```
 
-If the proof is wrong, `LogosProofError` is raised immediately. If it passes,
-the theorem is registered as a trusted axiom you can build on.
+`LogosProofError` reports rejected evidence. A successful portable theorem
+has a verification receipt. Reusing theorems as checked lemmas is part of
+the broader milestone.
 
 ---
 

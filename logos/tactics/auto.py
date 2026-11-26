@@ -4,7 +4,7 @@ import itertools
 from logos.expr import ForallNode, Implies, And, Or, Not
 from logos.goal import Goal
 from logos.helpers import structural_eq
-from logos.kernel import ProofTerm
+from logos.kernel import AndElimL, AndElimR, HypRef, ProofTerm
 from logos.runner import TacticFailed
 
 _counter = itertools.count()
@@ -13,6 +13,18 @@ _counter = itertools.count()
 def _fresh() -> str:
     """Globally unique hypothesis name for auto-introduced variables."""
     return f"_a{next(_counter)}"
+
+
+def _project(goal, proposition, evidence):
+    """Look for a goal among the conjuncts of an actual hypothesis."""
+    if structural_eq(goal, proposition):
+        return evidence
+    if isinstance(proposition, And):
+        return (
+            _project(goal, proposition.left, AndElimL(evidence))
+            or _project(goal, proposition.right, AndElimR(evidence))
+        )
+    return None
 
 
 def auto(*hints, depth: int = 5, timeout: float | None = None):
@@ -62,6 +74,11 @@ def auto(*hints, depth: int = 5, timeout: float | None = None):
 
     def _auto(goal: Goal, d: int) -> ProofTerm:
         _check_time()
+
+        for name, hyp in goal.context.items():
+            evidence = _project(goal.statement, hyp, HypRef(name))
+            if evidence is not None:
+                return evidence
 
         # ── Preprocess: eagerly flatten And hypotheses ───────────────────
         # Terminates because each And hyp is removed before the two parts are added.

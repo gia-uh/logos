@@ -71,10 +71,10 @@ def apply(ref):
 
     ref can be:
     - str: local hypothesis name only
-    - Axiom or Theorem object: use ref.statement directly
+    - Axiom object: generate an external proof term for a tactic preview
     """
     def tactic(goal: Goal):
-        from logos.theorem import Theorem, Axiom as LogosAxiom, check as logos_check, LogosProofError
+        from logos.theorem import Theorem, Axiom as LogosAxiom
 
         if isinstance(ref, str):
             # Local hypothesis only
@@ -82,17 +82,13 @@ def apply(ref):
                 raise TacticFailed(f"apply '{ref}': not in local context")
             stmt = goal.context[ref]
             proof_base = HypRef(ref)
-        elif isinstance(ref, (LogosAxiom, Theorem)):
-            # Axiom or Theorem object — auto-check uncertified theorems
-            if isinstance(ref, Theorem) and not ref.certified:
-                try:
-                    logos_check(ref)
-                except LogosProofError as e:
-                    raise TacticFailed(f"apply: dependency '{ref.name}' failed: {e}") from e
+        elif isinstance(ref, Theorem):
+            raise TacticFailed(f"apply: portable theorem dependency '{ref.name}' is unsupported")
+        elif isinstance(ref, LogosAxiom):
             stmt = ref.statement
             proof_base = KernelAxiom(ref.name)
         else:
-            raise TacticFailed(f"apply: expected str, Axiom, or Theorem, got {type(ref).__name__!r}")
+            raise TacticFailed(f"apply: expected str or Axiom, got {type(ref).__name__!r}")
 
         # Direct structural match
         if structural_eq(stmt, goal.statement):

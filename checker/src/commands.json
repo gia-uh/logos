@@ -1,0 +1,64 @@
+{
+  "protocol_version": 1,
+  "proof_formats": ["logos-proof-v1"],
+  "theories": ["logos-core-v1"],
+  "commands": {
+    "--help": {"usage": "logos --help", "output": "Usage, exit codes and runnable examples."},
+    "--version": {"usage": "logos --version", "output": "Installed checker version."},
+    "commands": {"usage": "logos commands --json", "output": "This versioned command description."},
+    "example": {
+      "usage": "logos example",
+      "output": "Writes authorization.logos and authorization.py in the current directory.",
+      "python_prerequisites": "Python 3.12+, logos-ai wheel, and the logos executable on PATH."
+    },
+    "check": {
+      "usage": "logos check [--json] [--deny-custom-axioms] <FILE>",
+      "arguments": {"FILE": "UTF-8 proof path or - for standard input"},
+      "flags": {
+        "--json": "Emit the versioned JSON result.",
+        "--deny-custom-axioms": "Require zero custom axioms. All dependencies are unsupported in this fragment."
+      },
+      "success": {
+        "protocol_version": "integer",
+        "status": "verified",
+        "artifact_sha256": "lowercase hex SHA-256 of the checked file bytes",
+        "format": "proof format ID",
+        "theory": "core theory ID",
+        "unverified_author_label": "optional author-provided string or null",
+        "declarations": "array of {id, name, sort}",
+        "statement": "derived proposition tree with declaration IDs",
+        "statement_text": "human-readable derived proposition",
+        "custom_axioms": "array of used custom axiom propositions"
+      }
+    },
+    "inspect": {
+      "usage": "logos inspect [--json] [--deny-custom-axioms] <FILE>",
+      "arguments": {"FILE": "UTF-8 proof path or - for standard input"},
+      "flags": {
+        "--json": "Emit the versioned JSON result.",
+        "--deny-custom-axioms": "Require zero custom axioms. All dependencies are unsupported in this fragment."
+      },
+      "success": "All check fields plus steps, in premise-first order.",
+      "steps": {
+        "id": "structural path",
+        "rule": "checker rule tag or local_assumption",
+        "premises": "array of earlier step IDs",
+        "conclusion": "derived proposition tree",
+        "conclusion_text": "human-readable proposition",
+        "binder": "hypothesis binder name, when applicable",
+        "discharged": "local assumption step ID, when applicable"
+      }
+    }
+  },
+  "exit_codes": {
+    "0": "Success",
+    "1": "Verification rejected or I/O failed",
+    "2": "Invalid command or arguments"
+  },
+  "json_failure": {
+    "stream": "stderr",
+    "protocol_version": "integer",
+    "status": "error",
+    "error": "diagnostic string"
+  }
+}

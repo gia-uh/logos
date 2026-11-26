@@ -1,0 +1,59 @@
+{
+  "format": "logos-proof-v1",
+  "theory": "logos-core-v1",
+  "name": "authorization",
+  "declarations": [
+    {
+      "id": "p1",
+      "name": "Authenticated",
+      "sort": "prop"
+    },
+    {
+      "id": "p2",
+      "name": "Authorized",
+      "sort": "prop"
+    }
+  ],
+  "custom_axioms": [],
+  "lemmas": [],
+  "target": {
+    "tag": "implies",
+    "left": {
+      "tag": "and",
+      "left": {
+        "tag": "symbol",
+        "id": "p1"
+      },
+      "right": {
+        "tag": "symbol",
+        "id": "p2"
+      }
+    },
+    "right": {
+      "tag": "symbol",
+      "id": "p2"
+    }
+  },
+  "proof": {
+    "tag": "implies_intro",
+    "binder": "h",
+    "premise": {
+      "tag": "and",
+      "left": {
+        "tag": "symbol",
+        "id": "p1"
+      },
+      "right": {
+        "tag": "symbol",
+        "id": "p2"
+      }
+    },
+    "body": {
+      "tag": "and_elim_r",
+      "proof": {
+        "tag": "hyp_ref",
+        "binder": "missing"
+      }
+    }
+  }
+}
