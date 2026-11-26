@@ -16,6 +16,7 @@ const ARITHMETIC_EXAMPLE: &str = include_str!("../examples/arithmetic.py");
 const ARITHMETIC_FIXTURE: &str = include_str!("../tests/fixtures/portable/arithmetic.logos");
 const DEPENDENCY_EXAMPLE: &str = include_str!("../examples/dependencies.py");
 const DEPENDENCY_FIXTURE: &str = include_str!("../tests/fixtures/portable/dependencies.logos");
+const KNIGHTS_KNAVES_EXAMPLE: &str = include_str!("../examples/solve_knights_knaves.py");
 const FIXTURE: &str = include_str!("../tests/fixtures/portable/authorization.logos");
 
 #[derive(Serialize)]
@@ -89,6 +90,9 @@ fn run(args: &[String]) -> Result<(), Failure> {
             ("dependencies.logos", DEPENDENCY_FIXTURE),
             ("dependencies.py", DEPENDENCY_EXAMPLE),
         ])?,
+        [cmd, selection] if cmd == "example" && selection == "knights-knaves" => {
+            emit_example([("solve_knights_knaves.py", KNIGHTS_KNAVES_EXAMPLE)])?
+        }
         [cmd, flag]
             if matches!(cmd.as_str(), "check" | "inspect" | "example" | "commands")
                 && matches!(flag.as_str(), "--help" | "-h") =>
@@ -103,7 +107,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
     Ok(())
 }
 
-fn emit_example(files: [(&str, &str); 2]) -> Result<(), Failure> {
+fn emit_example<const N: usize>(files: [(&str, &str); N]) -> Result<(), Failure> {
     for (name, _) in files {
         if Path::new(name).symlink_metadata().is_ok() {
             return Err(Failure::Operation(format!("{name} already exists")));

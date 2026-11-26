@@ -39,6 +39,22 @@ logos inspect authored-dependencies.logos
 The emitted `dependencies.logos` can also be replayed with the checker alone.
 Default verification accepts conditional proofs. `logos check --strict dependencies.logos` exits 3 and prints the assumption and its proof path.
 
+To solve a Knights and Knaves puzzle, describe the inhabitants and what they say:
+
+```python
+from logos.domains.logic_puzzles import KnightsKnaves
+
+puzzle = KnightsKnaves()
+a, b = puzzle.entity("A"), puzzle.entity("B")
+a.says(a.is_knave() & b.is_knave())
+print(puzzle.solve())  # {'A': 'knave', 'B': 'knight'}
+puzzle.export_proof("puzzle.logos")
+```
+
+Run `logos example knights-knaves` to get a runnable script, then
+`python solve_knights_knaves.py puzzle.logos` and `logos check --strict puzzle.logos`.
+See [solver statuses and statement syntax](docs/portable-proof-format.md#knights-and-knaves-example).
+
 For integer polynomial proofs and structured inspection:
 
 ```bash

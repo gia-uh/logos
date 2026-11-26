@@ -20,11 +20,12 @@
       "output": "This versioned command description."
     },
     "example": {
-      "usage": "logos example [dependencies|arithmetic]",
+      "usage": "logos example [dependencies|arithmetic|knights-knaves]",
       "output": "Writes authorization.logos and authorization.py in the current directory.",
       "dependencies": "Writes dependencies.logos and dependencies.py in the current directory.",
       "python_prerequisites": "Python 3.12+, logos-ai wheel, and the logos executable on PATH.",
-      "arithmetic": "Writes a ready-to-replay addition commutativity proof and an authoring script for six integer identities."
+      "arithmetic": "Writes a ready-to-replay addition commutativity proof and an authoring script for six integer identities.",
+      "knights-knaves": "Writes solve_knights_knaves.py, which describes a puzzle, calls solve(), and exports a checked proof for strict replay."
     },
     "check": {
       "usage": "logos check [--json] [--strict] <FILE>",

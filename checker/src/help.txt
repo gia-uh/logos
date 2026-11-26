@@ -4,7 +4,7 @@ Usage:
   logos --help
   logos --version
   logos commands --json
-  logos example [dependencies|arithmetic]
+  logos example [dependencies|arithmetic|knights-knaves]
   logos check [--json] [--strict] <FILE>
   logos inspect [--json|--markdown] [--strict] <FILE>
 
@@ -60,3 +60,11 @@ To replay and author integer identities:
 
 To save the checked binomial derivation as GitHub Markdown:
   logos inspect --markdown --strict proofs/binomial_square.logos > proof.md
+
+To solve a Knights and Knaves puzzle from its inhabitants and utterances:
+  logos example knights-knaves
+  python solve_knights_knaves.py puzzle.logos
+  logos check --strict puzzle.logos
+
+Edit the Python example to describe another puzzle. Call solve() for the
+assignments and export_proof(path) to check and export a unique conclusion.

@@ -325,6 +325,35 @@ def knights_knaves(python, cold, recipient, evidence, env, offline):
     shutil.copy2(recipient / filename, evidence / filename)
 
 
+def solve_knights_knaves(cold, recipient, evidence, help_text, env, offline):
+    heading = "To solve a Knights and Knaves puzzle from its inhabitants and utterances:\n"
+    commands = help_text.split(heading)[1].split("\n\n")[0].splitlines()
+    for line in commands:
+        result = run(shlex.split(line), cold, env=env)
+        if line.strip().startswith("python "):
+            assert result.stdout.strip() == "{'A': 'knave', 'B': 'knight'}"
+    (cold / "solve_knights_knaves.py").unlink()
+    filename = "puzzle.logos"
+    shutil.move(cold / filename, recipient / filename)
+    check = replay(recipient, "check", "--json", "--strict", filename, offline=offline)
+    solved = json.loads(check.stdout)
+    manual = json.loads((evidence / "knights_knaves.json").read_text())
+    assert solved["statement"] == manual["statement"]
+    assert solved["custom_axioms"] == []
+
+    bundle = json.loads((recipient / filename).read_text())
+    head = bundle["target"]
+    while head["right"]["tag"] == "implies":
+        head = head["right"]
+    head["right"] = head["right"]["left"]
+    wrong = "wrong-solved-puzzle.logos"
+    (recipient / wrong).write_text(json.dumps(bundle))
+    rejection = replay(recipient, "check", "--json", "--strict", wrong, offline=offline, code=1)
+    assert "proof conclusion mismatch" in json.loads(rejection.stderr)["error"]
+    for artifact in (filename, wrong):
+        shutil.copy2(recipient / artifact, evidence / artifact)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
@@ -499,7 +528,10 @@ def main():
         print(f"Knights and Knaves · check scoped cases in {isolation}")
         knights_knaves(python, cold, recipient, evidence, env, options.offline)
 
-    print("8 acceptance stages exercised")
+        print(f"Domain solve · discover from installed help, then {isolation}")
+        solve_knights_knaves(cold, recipient, evidence, help_text, env, options.offline)
+
+    print("9 acceptance stages exercised")
 
 
 if __name__ == "__main__":

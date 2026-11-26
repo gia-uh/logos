@@ -169,22 +169,45 @@ and derives the other conclusion.
 
 ## Knights and Knaves example
 
-With the checker on PATH and the wheel installed, run the Python example
-from the repository root.
+Install the Python wheel and put the checker on PATH. From an empty directory:
 
 ```bash
-python checker/examples/knights_knaves.py knights_knaves.logos
-logos check --strict knights_knaves.logos
-logos inspect --json --strict knights_knaves.logos
-logos inspect --markdown --strict knights_knaves.logos > knights_knaves.md
+logos example knights-knaves
+python solve_knights_knaves.py puzzle.logos
+logos check --strict puzzle.logos
+logos inspect --markdown --strict puzzle.logos > puzzle.md
 ```
 
-The example uses `KnightsKnaves.theorem` to put role exhaustivity,
-role exclusivity, and the two implications governing A's utterance in
-the theorem's antecedents. Under these eight premises, A's assertion
-“We are both knaves” entails that A is a knave and B is a knight.
-Strict checking reports zero custom axioms because all eight premises
-are local and discharged.
+The [caller example](../checker/examples/solve_knights_knaves.py) declares
+inhabitants with `entity(name)` and records each utterance with `speaker.says(expr)`.
+Each statement can use the puzzle's `is_knight()` and `is_knave()` propositions,
+`&`, `|`, `~`, `>>` (implication), and `logos.lit(False)`. You can record several
+statements for the same speaker.
+
+`puzzle.solve()` searches assignments and prepares evidence for a unique result.
+`puzzle.solve_status` describes its return value.
+
+| Status | Return value |
+| --- | --- |
+| `unique` | One dictionary from inhabitant names to roles |
+| `underdetermined` | A list of all satisfying assignments |
+| `inconsistent` | `None` after finding zero satisfying assignments |
+| `unknown` | `None` after exhausting the time budget |
+
+Use `solve(timeout=seconds)` to change the default half-second search and evidence
+construction budget. Use `timeout=None` for an unbounded search. Adding an
+inhabitant or an utterance invalidates the previous result.
+
+`puzzle.export_proof(path)` sends the generated evidence for a unique result
+to the Rust checker and writes the verified bytes. The proof derives the
+assignment from explicit exhaustivity, exclusivity and utterance premises.
+Strict replay reports zero custom axioms because these premises are local and
+discharged. Model witnesses come from Python search. The checker verifies the
+conditional derivation, while model existence is a separate claim.
+
+For domain authors, the [manual proof example](../checker/examples/knights_knaves.py)
+shows how to attach evidence to `KnightsKnaves.theorem(conclusion)` using the
+same premises and proof format.
 
 ## Authoring and certification
 
