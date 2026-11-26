@@ -83,6 +83,13 @@
         "conclusion_conversion": "optional {explanation, left, right, common_normal_form} for the verified target or lemma root"
       },
       "text": "Default output prints each checked step with an explanation and premise links.",
+      "human_proof_guidance": [
+        "Use inspect to understand and check the argument.",
+        "State the claim and introduce variables and hypotheses in words.",
+        "Group routine rewrites into equations and name mathematical laws when useful.",
+        "Explain the final conversion naturally and distinguish assumptions from checked lemmas.",
+        "Omit internal step IDs, binder IDs, artifact names and hashes from the human proof. Keep the exact trace and identifiers in --json for auditing."
+      ],
       "claim": "{statement_field, proof_step, sort}; links the verified target statement to its derivation.",
       "contexts": "Array of {id, variables, hypotheses}. Variables are oldest-first {id, name, sort}; bound index 0 is the last. Hypotheses are active {id, binder, binder_depth} references to local_assumption steps."
     }

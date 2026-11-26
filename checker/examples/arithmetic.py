@@ -1,4 +1,8 @@
-"""Author integer identities with the installed checker, then export their proofs."""
+"""Author integer identities with the installed checker, then export their proofs.
+
+Read a derivation with logos inspect --markdown. Follow logos inspect --help
+when turning the checked derivation into a proof for a reader.
+"""
 import sys
 from pathlib import Path
 

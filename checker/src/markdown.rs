@@ -1,5 +1,5 @@
 use logos_checker::{Judgment, Proposition, Sort, Verified};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
 pub fn render(checked: &Verified) -> String {
@@ -8,10 +8,32 @@ pub fn render(checked: &Verified) -> String {
     let steps: HashMap<_, _> = checked
         .steps
         .iter()
-        .enumerate()
-        .map(|(index, step)| (step.id.as_str(), index + 1))
+        .map(|step| (step.id.as_str(), step))
         .collect();
-    let step_number = |id: &str| steps[id];
+    let names = |context_id: usize| {
+        math.scoped_names(
+            checked.contexts[context_id]
+                .variables
+                .iter()
+                .map(|var| var.name.as_str()),
+        )
+    };
+    let mut equation = HashMap::new();
+    let mut next_number = 1;
+    for step in &checked.steps {
+        if matches!(step.rule, "block" | "step_ref") && step.conclusion_conversion.is_none() {
+            let premise = steps[step.premises[0].as_str()];
+            if math.formula(&step.conclusion, &names(step.context_id))
+                == math.formula(&premise.conclusion, &names(premise.context_id))
+            {
+                equation.insert(step.id.as_str(), equation[premise.id.as_str()]);
+                continue;
+            }
+        }
+        equation.insert(step.id.as_str(), next_number);
+        next_number += 1;
+    }
+    let number = |id: &str| equation[id];
     let mut out = String::new();
     writeln!(out, "# Checked proof\n").unwrap();
     let verdict = if judgment.status == "policy_denied" {
@@ -21,10 +43,6 @@ pub fn render(checked: &Verified) -> String {
     };
     writeln!(out, "{verdict}\n").unwrap();
     writeln!(out, "- Theory: `{}`", judgment.theory).unwrap();
-    writeln!(out, "- Artifact SHA-256: `{}`", judgment.artifact_sha256).unwrap();
-    if let Some(label) = &judgment.unverified_author_label {
-        writeln!(out, "- Unverified author label: {}", code(label)).unwrap();
-    }
     writeln!(out, "\n## Theorem").unwrap();
     display(&mut out, &math.formula(&judgment.statement, &[]));
 
@@ -33,10 +51,9 @@ pub fn render(checked: &Verified) -> String {
     for symbol in &judgment.declarations {
         writeln!(
             out,
-            "- Free symbol $`{} \\in {}`$ (declaration {}).",
+            "- Free symbol $`{} \\in {}`$.",
             math.symbols[symbol.id.as_str()],
             domain(symbol.sort),
-            code(&symbol.id),
         )
         .unwrap();
     }
@@ -57,8 +74,7 @@ pub fn render(checked: &Verified) -> String {
         if let Some(body) = &function.body {
             writeln!(
                 out,
-                "- Transparent definition {} with result type $`{}`$.",
-                code(&function.id),
+                "- Transparent definition of $`{label}`$ with result type $`{}`$.",
                 domain(function.result)
             )
             .unwrap();
@@ -69,9 +85,8 @@ pub fn render(checked: &Verified) -> String {
         } else {
             writeln!(
                 out,
-                "- Opaque function $`{call}`$ with result type $`{}`$ (declaration {}).",
-                domain(function.result),
-                code(&function.id)
+                "- Opaque function $`{call}`$ with result type $`{}`$.",
+                domain(function.result)
             )
             .unwrap();
         }
@@ -80,93 +95,92 @@ pub fn render(checked: &Verified) -> String {
     if judgment.custom_axioms.is_empty() {
         writeln!(out, "Uses zero custom axioms.\n").unwrap();
     }
+    let assumptions: HashMap<_, _> = judgment
+        .custom_axioms
+        .iter()
+        .enumerate()
+        .map(|(index, axiom)| (axiom.id.as_str(), index + 1))
+        .collect();
     for axiom in &judgment.custom_axioms {
-        let first_use = axiom.path.last().expect("checker recorded the axiom use");
-        writeln!(
-            out,
-            "Assume {}. The checked trace uses it at Step {}.",
-            code(&axiom.id),
-            step_number(first_use),
-        )
-        .unwrap();
+        writeln!(out, "**Assumption {}.**", assumptions[axiom.id.as_str()]).unwrap();
         display(&mut out, &math.formula(&axiom.statement, &[]));
     }
 
-    writeln!(out, "## Proof scopes\n").unwrap();
-    for scope in &checked.contexts {
-        let variables = scoped_names(scope.variables.iter().map(|var| var.name.as_str()));
-        let mut active: Vec<_> = scope
+    writeln!(out, "## Proof\n").unwrap();
+    let mut next_display = 1;
+    let mut introduced = HashSet::new();
+    for step in &checked.steps {
+        let label = number(&step.id);
+        if label != next_display {
+            continue;
+        }
+        next_display += 1;
+        let vars = names(step.context_id);
+        let scope = &checked.contexts[step.context_id];
+        let arbitrary: Vec<_> = scope
             .variables
             .iter()
-            .zip(&variables)
-            .map(|(var, latex)| format!("$`{latex} \\in {}`$", domain(var.sort)))
+            .zip(&vars)
+            .filter(|(var, _)| introduced.insert(var.id.as_str()))
+            .map(|(var, name)| format!("$`{name} \\in {}`$", domain(var.sort)))
             .collect();
-        active.extend(
-            scope
-                .hypotheses
-                .iter()
-                .map(|hyp| format!("hypothesis from Step {}", step_number(&hyp.id))),
-        );
-        if active.is_empty() {
-            active.push("no local variables or hypotheses".into());
+        if !arbitrary.is_empty() {
+            writeln!(out, "Let {} be arbitrary.\n", arbitrary.join(" and ")).unwrap();
         }
-        writeln!(out, "- Scope {}: {}.", scope.id + 1, active.join(", ")).unwrap();
-    }
-    writeln!(out, "\n## Proof steps\n").unwrap();
-    for (index, step) in checked.steps.iter().enumerate() {
-        let scope = &checked.contexts[step.context_id];
-        let vars = scoped_names(scope.variables.iter().map(|var| var.name.as_str()));
-        writeln!(
-            out,
-            "**Step {}** (scope {}). {}",
-            index + 1,
-            scope.id + 1,
-            step.explanation,
-        )
-        .unwrap();
-        if !step.premises.is_empty() {
-            let premises = step
-                .premises
-                .iter()
-                .map(|id| step_number(id).to_string())
-                .collect::<Vec<_>>();
-            writeln!(out, " Premises: {}.", premises.join(", ")).unwrap();
-        }
-        if let Some(id) = &step.discharged {
-            writeln!(
-                out,
-                " Discharges the hypothesis introduced at Step {}.",
-                step_number(id)
-            )
-            .unwrap();
-        }
-        if let Some(id) = &step.introduced_variable {
-            let body = &checked.steps[step_number(&step.premises[0]) - 1];
+        let generalization = step.introduced_variable.as_ref().map(|id| {
+            let body = steps[step.premises[0].as_str()];
             let body_scope = &checked.contexts[body.context_id];
             let pos = body_scope
                 .variables
                 .iter()
                 .position(|var| &var.id == id)
                 .expect("introduced variable is in the body scope");
-            let names = scoped_names(body_scope.variables.iter().map(|var| var.name.as_str()));
-            writeln!(
-                out,
-                " The arbitrary variable $`{} \\in {}`$ was introduced in Step {}'s scope.",
-                names[pos],
-                domain(body_scope.variables[pos].sort),
-                step_number(&body.id)
-            )
-            .unwrap();
+            let name = names(body.context_id).swap_remove(pos);
+            if introduced.insert(id.as_str()) {
+                writeln!(
+                    out,
+                    "Take $`{name} \\in {}`$ arbitrary.\n",
+                    domain(body_scope.variables[pos].sort)
+                )
+                .unwrap();
+            }
+            format!("Generalize over the arbitrary variable $`{name}`$.")
+        });
+
+        let explanation = match step.rule {
+            "local_assumption" => "Assume the following proposition for the implication.",
+            "forall_intro" => generalization
+                .as_deref()
+                .expect("checked universal introduction"),
+            "block" | "step_ref" => "Use the earlier derivation.",
+            "trans" => "Combine the equalities by transitivity.",
+            _ => step.explanation,
+        };
+        write!(out, "**({label})** {explanation}").unwrap();
+        if !step.premises.is_empty() {
+            let premises = step
+                .premises
+                .iter()
+                .map(|id| format!("({})", number(id)))
+                .collect::<Vec<_>>();
+            write!(out, " From {}.", premises.join(" and ")).unwrap();
+        }
+        if let Some(id) = &step.discharged {
+            write!(out, " Discharge the hypothesis ({}) above.", number(id)).unwrap();
         }
         if let Some(provenance) = &step.provenance {
             match provenance.kind {
-                "custom_axiom" => writeln!(out, " Custom axiom {}.", code(&provenance.id)).unwrap(),
-                "checked_lemma" => {
-                    writeln!(out, " Checked lemma {}.", code(&provenance.id)).unwrap()
-                }
+                "custom_axiom" => write!(
+                    out,
+                    " Use Assumption {}.",
+                    assumptions[provenance.id.as_str()]
+                )
+                .unwrap(),
+                "checked_lemma" => write!(out, " This uses the earlier checked lemma.").unwrap(),
                 _ => {}
             }
         }
+        writeln!(out).unwrap();
         if let Some(law) = &step.law {
             let substitutions = law
                 .substitution
@@ -181,8 +195,7 @@ pub fn render(checked: &Verified) -> String {
                 .collect::<Vec<_>>();
             writeln!(
                 out,
-                " Core law {} with $`{}`$.",
-                code(&law.id),
+                " Substitute $`{}`$ into the law.",
                 substitutions.join(", ")
             )
             .unwrap();
@@ -212,7 +225,24 @@ pub fn render(checked: &Verified) -> String {
             )
             .unwrap();
         }
-        display(&mut out, &math.formula(&step.conclusion, &vars));
+        let conclusion = math.formula(&step.conclusion, &vars);
+        let calculation = if step.rule == "trans" {
+            let first = steps[step.premises[0].as_str()];
+            match (&step.conclusion, &first.conclusion) {
+                (Proposition::Eq { left, right }, Proposition::Eq { right: middle, .. }) => {
+                    let left = math.formula(left, &vars);
+                    let middle = math.formula(middle, &vars);
+                    let right = math.formula(right, &vars);
+                    format!(
+                        "\\begin{{aligned}}\n{left} &= {middle} \\\\\n&= {right}\n\\end{{aligned}}"
+                    )
+                }
+                _ => conclusion,
+            }
+        } else {
+            conclusion
+        };
+        display(&mut out, &calculation);
         for (label, left_label, right_label, conversion) in [
             (
                 "Premise conversion",
@@ -233,6 +263,9 @@ pub fn render(checked: &Verified) -> String {
                     "**{label}.** {} The rows show the two compared forms and their checked common normal form.",
                     conversion.explanation,
                 ).unwrap();
+                if has_power(&conversion.left) || has_power(&conversion.right) {
+                    writeln!(out, "In the normal form, natural powers use $`a^0 = 1`$ and $`a^{{n+1}} = a^n \\cdot a`$.").unwrap();
+                }
                 let left = math.formula(&conversion.left, &vars);
                 let right = math.formula(&conversion.right, &vars);
                 let normal = math.formula(&conversion.common_normal_form, &vars);
@@ -253,13 +286,29 @@ pub fn render(checked: &Verified) -> String {
     };
     writeln!(
         out,
-        "The theorem follows from Step {}{}.",
-        step_number("proof"),
+        "The conclusion follows from ({}){}.",
+        number("proof"),
         condition
     )
     .unwrap();
     display(&mut out, &math.formula(&judgment.statement, &[]));
     out
+}
+
+fn has_power(expr: &Proposition) -> bool {
+    use Proposition::*;
+    match expr {
+        Pow { .. } => true,
+        Add { left, right }
+        | Sub { left, right }
+        | Mul { left, right }
+        | Eq { left, right }
+        | And { left, right }
+        | Implies { left, right } => has_power(left) || has_power(right),
+        Forall { body, .. } | Neg { operand: body } => has_power(body),
+        App { args, .. } => args.iter().any(has_power),
+        _ => false,
+    }
 }
 
 fn display(out: &mut String, math: &str) {
@@ -273,24 +322,7 @@ fn domain(sort: Sort) -> &'static str {
     }
 }
 
-// Code spans and math have different escaping rules. Encode characters outside
-// their safe alphabets with their Unicode code points.
-fn code(label: &str) -> String {
-    let mut text = String::from("`");
-    for c in label.chars() {
-        if c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | ' ') {
-            text.push(c);
-        } else {
-            write!(text, "[U+{:04X}]", c as u32).unwrap();
-        }
-    }
-    if label.is_empty() {
-        text.push_str("(empty)");
-    }
-    text.push('`');
-    text
-}
-
+// Escape math labels before adding them to Markdown math delimiters.
 fn name(label: &str) -> String {
     if label.len() == 1 && label.as_bytes()[0].is_ascii_alphabetic() {
         return label.into();
@@ -312,55 +344,53 @@ fn name(label: &str) -> String {
     latex
 }
 
-fn push_name(vars: &mut Vec<String>, label: &str) {
+fn push_name(vars: &mut Vec<String>, label: &str, reserved: &[String]) {
     let base = name(label);
     let mut unique = base.clone();
     let mut suffix = 2;
-    while vars.contains(&unique) {
+    while vars.contains(&unique) || reserved.contains(&unique) {
         unique = format!("{base}_{{{suffix}}}");
         suffix += 1;
     }
     vars.push(unique);
 }
 
-fn scoped_names<'a>(labels: impl Iterator<Item = &'a str>) -> Vec<String> {
-    let mut vars = Vec::new();
-    for label in labels {
-        push_name(&mut vars, label);
-    }
-    vars
-}
-
 struct Math<'a> {
     symbols: HashMap<&'a str, String>,
     functions: HashMap<&'a str, String>,
+    reserved: Vec<String>,
 }
 
 impl<'a> Math<'a> {
     fn new(judgment: &'a Judgment) -> Self {
+        let mut reserved = Vec::new();
+        let mut assign = |label: &str| {
+            push_name(&mut reserved, label, &[]);
+            reserved.last().unwrap().clone()
+        };
         let symbols = judgment
             .declarations
             .iter()
-            .enumerate()
-            .map(|(index, item)| {
-                (
-                    item.id.as_str(),
-                    format!("{}_{{s{}}}", name(&item.name), index + 1),
-                )
-            })
+            .map(|item| (item.id.as_str(), assign(&item.name)))
             .collect();
         let functions = judgment
             .functions
             .iter()
-            .enumerate()
-            .map(|(index, item)| {
-                (
-                    item.id.as_str(),
-                    format!("{}_{{f{}}}", name(&item.name), index + 1),
-                )
-            })
+            .map(|item| (item.id.as_str(), assign(&item.name)))
             .collect();
-        Self { symbols, functions }
+        Self {
+            symbols,
+            functions,
+            reserved,
+        }
+    }
+
+    fn scoped_names<'b>(&self, labels: impl Iterator<Item = &'b str>) -> Vec<String> {
+        let mut vars = Vec::new();
+        for label in labels {
+            push_name(&mut vars, label, &self.reserved);
+        }
+        vars
     }
 
     fn formula(&self, formula: &Proposition, vars: &[String]) -> String {
@@ -411,7 +441,7 @@ impl<'a> Math<'a> {
                 );
             }
             Forall { name, sort, body } => {
-                push_name(vars, name);
+                push_name(vars, name, &self.reserved);
                 let label = vars.last().unwrap().clone();
                 let body = self.term(body, vars, false, formal);
                 vars.pop();

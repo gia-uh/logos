@@ -33,9 +33,12 @@ fn renders_typed_commutativity_and_named_substitution() {
     let markdown = String::from_utf8(output.stdout).unwrap();
     assert!(markdown.starts_with("# Checked proof\n"));
     assert!(markdown.contains(r"\forall x \in \mathbb{Z},\quad \forall y \in \mathbb{Z}"));
-    assert!(markdown.contains(r#"Core law `add_comm` with $`a \mapsto y, b \mapsto x`$"#));
+    assert!(markdown.contains(r#"Substitute $`a \mapsto y, b \mapsto x`$ into the law."#));
     assert!(markdown.contains("Uses zero custom axioms."));
-    assert!(markdown.contains("The theorem follows from Step 6."));
+    assert!(markdown.contains("The conclusion follows from (4)."));
+    assert!(markdown.contains("be arbitrary."));
+    assert!(!markdown.contains("proof.body"));
+    assert!(!markdown.contains("earlier checked step in this block"));
     assert!(markdown.contains("\n$$\n"));
 }
 
@@ -45,8 +48,8 @@ fn renders_scoped_hypotheses_and_checked_lemma_provenance() {
     let output = inspect(&["--markdown"], proof);
     assert!(output.status.success());
     let markdown = String::from_utf8(output.stdout).unwrap();
-    assert!(markdown.contains("hypothesis from Step 1"));
-    assert!(markdown.contains("Discharges the hypothesis introduced at Step 1."));
+    assert!(markdown.contains("Assume the following proposition"));
+    assert!(markdown.contains("Discharge the hypothesis (1) above."));
     assert!(markdown.contains(r"\land"));
     assert!(markdown.contains(r"\implies"));
 
@@ -55,8 +58,8 @@ fn renders_scoped_hypotheses_and_checked_lemma_provenance() {
     assert_eq!(output.status.code(), Some(3));
     let markdown = String::from_utf8(output.stdout).unwrap();
     assert!(markdown.contains("Strict policy denied"));
-    assert!(markdown.contains("Assume `A`."));
-    assert!(markdown.contains("Checked lemma `L`."));
+    assert!(markdown.contains("**Assumption 1.**"));
+    assert!(markdown.contains("This uses the earlier checked lemma."));
     assert!(markdown.contains("under the listed custom axioms."));
 }
 
@@ -95,6 +98,6 @@ fn author_labels_and_identifiers_cannot_end_math_or_insert_markup() {
     assert!(!markdown.contains("<script>"));
     assert!(!markdown.contains("\\input"));
     assert!(!markdown.contains("# forged"));
-    assert!(markdown.contains("Unverified author label: `x[U+0060]"));
+    assert!(!markdown.contains("Unverified author label"));
     assert!(markdown.contains(r"\mathrm{x\langle U+0060\rangle"));
 }

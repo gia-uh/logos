@@ -20,6 +20,15 @@ Exit codes: 0 success, 1 invalid proof or I/O failure, 2 usage, 3 strict policy 
 Policy denial prints the used axioms and their checked paths, including with --json.
 Run logos commands --json for the bundle grammar and result fields.
 
+Writing a proof for a reader:
+  Use inspect to understand and check the argument.
+  State the claim, then introduce the variables and hypotheses in words.
+  Group routine rewrites into equations and name mathematical laws when useful.
+  Explain the final conversion in ordinary mathematical language.
+  Distinguish assumptions from results proved by lemmas.
+  Omit internal step IDs, binder IDs, artifact names and hashes from the proof.
+  Use --json for the complete trace and identifiers when auditing the proof.
+
 From an empty directory:
   logos commands --json
   logos example

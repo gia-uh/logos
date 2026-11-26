@@ -210,15 +210,24 @@ def markdown(recipient, evidence, offline):
     declared = r"\text{Declared statement}\quad & "
     assert declared + target_math in square
     assert target_math in square.split("## Conclusion", 1)[1]
-    assert "Core law `distrib`" in square
+    assert r"a^{n+1} = a^n \cdot a" in square
+    assert "Distribute an integer factor across the two summands." in square
+    assert "be arbitrary." in square
+    assert "Combine the equalities by transitivity." in square
+    assert "the same normal form under the core conversion rules" in square
+    for implementation_detail in ("proof.body", ".steps[", "lemma[", "step_ref", "Artifact SHA-256", "context_id"):
+        assert implementation_detail not in square
+    comm = (evidence / "addition_commutes.md").read_text()
+    assert r"a \mapsto y, b \mapsto x" in comm
+    assert "earlier checked step in this block" not in comm
 
     valid = replay(recipient, "inspect", "--markdown", "dependencies.logos",
                    offline=offline, show_output=False)
-    assert "Assume `A`." in valid.stdout and "Checked lemma `L`." in valid.stdout
+    assert "Assumption 1" in valid.stdout and "earlier checked lemma" in valid.stdout
     (evidence / "dependencies.md").write_text(valid.stdout)
     denied = replay(recipient, "inspect", "--markdown", "--strict", "dependencies.logos",
                     offline=offline, code=3, show_output=False)
-    assert "Strict policy denied" in denied.stdout and "Assume `A`." in denied.stdout
+    assert "Strict policy denied" in denied.stdout and "Assumption 1" in denied.stdout
     (evidence / "strict-denied.md").write_text(denied.stdout)
 
     for filename in ("wrong-reflexivity.logos", "wrong-constant.logos"):
@@ -296,6 +305,11 @@ def main():
         cold = clean / "cold"
         cold.mkdir()
         help_text = run(["logos", "--help"], cold, env=env).stdout
+        inspect_help = run(["logos", "inspect", "--help"], cold, env=env).stdout
+        assert "State the claim, then introduce the variables and hypotheses" in inspect_help
+        assert "Group routine rewrites into equations" in inspect_help
+        assert "Explain the final conversion" in inspect_help
+        assert "Omit internal step IDs" in inspect_help
         commands = help_text.split("From an empty directory:\n")[1].split("\n\n")[0].splitlines()
         author_commands = help_text.split("then run:\n")[1].split("\n\n")[0].splitlines()
         for line in [*commands, *author_commands]:
@@ -305,6 +319,8 @@ def main():
                 assert contract["protocol_version"] == 1
                 assert contract["proof_formats"] == ["logos-proof-v1"]
                 assert "steps" in contract["commands"]["inspect"]
+                guidance = " ".join(contract["commands"]["inspect"]["human_proof_guidance"])
+                assert "Group routine rewrites" in guidance and "Omit internal step IDs" in guidance
                 assert "1" in contract["exit_codes"]
                 assert "3" in contract["exit_codes"]
                 for operation in ("check", "inspect"):

@@ -124,12 +124,20 @@ signatures, and `custom_axioms` for assumptions.
 
 Use `logos inspect --markdown --strict FILE > proof.md` to save a
 deterministic GitHub Markdown derivation with LaTeX math. The document
-renders the verified target, definitions, assumptions, scopes and numbered
-proof steps. Conversion rows show the compared expressions and their
+introduces arbitrary variables and local hypotheses in prose, then groups
+rewrites into equations with short local references. It distinguishes
+assumptions from previously checked lemmas. Conversion rows show the compared expressions and their
 checked common normal form. With `--strict`, a valid conditional proof
 produces a document marked as denied and exits 3. An invalid proof produces
 a diagnostic on stderr and no document. `--markdown` and `--json` are
 mutually exclusive.
+
+When writing your own proof from inspection, state the claim and introduce
+the variables and hypotheses in words. Group routine rewrites into
+equations and name the laws that justify them. Explain the final
+conversion using the compared forms and distinguish assumptions from checked
+lemmas. Leave internal step IDs, binder IDs, artifact names and hashes in
+the audit record.
 
 With `--json`, successful judgments and policy denials both go to stdout.
 Their statuses are `verified` and `policy_denied`, respectively. Policy denial
