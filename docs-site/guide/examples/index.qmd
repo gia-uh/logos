@@ -4,5 +4,6 @@ title: "Examples"
 
 These examples show logos applied to realistic proof scenarios — the kind of properties you might want to guarantee about production code.
 
-- [Number Theory](number-theory.qmd) — divisibility, parity, basic arithmetic laws
-- [Data Structures](data-structures.qmd) — properties of lists, sorting, accumulator functions
+- [Number Theory](number-theory.qmd) — parity, polynomial identities, and arithmetic proof search
+- [Knights and Knaves](knights-knaves.qmd) — solve and check propositional puzzles
+- [Data Structures](data-structures.qmd) — contracts and identities for pure functions
