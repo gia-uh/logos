@@ -278,7 +278,24 @@ class Ring:
                 return self.chain(self.neg_as_product(operand), self.normalize(Lit(-1) * operand))
             case Sub(left, right):
                 return self.chain(Equation(expr, left + -right), self.normalize(left + -right))
-            case Pow(base, Lit(n)) if type(n) is int and 0 <= n <= 128:
+            case Pow(base, Lit(n)) if type(n) is int and 0 <= n <= 2**32 - 1:
+                if n == 0:
+                    return Equation(expr, Lit(1))
+                normal_base = self.normalize(base)
+                if isinstance(normal_base.right, Lit):
+                    value = normal_base.right.value
+                    # Reject before allocating a result beyond the checker's
+                    # exact-integer budget. The lower bound leaves at most a
+                    # factor of two between the estimate and the actual size.
+                    if (value.bit_length() - 1) * n >= 65_536:
+                        raise TacticFailed("ring: integer power exceeds the size limit")
+                    result = value**n
+                    if result.bit_length() > 65_536:
+                        raise TacticFailed("ring: integer power exceeds the size limit")
+                    lifted = self.lift(lambda term: term**n, normal_base)
+                    return self.chain(lifted, Equation(lifted.right, Lit(result)))
+                if n > 128:
+                    raise TacticFailed("ring: symbolic power exceeds the expansion limit")
                 expanded = Lit(1)
                 for _ in range(n):
                     expanded = expanded * base

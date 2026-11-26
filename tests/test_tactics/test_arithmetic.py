@@ -32,6 +32,11 @@ def test_portable_integer_literal_beyond_python_decimal_string_limit():
     assert logos.check(proof).certified
 
 
+def test_ring_closed_power_uses_exact_integer_conversion():
+    proof = logos.prove((Lit(1) + 1)**256 == Lit(2**256), [ring()])
+    assert logos.check(proof).certified
+
+
 def test_ring_fails_on_inequality(x, y):
     goal = Goal({}, x + y == x - y)   # not a ring identity
     with pytest.raises(TacticFailed, match="ring"):
