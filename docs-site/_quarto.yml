@@ -1,11 +1,13 @@
 project:
   type: website
   output-dir: _site
+  resources:
+    - CNAME
 
 website:
   title: "logos"
   description: "A Lean-style proof kernel for Python"
-  site-url: "https://gia-uh.github.io/logos"
+  site-url: "https://logos.uhgia.org/"
   repo-url: "https://github.com/gia-uh/logos"
   repo-actions: [edit, issue]
   favicon: "favicon.ico"
