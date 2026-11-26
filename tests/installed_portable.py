@@ -1,4 +1,8 @@
-"""Exercise P1–P4 with an installed binary, wheel, and empty directories."""
+"""Exercise P1–P4 with an installed binary, wheel, and empty directories.
+
+Authoring is a scripted smoke: the test writes its own caller code. An
+independent recipient trial is separate and is not claimed here.
+"""
 import argparse
 import json
 import os
@@ -75,6 +79,12 @@ def main():
     evidence = options.evidence.absolute()
     evidence.mkdir(parents=True, exist_ok=True)
     env = {"PATH": os.pathsep.join(map(str, [binary.parent, python.parent]))}
+    isolation = (
+        "network-isolated replay (bubblewrap: unshared network, empty filesystem)"
+        if options.offline
+        else "clean-PATH replay (empty PATH, shared filesystem and network)"
+    )
+    print(f"Installed smoke · scripted authoring, {isolation}; independent trial is separate")
 
     with tempfile.TemporaryDirectory(prefix="logos-installed-") as temp:
         clean = Path(temp)
@@ -85,7 +95,7 @@ def main():
         shutil.copy2(binary, recipient / "logos")
         shutil.copy2(FIXTURES / "authorization.logos", recipient / "authorization.logos")
 
-        print("P1 · offline replay")
+        print(f"P1 · {isolation}")
         verdict = replay(recipient, "check", "authorization.logos", offline=options.offline)
         assert f"Statement   {EXPECTED}" in verdict.stdout
         assert "Theory      logos-core-v1" in verdict.stdout
@@ -140,7 +150,7 @@ def main():
             cold, env=env,
         )
 
-        print("P3 · remove the author module before offline replay")
+        print(f"P3 · remove the author module before {isolation}")
         (cold / "authorization.py").unlink()
         shutil.move(cold / "authored.logos", recipient / "authored.logos")
         authored = json.loads(replay(
@@ -155,7 +165,7 @@ def main():
         shutil.copy2(recipient / "logos", p5 / "logos")
         shutil.copy2(recipient / "authored.logos", p5 / "authorization.logos")
 
-        print("P4 · custom authoring after discovery")
+        print("P4 · scripted author smoke after discovery (not an independent trial)")
         (cold / "cold_author.py").write_text(COLD_AUTHOR)
         run(["python", "cold_author.py"], cold, env=env)
         checked = json.loads(run(["logos", "inspect", "--json", "cold.logos"], cold, env=env).stdout)
