@@ -2,7 +2,7 @@
 title: "Tactics Overview"
 ---
 
-A **tactic** is a Python function that transforms a proof goal. Tactics are **untrusted** — they produce proof terms, and the kernel validates every term before the proof is accepted.
+A **tactic** is a Python function that transforms a proof goal and produces candidate evidence. The Rust checker validates portable evidence before Logos certifies a theorem.
 
 ## The Goal
 
@@ -31,7 +31,7 @@ Goal → ProofTerm                          # closes the goal
 Goal → (list[Goal], compose_fn)           # splits into subgoals
 ```
 
-- **Closing**: returns a `ProofTerm` directly. The proof is complete.
+- **Closing**: returns a `ProofTerm` directly for the checker to verify.
 - **Splitting**: returns `(subgoals, compose_fn)`. Each subgoal must be proved; `compose_fn` assembles the final proof from the subgoal proofs.
 
 ## The Tactic Runner

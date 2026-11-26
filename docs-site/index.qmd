@@ -3,7 +3,7 @@ title: "logos"
 subtitle: "A Lean-style proof kernel for Python"
 ---
 
-**logos** lets you prove properties of your Python code using a composable tactic system backed by a small trusted kernel. Write propositions as Python expressions, then discharge them with tactics — or with an LLM oracle whose output the kernel validates.
+**logos** lets you write propositions as Python expressions and build proofs with composable tactics. The standalone Rust checker verifies the evidence produced by those tactics.
 
 ```{python}
 import logos
@@ -32,16 +32,21 @@ Tactic layer     ring · linarith · intro · cases · ...  (untrusted)
                            ↓
 Proof terms      Refl · Trans · Subst · ForallIntro · ...
                            ↓
-Kernel (~200 ln) infer() / check()  ←  the only trusted code
+Standalone Rust checker  ←  verifies exported evidence
 ```
 
-The **kernel** is the only trusted code (~200 lines). Tactics are arbitrary Python that produce proof terms — the kernel checks every term structurally. A tactic can even call an LLM: if the LLM produces an invalid proof, the kernel rejects it.
+The checker currently supports propositional logic, universal quantification, and integer polynomial identities. See the [portable proof format](https://github.com/gia-uh/logos/blob/main/docs/portable-proof-format.md#migration-status) for the migration status.
 
 ## Install
 
+From a Logos source checkout, with Python 3.12 or newer and a Rust toolchain:
+
 ```bash
-pip install logos-ai
+cargo install --locked --path checker
+python -m pip install .
 ```
+
+Make sure the installed `logos` binary is on `PATH` so `logos.check` can invoke it.
 
 ## A taste of what you can prove
 
@@ -65,13 +70,13 @@ def double_is_2x(x: int):
 logos.check(double_is_2x.proof(t.intro("x"), t.unfold(double), t.ring()))
 print("Proved: double(x) = 2x")
 
-# 4. Linear arithmetic
+# 4. Reuse the checked theorem at a particular input
 @logos.theorem
-def double_exceeds_x(x: int):
-    return (x > logos.lit(0)) >> (double(x) > x)
+def double_at_seven():
+    return double(logos.lit(7)) == logos.lit(2) * logos.lit(7)
 
-logos.check(double_exceeds_x.proof(t.intro("x", "h"), t.unfold(double), t.linarith()))
-print("Proved: x > 0 → double(x) > x")
+logos.check(double_at_seven.proof(t.apply(double_is_2x)))
+print("Proved: double(7) = 2 × 7")
 ```
 
 ## Next steps

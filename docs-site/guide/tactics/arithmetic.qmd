@@ -7,11 +7,12 @@ Arithmetic tactics prove numeric goals without requiring manual proof steps. The
 ```{python}
 import logos
 import logos.tactics as t
+import pytest
 ```
 
 ## `ring()`
 
-Proves polynomial ring identities over integers and rationals — commutativity, associativity, distributivity, and any combination. Internally normalizes both sides to a canonical sum-of-monomials form and checks equality.
+Proves polynomial ring identities over integers — commutativity, associativity, distributivity, and any combination. Internally normalizes both sides to a canonical sum-of-monomials form and checks equality.
 
 ```{python}
 x, y, z = logos.vars("x y z", int)
@@ -53,90 +54,53 @@ except LogosProofError as e:
 
 ## `linarith()`
 
-Proves linear arithmetic goals from linear hypotheses. It works by finding a non-negative linear combination of the hypotheses (Farkas' lemma) that implies the goal.
+The Python tactic can generate candidate evidence for linear inequalities. The portable checker does not yet support inequality propositions, so this attempt fails certification:
 
 ```{python}
-x, y = logos.vars("x y", int)
-
-# Simple transitive inequality
-logos.check(logos.prove(
+candidate = logos.prove(
     logos.forall(int, int, lambda x, y:
         (x > logos.lit(0)) >> ((y > x) >> (y > logos.lit(0)))
     ),
     [t.intro("x", "y", "hx", "hxy"), t.linarith()],
-))
-print("x > 0 ∧ y > x → y > 0 ✓")
-
-# Linear combination
-logos.check(logos.prove(
-    logos.forall(int, int, lambda x, y:
-        (x > logos.lit(2)) >> ((y > logos.lit(3)) >> (x + y > logos.lit(5)))
-    ),
-    [t.intro("x", "y", "hx", "hy"), t.linarith()],
-))
-print("x > 2 ∧ y > 3 → x+y > 5 ✓")
-
-# Tighter bound derivation
-logos.check(logos.prove(
-    logos.forall(int, lambda x:
-        (x > logos.lit(10)) >> (x > logos.lit(1))
-    ),
-    [t.intro("x", "h"), t.linarith()],
-))
-print("x > 10 → x > 1 ✓")
+)
+with pytest.raises(LogosProofError, match="unsupported portable proposition or term Gt"):
+    logos.check(candidate)
+assert not candidate.certified
 ```
-
-::: {.callout-note}
-`linarith` uses a simplified Farkas-lemma approach. It handles most common linear reasoning but may not close all valid linear goals. For those cases, try `ring` or break the proof into smaller steps with `intro`/`split`.
-:::
 
 ## `decide()`
 
-Evaluates a ground (variable-free) boolean proposition by computing its value. If it evaluates to `True`, the goal is closed.
+The Python tactic evaluates a ground proposition. Use `ring()` to produce portable evidence for ground integer equalities. The cell below checks both outcomes for the same statement:
 
 ```{python}
-# Ground numeric comparisons
-logos.check(logos.prove(logos.lit(5) > logos.lit(3),  [t.decide()]))
-print("5 > 3 ✓")
+equation = logos.lit(2) * logos.lit(3) == logos.lit(6)
+candidate = logos.prove(equation, [t.decide()])
+with pytest.raises(LogosProofError, match="proof conclusion mismatch"):
+    logos.check(candidate)
+assert not candidate.certified
 
-logos.check(logos.prove(logos.lit(2) * logos.lit(3) == logos.lit(6), [t.decide()]))
+checked = logos.check(logos.prove(equation, [t.ring()]))
+assert checked.certified
 print("2 * 3 = 6 ✓")
-
-logos.check(logos.prove(logos.lit(10) >= logos.lit(10), [t.decide()]))
-print("10 ≥ 10 ✓")
-```
-
-`decide` is most useful after instantiating universally quantified variables to specific values:
-
-```{python}
-logos.check(logos.prove(
-    logos.exists(int, lambda x: x * x == logos.lit(25)),
-    [
-        t.witness(logos.lit(5)),   # x := 5
-        t.decide(),                 # verify 5 * 5 == 25
-    ],
-))
-print("∃x: x² = 25 ✓")
 ```
 
 ## Combining Arithmetic Tactics
 
-Real proofs often combine `ring` and `linarith`:
+Unfold a function definition to expose the polynomial identity:
 
 ```{python}
 @logos.define
 def double(x: int):
     return x + x
 
-# double(x) > x  when  x > 0
 @logos.theorem
-def double_exceeds_input(x: int):
-    return (x > logos.lit(0)) >> (double(x) > x)
+def double_additive(x: int, y: int):
+    return double(x + y) == double(x) + double(y)
 
-logos.check(double_exceeds_input.proof(
-    t.intro("x", "h"),
-    t.unfold(double),   # double(x) → x + x
-    t.linarith(),       # x + x > x follows from x > 0
+logos.check(double_additive.proof(
+    t.intro("x", "y"),
+    t.unfold(double),
+    t.ring(),
 ))
-print("Proved: double(x) > x when x > 0")
+print("Proved: double(x + y) = double(x) + double(y)")
 ```
