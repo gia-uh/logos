@@ -51,6 +51,12 @@ jobs:
         working-directory: docs-site
         run: QUARTO_PYTHON=.venv/bin/python quarto render
 
+      - name: Verify custom domain in the Pages payload
+        working-directory: docs-site
+        run: |
+          diff -u CNAME _site/CNAME
+          grep -F "<loc>https://$(cat _site/CNAME)/reference/api.html</loc>" _site/sitemap.xml
+
       - name: Upload rendered site
         uses: actions/upload-artifact@v4
         with:
