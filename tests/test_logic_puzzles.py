@@ -15,7 +15,7 @@ from logos.domains.logic_puzzles import KnightsKnaves
     (lambda a, b: (a.says(~(a.is_knight() >> b.is_knight()) | ~(b.is_knight() >> a.is_knight())),
                    b.says(a.is_knave())), {"A": "knight", "B": "knave"}),
     # A lies because a contradiction is always false. B's two observations
-    # are both true once A lies. The final negation has open atoms in some cases.
+    # are both true once A lies.
     (lambda a, b: (a.says(a.is_knave() & ~a.is_knave()),
                    b.says(~(a.is_knight() | logos.lit(False))).says(a.is_knave())),
      {"A": "knave", "B": "knight"}),
@@ -105,3 +105,88 @@ def test_unsupported_statements_report_the_expression_or_foreign_atom():
     b.says(a.is_knave())
     with pytest.raises(ValueError, match="A_kv.*must belong to this puzzle"):
         other.solve()
+
+
+def test_guided_cases_compose_with_standard_tactics_and_auto(tmp_path):
+    puzzle = KnightsKnaves()
+    a, b = puzzle.entity("A"), puzzle.entity("B")
+    a.says(a.is_knave() & b.is_knave())
+    claim = a.is_knave() & b.is_knight()
+
+    proof = puzzle.prove(claim, by=[
+        puzzle.cases_on_role(a),
+        [puzzle.use_statements(), puzzle.auto()],
+        [logos.tactics.split(), [logos.tactics.assumption()], [puzzle.auto()]],
+    ])
+    path = tmp_path / "guided.logos"
+    logos.export_proof(proof, path)
+    result = subprocess.run(
+        ["logos", "inspect", "--json", "--strict", str(path)],
+        check=True, capture_output=True, text=True,
+    )
+    trace = json.loads(result.stdout)
+    assert trace["custom_axioms"] == []
+    assert {"or_elim", "implies_elim", "and_intro"} <= {step["rule"] for step in trace["steps"]}
+    assert puzzle.solve() == {"A": "knave", "B": "knight"}
+    puzzle.export_proof(tmp_path / "automatic.logos")
+    automatic = json.loads((tmp_path / "automatic.logos").read_bytes())
+    assert trace["statement"] == automatic["target"]
+
+
+def test_guided_failure_reports_only_the_active_branch():
+    puzzle = KnightsKnaves()
+    a, b = puzzle.entity("A"), puzzle.entity("B")
+    a.says(a.is_knave() & b.is_knave())
+    with pytest.raises(logos.LogosProofError) as raised:
+        puzzle.prove(a.is_knave(), by=[
+            puzzle.cases_on_role(a),
+            [puzzle.use_statements(), logos.tactics.assumption()],
+            [logos.tactics.assumption()],
+        ])
+    message = str(raised.value)
+    assert message == (
+        "Open goal: A is a knave\n"
+        "Local hypotheses:\n"
+        "  role_of_A: A is a knight\n"
+        "  statement_1_by_A: (A is a knave) and (B is a knave)"
+    )
+
+
+def test_guided_auto_distinguishes_entailment_from_underdetermination():
+    puzzle = KnightsKnaves()
+    a, b = puzzle.entity("A"), puzzle.entity("B")
+    a.says(b.is_knight())
+    assert len(puzzle.solve()) == 2
+    assert puzzle.solve_status == "underdetermined"
+
+    same_role = (a.is_knight() & b.is_knight()) | (a.is_knave() & b.is_knave())
+    assert puzzle.prove(same_role, by=[puzzle.auto()]).certified
+
+    with pytest.raises(logos.LogosProofError) as raised:
+        puzzle.prove(a.is_knave(), by=[
+            puzzle.cases_on_role(a), logos.tactics.all_goals(puzzle.auto()),
+        ])
+    message = str(raised.value)
+    assert "Open goal: A is a knave" in message
+    assert "role_of_A: A is a knight" in message
+    assert "A valid assignment leaves the goal false: A is a knight, B is a knight." in message
+
+
+def test_guided_auto_reports_budget_exhaustion():
+    puzzle = KnightsKnaves()
+    a = puzzle.entity("A")
+    a.says(a.is_knight() | a.is_knave())
+    with pytest.raises(logos.LogosProofError, match="Finite search exhausted its time budget"):
+        puzzle.prove(a.is_knight(), by=[puzzle.auto(timeout=0)])
+
+
+def test_guided_proof_can_use_a_lemma(tmp_path):
+    puzzle = KnightsKnaves()
+    a = puzzle.entity("A")
+    claim = a.is_knight() >> a.is_knight()
+    lemma = logos.Theorem(claim, name="role_implies_itself").proof(
+        logos.tactics.intro("role"), logos.tactics.assumption(),
+    )
+    theorem = puzzle.prove(claim, by=[logos.tactics.apply(lemma)])
+    bundle = json.loads(logos.export_proof(theorem, tmp_path / "lemma.logos").artifact)
+    assert [entry["id"] for entry in bundle["lemmas"]] == ["role_implies_itself"]

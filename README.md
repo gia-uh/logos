@@ -53,7 +53,8 @@ puzzle.export_proof("puzzle.logos")
 
 Run `logos example knights-knaves` to get a runnable script, then
 `python solve_knights_knaves.py puzzle.logos` and `logos check --strict puzzle.logos`.
-See [solver statuses and statement syntax](docs/portable-proof-format.md#knights-and-knaves-example).
+The same CLI command includes `guide_knights_knaves.py` for a proof of a chosen
+claim with tactics. See the [domain guide](docs/portable-proof-format.md#knights-and-knaves-example).
 
 For integer polynomial proofs and structured inspection:
 

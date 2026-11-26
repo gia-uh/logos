@@ -68,3 +68,10 @@ To solve a Knights and Knaves puzzle from its inhabitants and utterances:
 
 Edit the Python example to describe another puzzle. Call solve() for the
 assignments and export_proof(path) to check and export a unique conclusion.
+
+To guide a proof of a specific claim in the same puzzle:
+  python guide_knights_knaves.py guided.logos
+  logos check --strict guided.logos
+
+The guided example uses prove(claim, by=[...]), cases_on_role(), and
+use_statements(). Use puzzle.auto() to finish an open proof branch.

@@ -195,15 +195,56 @@ statements for the same speaker.
 | `unknown` | `None` after exhausting the time budget |
 
 Use `solve(timeout=seconds)` to change the default half-second search and evidence
-construction budget. Use `timeout=None` for an unbounded search. Adding an
-inhabitant or an utterance invalidates the previous result.
+construction budget. Use `timeout=None` for an unbounded search. Search and
+evidence size can grow exponentially with inhabitants. Adding an inhabitant or
+an utterance invalidates the previous result.
 
 `puzzle.export_proof(path)` sends the generated evidence for a unique result
 to the Rust checker and writes the verified bytes. The proof derives the
 assignment from explicit exhaustivity, exclusivity and utterance premises.
 Strict replay reports zero custom axioms because these premises are local and
 discharged. Model witnesses come from Python search. The checker verifies the
-conditional derivation, while model existence is a separate claim.
+conditional derivation, while model existence is a separate claim. The checker
+applies its existing proof size and nesting limits when exporting or replaying.
+
+### Guide a proof of a chosen claim
+
+Run `python guide_knights_knaves.py guided.logos` after emitting the examples,
+then `logos check --strict guided.logos`. The [guided script](../checker/examples/guide_knights_knaves.py)
+uses the same puzzle and proves that A is a knave.
+
+```python
+from logos import export_proof, tactics as t
+
+proof = puzzle.prove(a.is_knave(), by=[
+    puzzle.cases_on_role(a),
+    [puzzle.use_statements(), puzzle.auto()],
+    [t.assumption()],
+])
+export_proof(proof, "guided.logos")
+```
+
+`prove` introduces the puzzle premises and returns a Rust-checked theorem.
+`cases_on_role(a)` opens a knight branch followed by a knave branch.
+The nested lists supply the tactics for each branch. `use_statements()`
+applies the utterance implications for known speakers and puts the resulting
+facts in scope. `puzzle.auto()` runs finite reasoning on the current goal
+and its local hypotheses. You can set its budget with `puzzle.auto(timeout=seconds)`.
+
+Replace `puzzle.auto()` in the knight branch with `t.assumption()` to see
+how an unsuccessful tactic reports the active branch:
+
+```text
+Open goal: A is a knave
+Local hypotheses:
+  role_of_A: A is a knight
+  statement_1_by_A: (A is a knave) and (B is a knave)
+```
+
+When finite reasoning finds an assignment that satisfies the premises and
+makes the goal false, the diagnostic includes that counterexample. Guided
+proofs can establish claims shared by every solution even if the overall
+assignment is underdetermined.
 
 For domain authors, the [manual proof example](../checker/examples/knights_knaves.py)
 shows how to attach evidence to `KnightsKnaves.theorem(conclusion)` using the

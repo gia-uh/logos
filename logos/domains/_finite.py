@@ -1,9 +1,12 @@
 """Search finite domains described by pairs of exclusive proposition atoms."""
+from collections.abc import Callable
 from dataclasses import dataclass
 from time import monotonic
 
 from logos import chain
 from logos.expr import And, Expr, Implies, Lit, Not, Or, Var
+from logos.goal import Goal
+from logos.helpers import structural_eq
 from logos.kernel import (
     AndElimL, AndElimR, AndIntro, CaseAnalysis, ExFalso, HypRef, ImpliesElim, ImpliesIntro,
     NotElim, NotIntro, OrIntroL, OrIntroR, ProofTerm,
@@ -69,15 +72,17 @@ def _truth(expr: Expr, values: dict[Var, bool]) -> bool | None:
     raise AssertionError("expected a validated proposition")
 
 
-def _derive(expr: Expr, values: dict[Var, bool], facts: dict[Var, ProofTerm]) -> ProofTerm:
+def _derive(
+    expr: Expr, values: dict[Var, bool], facts: dict[Var, ProofTerm], prefix: str,
+) -> ProofTerm:
     """Prove a known true proposition, or prove its negation if known false."""
-    hyp = HypRef("formula")
+    hyp = HypRef(prefix + "formula")
 
     def negate(body: ProofTerm) -> ProofTerm:
         return NotIntro(ImpliesIntro(expr, hyp.name, body))
 
     def derive(child: Expr) -> ProofTerm:
-        return _derive(child, values, facts)
+        return _derive(child, values, facts, prefix)
 
     match expr:
         case Var():
@@ -98,12 +103,12 @@ def _derive(expr: Expr, values: dict[Var, bool], facts: dict[Var, ProofTerm]) ->
                 return OrIntroL(derive(left), right)
             if _truth(right, values) is True:
                 return OrIntroR(left, derive(right))
-            case = HypRef("disjunct")
+            case = HypRef(prefix + "disjunct")
             return negate(CaseAnalysis(
                 hyp, case.name, NotElim(derive(left), case), NotElim(derive(right), case),
             ))
         case Implies(left, right):
-            assumption = HypRef("antecedent")
+            assumption = HypRef(prefix + "antecedent")
             if _truth(left, values) is False:
                 body = ExFalso(NotElim(derive(left), assumption), right)
             elif _truth(right, values) is True:
@@ -114,43 +119,124 @@ def _derive(expr: Expr, values: dict[Var, bool], facts: dict[Var, ProofTerm]) ->
     raise AssertionError("expected a validated proposition")
 
 
-def solve(
-    choices: list[BinaryChoice], constraints: list[Expr], *, name: str, timeout: float | None,
-) -> tuple[list[tuple[Var, ...]], Theorem | None]:
-    """Return all models and prepare evidence only for a unique result.
+def bind(premises: list[Expr]) -> dict[str, Expr]:
+    return {f"premise_{index}": premise for index, premise in enumerate(premises, 1)}
 
-    Each case assumes one disjunct and derives the negation of the other
-    from its exclusivity premise. A violated constraint closes that case.
-    """
+
+def theorem(goal: Goal, proof: ProofTerm, *, name: str) -> Theorem:
+    for binder, premise in reversed(goal.context.items()):
+        proof = ImpliesIntro(premise, binder, proof)
+    statement = chain(*goal.context.values(), goal.statement)
+    return Theorem(statement, name=name).proof(exact(proof))
+
+
+def budget(timeout: float | None) -> Callable[[], None]:
     deadline = None if timeout is None else monotonic() + timeout
-    values: dict[Var, bool] = {}
-    facts: dict[Var, ProofTerm] = {}
-    models: list[tuple[Var, ...]] = []
-    assignment: list[Var] = []
 
-    def check_budget() -> None:
+    def check() -> None:
         if deadline is not None and monotonic() >= deadline:
             raise TimeoutError("finite-domain search budget exhausted")
 
-    def violated_constraint() -> int | None:
-        check_budget()
-        for index, constraint in enumerate(constraints):
-            if _truth(constraint, values) is False:
-                return index
-        return None
+    return check
 
-    def set_choice(selected: Var, excluded: Var) -> None:
-        values[selected], values[excluded] = True, False
+
+def _violation(constraints: list[Expr], values: dict[Var, bool]) -> int | None:
+    return next((i for i, expr in enumerate(constraints) if _truth(expr, values) is False), None)
+
+
+class Counterexample(Exception):
+    def __init__(self, assignment: tuple[Var, ...]):
+        self.assignment = assignment
+
+
+class MissingRolePremise(Exception):
+    pass
+
+
+def certify(goal: Goal, choices: list[BinaryChoice], check_budget: Callable[[], None]) -> ProofTerm:
+    """Split into role cases, close impossible branches, and prove the goal in the rest."""
+    check_budget()
+    context = goal.context
+    names = list(context)
+    constraints = list(context.values())
+    conclusion = goal.statement
+    values: dict[Var, bool] = {}
+    facts: dict[Var, ProofTerm] = {}
+    prefix = "finite_"
+    while any(name.startswith(prefix) for name in names):
+        prefix = "_" + prefix
+
+    def lookup(statement: Expr) -> str | None:
+        return next((name for name, hyp in context.items() if structural_eq(hyp, statement)), None)
+
+    roles = [
+        (choice, lookup(choice.left), lookup(choice.right),
+         tuple(lookup(premise) for premise in choice.premises()))
+        for choice in choices
+    ]
+
+    def branch(index: int) -> ProofTerm:
+        check_budget()
+        violation = _violation(constraints, values)
+        if violation is not None:
+            negation = _derive(constraints[violation], values, facts, prefix)
+            return ExFalso(NotElim(negation, HypRef(names[violation])), conclusion)
+        if _truth(conclusion, values) is True:
+            return _derive(conclusion, values, facts, prefix)
+        if index == len(roles):
+            raise Counterexample(tuple(atom for atom, value in values.items() if value))
+
+        choice, known_left, known_right, (exhaustive, exclude_right, exclude_left) = roles[index]
+        left, right = choice.left, choice.right
+
+        def assume(selected: Var, excluded: Var, hypothesis: str, exclusive: str | None) -> ProofTerm:
+            if exclusive is None:
+                raise MissingRolePremise
+            role = HypRef(hypothesis)
+            values[selected], values[excluded] = True, False
+            facts[selected] = role
+            facts[excluded] = ImpliesElim(HypRef(exclusive), role)
+            proof = branch(index + 1)
+            del values[selected], values[excluded], facts[selected], facts[excluded]
+            return proof
+
+        if known_left is not None:
+            return assume(left, right, known_left, exclude_right)
+        if known_right is not None:
+            return assume(right, left, known_right, exclude_left)
+        if exhaustive is None:
+            raise MissingRolePremise
+        binder = f"{prefix}choice_{index + 1}"
+        return CaseAnalysis(
+            HypRef(exhaustive), binder,
+            assume(left, right, binder, exclude_right),
+            assume(right, left, binder, exclude_left),
+        )
+
+    proof = branch(0)
+    check_budget()
+    return proof
+
+
+def solve(
+    choices: list[BinaryChoice], constraints: list[Expr], *, name: str, timeout: float | None,
+) -> tuple[list[tuple[Var, ...]], Theorem | None]:
+    """Return all models and prepare evidence only for a unique result."""
+    check_budget = budget(timeout)
+    values: dict[Var, bool] = {}
+    models: list[tuple[Var, ...]] = []
+    assignment: list[Var] = []
 
     def search(index: int) -> None:
-        if violated_constraint() is not None:
+        check_budget()
+        if _violation(constraints, values) is not None:
             return
         if index == len(choices):
             models.append(tuple(assignment))
             return
         left, right = choices[index].left, choices[index].right
         for selected, excluded in ((left, right), (right, left)):
-            set_choice(selected, excluded)
+            values[selected], values[excluded] = True, False
             assignment.append(selected)
             search(index + 1)
             assignment.pop()
@@ -168,33 +254,8 @@ def solve(
             conclusion = conclusion & atom
     else:
         conclusion = ~Lit(False)
-
     premises = [premise for choice in choices for premise in choice.premises()] + constraints
-    names = [f"premise_{index + 1}" for index in range(len(premises))]
-
-    def certify(index: int) -> ProofTerm:
-        violation = violated_constraint()
-        if violation is not None:
-            negation = _derive(constraints[violation], values, facts)
-            premise = HypRef(names[3 * len(choices) + violation])
-            return ExFalso(NotElim(negation, premise), conclusion)
-        if index == len(choices):
-            return _derive(conclusion, values, facts)
-        left, right = choices[index].left, choices[index].right
-        role = HypRef(f"choice_{index + 1}")
-        cases = []
-        for selected, excluded, offset in ((left, right, 1), (right, left, 2)):
-            set_choice(selected, excluded)
-            facts[selected] = role
-            facts[excluded] = ImpliesElim(HypRef(names[3 * index + offset]), role)
-            cases.append(certify(index + 1))
-        del values[left], values[right], facts[left], facts[right]
-        return CaseAnalysis(HypRef(names[3 * index]), role.name, *cases)
-
-    proof = certify(0)
-    for premise, binder in zip(reversed(premises), reversed(names)):
-        proof = ImpliesIntro(premise, binder, proof)
-    theorem = Theorem(chain(*premises, conclusion), name=name)
-    theorem.proof(exact(proof))
+    goal = Goal(bind(premises), conclusion)
+    proof = theorem(goal, certify(goal, choices, check_budget), name=name)
     check_budget()
-    return models, theorem
+    return models, proof

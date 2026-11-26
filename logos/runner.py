@@ -6,7 +6,16 @@ from logos.kernel import ProofTerm
 
 
 class TacticFailed(Exception):
-    pass
+    goal: Goal | None = None
+
+
+def _at_goal(goal: Goal, tactic):
+    try:
+        return tactic(goal)
+    except TacticFailed as error:
+        if error.goal is None:
+            error.goal = goal
+        raise
 
 
 TacticResult = ProofTerm | tuple[list[Goal], Callable[[list[ProofTerm]], ProofTerm]]
@@ -39,6 +48,9 @@ class _Runner:
         return item
 
     def run(self, goal: Goal) -> ProofTerm:
+        return _at_goal(goal, self._run)
+
+    def _run(self, goal: Goal) -> ProofTerm:
         item = self._take()
 
         if isinstance(item, list):
@@ -59,7 +71,7 @@ class _Runner:
                 return result
             # Multi-goal result: apply tactic to each subgoal
             subgoals, compose = result
-            subgoal_proofs = [item.tactic_fn(sg) for sg in subgoals]
+            subgoal_proofs = [_at_goal(sg, item.tactic_fn) for sg in subgoals]
             return compose(subgoal_proofs)
 
         result = item(goal)
@@ -88,7 +100,7 @@ class _Runner:
 
         if all_goals_tactic is not None:
             # Apply the tactic to all subgoals
-            subgoal_proofs = [all_goals_tactic(sg) for sg in subgoals]
+            subgoal_proofs = [_at_goal(sg, all_goals_tactic) for sg in subgoals]
         else:
             subgoal_proofs = [self.run(sg) for sg in subgoals]
         return compose(subgoal_proofs)

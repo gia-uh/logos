@@ -353,6 +353,26 @@ def solve_knights_knaves(cold, recipient, evidence, help_text, env, offline):
     for artifact in (filename, wrong):
         shutil.copy2(recipient / artifact, evidence / artifact)
 
+    heading = "To guide a proof of a specific claim in the same puzzle:\n"
+    for line in help_text.split(heading)[1].split("\n\n")[0].splitlines():
+        run(shlex.split(line), cold, env=env)
+    (cold / "guide_knights_knaves.py").unlink()
+    shutil.move(cold / "guided.logos", recipient / "guided.logos")
+    inspected = replay(
+        recipient, "inspect", "--json", "--strict", "guided.logos",
+        offline=offline, show_output=False,
+    )
+    guided = json.loads(inspected.stdout)
+    assert guided["custom_axioms"] == []
+    assert {"or_elim", "implies_elim"} <= {step["rule"] for step in guided["steps"]}
+    expected = solved["statement"]
+    actual = guided["statement"]
+    while expected["tag"] == "implies":
+        assert expected["left"] == actual["left"]
+        expected, actual = expected["right"], actual["right"]
+    assert actual == expected["left"]
+    shutil.copy2(recipient / "guided.logos", evidence / "guided.logos")
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

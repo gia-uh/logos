@@ -6,12 +6,31 @@ from typing import Literal
 
 import logos
 
-from logos.expr import Expr, Var
+from logos import tactics as t
+from logos.expr import And, Expr, Implies, Lit, Not, Or, Var
+from logos.goal import Goal
+from logos.helpers import structural_eq
+from logos.runner import TacticFailed, run
 from logos.domains import Domain, Entity
-from logos.domains._finite import BinaryChoice, solve, validate
+from logos.domains import _finite
+from logos.domains._finite import BinaryChoice
 
 
 SolveStatus = Literal["unique", "underdetermined", "inconsistent", "unknown"]
+
+
+class _DomainTacticFailed(TacticFailed):
+    pass
+
+
+def _find_hypothesis(goal: Goal, stmt: Expr) -> str | None:
+    return next((name for name, hyp in goal.context.items() if structural_eq(hyp, stmt)), None)
+
+
+def _fresh_name(goal: Goal, name: str) -> str:
+    while name in goal.context:
+        name += "_"
+    return name
 
 
 class KKEntity(Entity):
@@ -53,7 +72,8 @@ class KnightsKnaves(Domain):
         result = puzzle.solve()  # {"A": "knave", "B": "knight"}
         puzzle.export_proof("puzzle.logos")
 
-    Use theorem(conclusion) to author a proof manually.
+    Use prove(claim, by=[...]) to guide a proof with tactics, or
+    theorem(conclusion) to author evidence manually.
     """
 
     def __init__(self):
@@ -86,11 +106,9 @@ class KnightsKnaves(Domain):
         None for no time limit. Use export_proof to verify a unique result.
         """
         self._invalidate_solution()
-        atoms = set(self._collect_vars())
-        for _, statement in self._statements:
-            validate(statement, atoms)
+        self._validate_statements()
         try:
-            models, self._solution_proof = solve(
+            models, self._solution_proof = _finite.solve(
                 self._choices(), self._utterance_premises(), name="knights_knaves", timeout=timeout,
             )
         except TimeoutError:
@@ -116,6 +134,118 @@ class KnightsKnaves(Domain):
         if self._solution_proof is None:
             raise logos.LogosProofError("export_proof requires solve() to find a unique assignment")
         return logos.export_proof(logos.check(self._solution_proof), path)
+
+    def prove(self, claim: Expr, *, by: list) -> logos.Theorem:
+        """Introduce the puzzle premises, run tactics, and return a Rust-checked theorem."""
+        self._validate_statements()
+        _finite.validate(claim, set(self._collect_vars()))
+        goal = Goal(_finite.bind(self._build_premises()), claim)
+        try:
+            evidence = run(goal, by)
+        except TacticFailed as error:
+            remaining = error.goal or goal
+            lines = [f"Open goal: {self._describe(remaining.statement)}"]
+            locals_ = [
+                f"  {name}: {self._describe(statement)}"
+                for name, statement in remaining.context.items()
+                if goal.context.get(name) is not statement
+            ]
+            lines.append("Local hypotheses:" if locals_ else "Local hypotheses: none")
+            lines.extend(locals_)
+            if isinstance(error, _DomainTacticFailed):
+                lines.append(str(error))
+            raise logos.LogosProofError("\n".join(lines)) from None
+        return logos.check(_finite.theorem(goal, evidence, name="knights_knaves_guided"))
+
+    def cases_on_role(self, entity: KKEntity):
+        """Open the knight branch first and the knave branch second."""
+        if entity not in self._entities:
+            raise ValueError("cases_on_role requires an inhabitant of this puzzle")
+
+        def tactic(goal: Goal):
+            exhaustive = _find_hypothesis(goal, entity.kn | entity.kv)
+            if exhaustive is None:
+                raise _DomainTacticFailed(f"The role premise for {entity.name} is unavailable here.")
+            return t.cases(exhaustive, _fresh_name(goal, f"role_of_{entity.name}"))(goal)
+
+        return tactic
+
+    def use_statements(self):
+        """Add the truth or negation of utterances by speakers with a known role."""
+        def tactic(goal: Goal):
+            current = goal
+            steps = []
+            for number, (entity, stmt) in enumerate(self._statements, 1):
+                for role, consequence in ((entity.kn, stmt), (entity.kv, ~stmt)):
+                    known_role = _find_hypothesis(current, role)
+                    rule = _find_hypothesis(current, role >> consequence)
+                    if (known_role is None or rule is None
+                            or _find_hypothesis(current, consequence) is not None):
+                        continue
+                    name = _fresh_name(current, f"statement_{number}_by_{entity.name}")
+                    [current], compose = t.have(name, rule, known_role)(current)
+                    steps.append(compose)
+            if not steps:
+                raise _DomainTacticFailed(
+                    "No new statements follow from the speaker roles in this branch."
+                )
+
+            def compose(proofs):
+                for step in reversed(steps):
+                    proofs = [step(proofs)]
+                return proofs[0]
+
+            return [current], compose
+
+        return tactic
+
+    def auto(self, *, timeout: float | None = 0.5):
+        """Use finite role reasoning to finish the current open goal."""
+        def tactic(goal: Goal):
+            choices = self._choices()
+            atoms = set(self._collect_vars())
+            try:
+                for statement in (*goal.context.values(), goal.statement):
+                    _finite.validate(statement, atoms)
+                return _finite.certify(goal, choices, _finite.budget(timeout))
+            except ValueError as error:
+                raise _DomainTacticFailed(str(error)) from None
+            except TimeoutError:
+                raise _DomainTacticFailed("Finite search exhausted its time budget.") from None
+            except _finite.MissingRolePremise:
+                raise _DomainTacticFailed("A role premise needed by finite search is missing.") from None
+            except _finite.Counterexample as error:
+                roles = ", ".join(self._describe(atom) for atom in error.assignment)
+                raise _DomainTacticFailed(f"A valid assignment leaves the goal false: {roles}.") from None
+
+        return tactic
+
+    def _validate_statements(self) -> None:
+        atoms = set(self._collect_vars())
+        for _, statement in self._statements:
+            _finite.validate(statement, atoms)
+
+    def _describe(self, expr: Expr) -> str:
+        match expr:
+            case Var():
+                for entity in self._entities:
+                    if expr is entity.kn:
+                        return f"{entity.name} is a knight"
+                    if expr is entity.kv:
+                        return f"{entity.name} is a knave"
+                return expr.name
+            case Lit(value) if value is False:
+                return "contradiction"
+            case Not(operand):
+                return f"it is false that ({self._describe(operand)})"
+            case And(left, right):
+                return f"({self._describe(left)}) and ({self._describe(right)})"
+            case Or(left, right):
+                return f"({self._describe(left)}) or ({self._describe(right)})"
+            case Implies(left, right):
+                return f"if {self._describe(left)}, then {self._describe(right)}"
+            case _:
+                return type(expr).__name__
 
     def _collect_vars(self) -> list[Var]:
         return [atom for entity in self._entities for atom in (entity.kn, entity.kv)]

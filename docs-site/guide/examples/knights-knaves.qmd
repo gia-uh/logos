@@ -19,6 +19,11 @@ puzzle.export_proof("puzzle.logos")
 
 With the checker installed, `logos example knights-knaves` writes the Python
 sample and `logos check --strict puzzle.logos` replays the exported proof.
+The CLI also emits `guide_knights_knaves.py`. It shows how to choose a
+claim, split on A's role with `puzzle.cases_on_role(a)`, apply A's
+utterance with `puzzle.use_statements()`, and finish a branch with
+`puzzle.auto()` or `logos.tactics.assumption()`.
+
 For manual proofs and domain development, the rest of this page shows how to
 encode the premises and construct the derivations.
 
