@@ -10,7 +10,6 @@ import importlib.util
 import re
 import subprocess
 import sys
-import textwrap
 
 import pytest
 
@@ -99,8 +98,9 @@ def test_binary_search_executable_counterexample():
 
 
 def test_production_chapter_exports_a_strict_certificate(tmp_path):
-    result, _ = render(tmp_path, "13-production-contract.md")
+    result, html = render(tmp_path, "13-production-contract.md")
     assert result.returncode == 0, result.stderr
+    assert "halving_total_nonnegative: True" in html
     assert (tmp_path / "adapt.logos").exists()
     checked = subprocess.run(
         [CHECKER, "check", "--strict", "adapt.logos"],
@@ -137,6 +137,8 @@ def test_production_body_matches_the_standard_library(tmp_path):
         "co_consts",
     )
     assert all(getattr(ours, field) == getattr(theirs, field) for field in fields)
+    for adapt in (module.adapt, encodings.punycode.adapt):
+        assert (adapt(72, 1, 1), adapt(72, 0, 1)) == (0, 23)
 
 
 def test_production_mutation_is_refused(tmp_path):
@@ -152,52 +154,80 @@ def test_production_mutation_is_refused(tmp_path):
     assert not (tmp_path / "adapt.logos").exists()
 
 
-def test_production_source_drift_is_refused(tmp_path):
-    (tmp_path / "examples").mkdir()
-    (tmp_path / "examples" / "__init__.py").write_text("", encoding="utf-8")
-    (tmp_path / "examples" / "punycode_adapt.py").write_text(production_source())
-    script = tmp_path / "drift.py"
-    script.write_text(
-        textwrap.dedent(
-            """\
-            from pathlib import Path
-
-            import logos
-            from logos.expr import Lit, Var
-            from examples.punycode_adapt import adapt
-
-            @logos.theorem(about=adapt)
-            def drift(delta, first, numchars, *, result):
-                divisions = Var("divisions", int)
-                return logos.program_contract(
-                    requires=(Lit(0) <= delta) & (Lit(0) < numchars),
-                    ensures=(Lit(0) <= result),
-                    invariant=(Lit(0) <= delta) & (Lit(0) <= divisions),
-                    variant=delta,
-                )
-
-            drift.check()
-            path = Path("examples/punycode_adapt.py")
-            path.write_text(path.read_text().replace("455", "456"))
-            try:
-                drift.check()
-            except logos.LogosProofError as error:
-                print("refused:", error)
-                raise SystemExit(0)
-            raise SystemExit(1)
-            """
-        )
-    )
-    result = subprocess.run(
-        [sys.executable, str(script)],
+def run_production_declaration(tmp_path, body, commands):
+    chapter = (CHAPTERS / "13-production-contract.md").read_text(encoding="utf-8")
+    declaration = chapter.split("```python {run}\n", 1)[1].split("```", 1)[0]
+    examples = tmp_path / "examples"
+    examples.mkdir()
+    (examples / "punycode_adapt.py").write_text(body, encoding="utf-8")
+    script = tmp_path / "prove_adapt.py"
+    script.write_text(declaration + commands, encoding="utf-8")
+    return subprocess.run(
+        [sys.executable, "-B", str(script)],
         cwd=tmp_path,
         env=environment(),
         capture_output=True,
         text=True,
     )
+
+
+def test_production_mutation_binds_fresh_and_returns_negative(tmp_path):
+    changed_body = production_source().replace(
+        "bias = divisions + (36 * delta // (delta + 38))", "bias = divisions - 1"
+    )
+    result = run_production_declaration(
+        tmp_path,
+        changed_body,
+        """
+print(adapt(0, 0, 1), adapt(0, 1, 1))
+adapt_bias_nonnegative.check()
+logos.export_proof(adapt_bias_nonnegative, "mutated.logos")
+""",
+    )
+    assert result.stdout.strip() == "-1 -1"
+    assert result.returncode != 0
+    assert result.stderr.splitlines()[-1].startswith(
+        "logos.proofs.ProofSearchError: loop0.exit: cannot prove order atom 0 <= divisions - 1"
+    )
+    assert not (tmp_path / "mutated.logos").exists()
+
+
+def test_production_source_drift_is_refused(tmp_path):
+    result = run_production_declaration(
+        tmp_path,
+        production_source(),
+        """
+from pathlib import Path
+
+adapt_bias_nonnegative.check()
+assert adapt_bias_nonnegative.receipt is not None
+path = Path("examples/punycode_adapt.py")
+path.write_text(path.read_text().replace("delta > 455", "delta > 456"))
+assert adapt_bias_nonnegative.receipt is None
+operations = (
+    adapt_bias_nonnegative.check,
+    lambda: logos.export_proof(adapt_bias_nonnegative, "stale.logos"),
+)
+for operation in operations:
+    try:
+        operation()
+    except logos.LogosProofError as error:
+        print(error)
+    else:
+        raise AssertionError("stale source accepted")
+""",
+    )
     assert result.returncode == 0, result.stderr
-    assert "refused:" in result.stdout
-    assert "does not match the imported code object" in result.stdout
+    diagnostics = result.stdout.splitlines()
+    assert len(diagnostics) == 2
+    for line in diagnostics:
+        assert line.startswith("source of 'adapt' in ")
+        assert line.endswith(
+            "does not match the imported code object; "
+            "the module is stale or the file changed after import; "
+            "reimport it before declaring the theorem"
+        )
+    assert not (tmp_path / "stale.logos").exists()
 
 
 @pytest.mark.parametrize(
@@ -206,6 +236,7 @@ def test_production_source_drift_is_refused(tmp_path):
         ("12-binary-search.md", "examples/binary_search.py"),
         ("12-binary-search.md", "examples/declarative_calls.py"),
         ("13-production-contract.md", "examples/punycode_adapt.py"),
+        ("13-production-contract.md", "examples/halving_total.py"),
     ],
 )
 def test_book_examples_are_the_generated_modules(name, path):
