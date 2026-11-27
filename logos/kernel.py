@@ -270,6 +270,16 @@ def infer(term: ProofTerm, ctx: Context) -> Expr:
                     return Eq(func(a), func(b))
             raise KernelError(f"Subst: expected Eq, got {stmt!r}")
 
+        case Congr(var, context, proof):
+            stmt = infer(proof, ctx)
+            match stmt:
+                case Eq(a, b):
+                    return Eq(
+                        substitute_symbols(context, {id(var): a}),
+                        substitute_symbols(context, {id(var): b}),
+                    )
+            raise KernelError(f"Congr: expected Eq, got {stmt!r}")
+
         case AxiomRef(axiom):
             return ctx.lookup(axiom.name)
 

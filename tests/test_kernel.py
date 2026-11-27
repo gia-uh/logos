@@ -169,3 +169,13 @@ def test_induction_rejects_a_wrong_base():
     term = Induction(Lit(0), n, n == n, Refl(Lit(1)), step)
     with pytest.raises(KernelError):
         infer(term, Context({}, {}))
+
+
+
+def test_congr_infers_the_substituted_equality(x, y):
+    from logos.kernel import Congr
+
+    hole = Var("hole", int)
+    term = Congr(hole, hole + Lit(1), HypRef("h"))
+    result = infer(term, Context({"h": x == y}, {}))
+    assert structural_eq(result, (x + Lit(1)) == (y + Lit(1)))
