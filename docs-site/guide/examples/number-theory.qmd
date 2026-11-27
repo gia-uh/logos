@@ -113,7 +113,7 @@ assert not add_mono.certified
 
 ## Arithmetic Progressions
 
-Sum of first `n` natural numbers using Gauss's formula (as an axiom — logos doesn't have induction in v0.2):
+Sum of first `n` natural numbers using Gauss's formula. This example keeps `gauss_sum` opaque and assumes the formula; the [prime-number example](infinitely-many-primes.qmd) uses the core induction rule for arithmetic claims over a predicate:
 
 ```{python}
 # Declare gauss_sum as an external function and axiomatize it

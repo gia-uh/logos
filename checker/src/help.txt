@@ -4,7 +4,7 @@ Usage:
   logos --help
   logos --version
   logos commands --json
-  logos example [dependencies|arithmetic|knights-knaves]
+  logos example [dependencies|arithmetic|knights-knaves|primes]
   logos check [--json] [--strict] <FILE>
   logos inspect [--json|--markdown] [--strict] <FILE>
 
@@ -82,3 +82,15 @@ To guide a proof of a specific claim in the same puzzle:
 The guided example uses prove(claim, by=[...]), cases_on_role(), and
 use_statements(). Use puzzle.auto() to finish an open proof branch. The
 checked proof includes the role and utterance premises as antecedents.
+
+To replay Euclid's theorem that every n >= 2 has a prime above it:
+  logos example primes
+  logos check --strict primes.logos
+  logos inspect --markdown --strict primes.logos > primes.md
+  python primes.py authored-primes.logos
+  logos check --strict authored-primes.logos
+
+primes.logos is a ready-to-replay certificate with zero custom axioms.
+Running primes.py rebuilds every lemma from the installed wheel and writes
+the same certificate. The proof defines divisibility and primality inline,
+uses n! + 1, and takes its least divisor above one.

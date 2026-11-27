@@ -195,6 +195,20 @@ logos inspect --json --strict successor.logos
 
 </details>
 
+## Prove infinitely many primes
+
+The [Infinitely Many Primes](https://logos.uhgia.org/guide/examples/infinitely-many-primes.html) chapter proves that every integer `n >= 2` has a prime `p > n`. The statement expands divisibility and primality inline: `d | n` is `exists q, n = d * q`, and `p` is prime when `1 < p` and no `d` with `1 < d < p` divides `p`. The proof takes a least divisor of `n! + 1`, shows it is prime, and derives `p > n` by the consecutive-divisibility lemma. It needs induction and primitive recursion for the factorial, not an axiom about primes.
+
+```bash
+logos example primes
+logos check --strict primes.logos
+logos inspect --markdown --strict primes.logos > primes.md
+python primes.py authored-primes.logos
+logos check --strict authored-primes.logos
+```
+
+The shipped `primes.logos` and the certificate rebuilt from the installed wheel are byte-for-byte identical. Both verify with zero custom axioms.
+
 ## Read a proof or build on it
 
 | Command | What it gives you |

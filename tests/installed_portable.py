@@ -1072,6 +1072,53 @@ def order_contracts(python, cold, recipient, evidence, env, offline):
     (evidence / "order-stale.txt").write_text(stale.stdout)
 
 
+def primes(python, cold, recipient, evidence, env, offline):
+    print(f"Primes · replay Euclid's theorem and rebuild it, then {offline and 'isolated replay' or 'clean-PATH replay'}")
+    run(["logos", "example", "primes"], cold, env=env)
+    emitted = (cold / "primes.py").read_bytes()
+    bundled = (FIXTURES.parents[2] / "examples/primes.py").read_bytes()
+    assert emitted == bundled, "the installed example differs from the bundled source"
+    shutil.copy2(cold / "primes.logos", recipient / "primes.logos")
+
+    verdict = replay(recipient, "check", "--strict", "primes.logos", offline=offline)
+    assert "Verified with 0 custom axioms" in verdict.stdout
+    assert "∃p:int" in verdict.stdout
+    inspected = json.loads(replay(
+        recipient, "inspect", "--json", "--strict", "primes.logos", offline=offline
+    ).stdout)
+    assert inspected["status"] == "verified"
+    assert inspected["custom_axioms"] == []
+    assert inspected["theory"] == "logos-core-v1"
+    rendered = replay(
+        recipient, "inspect", "--markdown", "--strict", "primes.logos", offline=offline
+    ).stdout
+    assert "infinitely_many_primes" in rendered or "strict" in rendered.lower()
+
+    # Rebuild the certificate from the installed wheel and require identical bytes.
+    run([str(python), "primes.py", "authored-primes.logos"], cold, env=env)
+    assert (cold / "authored-primes.logos").read_bytes() == (cold / "primes.logos").read_bytes()
+    shutil.copy2(cold / "authored-primes.logos", recipient / "authored-primes.logos")
+    replay(recipient, "check", "--strict", "authored-primes.logos", offline=offline)
+
+    # A forged target must be rejected even with the genuine proof bytes.
+    forged = json.loads((cold / "primes.logos").read_text())
+    target = forged["target"]
+    statement = target["body"]["right"]
+    conclusion = statement["body"]
+    order = conclusion["right"]
+    order["left"], order["right"] = order["right"], order["left"]
+    (cold / "forged-primes.logos").write_text(json.dumps(forged))
+    shutil.copy2(cold / "forged-primes.logos", recipient / "forged-primes.logos")
+    forged_error = replay(recipient, "check", "--strict", "forged-primes.logos",
+                          offline=offline, code=1)
+    assert "proof conclusion mismatch" in forged_error.stderr
+
+    (evidence / "primes.logos").write_bytes((cold / "primes.logos").read_bytes())
+    (evidence / "authored-primes.logos").write_bytes((cold / "authored-primes.logos").read_bytes())
+    (evidence / "primes.md").write_text(rendered)
+    (evidence / "primes.json").write_text(json.dumps(inspected, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
@@ -1258,7 +1305,10 @@ def main():
         print(f"Strict order · prove both minimum paths and order laws, then {isolation}")
         order_contracts(python, cold, recipient, evidence, env, options.offline)
 
-    print("12 acceptance stages exercised")
+        print(f"Primes · check Euclid's theorem and rebuild it, then {isolation}")
+        primes(python, cold, recipient, evidence, env, options.offline)
+
+    print("13 acceptance stages exercised")
 
 
 if __name__ == "__main__":
