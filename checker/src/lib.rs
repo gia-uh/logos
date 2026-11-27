@@ -7,20 +7,24 @@ pub const FORMAT: &str = "logos-proof-v1";
 pub const THEORY: &str = "logos-core-v1";
 pub const PROTOCOL_VERSION: u32 = 1;
 
+mod linear;
+mod program;
 mod syntax;
 mod trace;
 
 pub use syntax::{Function, Proposition, Sort};
-use syntax::{Functions, convert, instantiate_bounded, instantiate_law, integer, law_formals};
+use syntax::{
+    Functions, convert, instantiate_bounded, instantiate_law, integer, law_arg_sorts, law_formals,
+};
 pub use trace::Context as TraceContext;
 use trace::{
     Conversion, LawApplication, LocalHypothesis, Provenance, Substitution, Variable,
     rule_explanation,
 };
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(tag = "tag", rename_all = "snake_case", deny_unknown_fields)]
-enum Evidence {
+pub(crate) enum Evidence {
     ImpliesIntro {
         binder: String,
         premise: Proposition,
@@ -113,6 +117,26 @@ enum Evidence {
     StepRef {
         index: usize,
     },
+    ProgramRef {
+        id: String,
+    },
+    Linear {
+        conclusion: Proposition,
+        terms: Vec<LinearTerm>,
+    },
+    Have {
+        binder: String,
+        statement: Proposition,
+        proof: Box<Self>,
+        body: Box<Self>,
+    },
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct LinearTerm {
+    pub binder: String,
+    pub coefficient: String,
 }
 
 impl Evidence {
@@ -131,6 +155,7 @@ impl Evidence {
             | Self::Congr { proof, .. }
             | Self::ForallElim { proof, .. }
             | Self::ExistsIntro { proof, .. } => [Some(proof), None, None],
+            Self::Have { proof, body, .. } => [Some(proof), Some(body), None],
             Self::AndIntro { left, right }
             | Self::Trans { left, right }
             | Self::ImpliesElim {
@@ -218,6 +243,8 @@ struct Bundle {
     declarations: Vec<Declaration>,
     #[serde(default)]
     functions: Vec<Function>,
+    #[serde(default)]
+    programs: Vec<program::Program>,
     custom_axioms: Vec<CustomAxiom>,
     lemmas: Vec<Lemma>,
     target: Proposition,
@@ -368,6 +395,10 @@ pub fn verify(bytes: &[u8]) -> Result<Verified, String> {
         }
         checker.functions.insert(function.id.as_str(), function);
     }
+    for program in &bundle.programs {
+        register(&program.id, "program")?;
+        checker.programs.insert(program.id.as_str(), program);
+    }
     for axiom in &bundle.custom_axioms {
         register(&axiom.id, "axiom")?;
         checker.check_proposition(&axiom.statement)?;
@@ -427,6 +458,7 @@ struct Checker<'a> {
     trace_weight: usize,
     axioms: HashMap<&'a str, &'a CustomAxiom>,
     checked_lemmas: HashMap<&'a str, &'a Lemma>,
+    programs: HashMap<&'a str, &'a program::Program>,
 }
 
 impl<'a> Checker<'a> {
@@ -447,6 +479,7 @@ impl<'a> Checker<'a> {
             trace_weight: 0,
             axioms: HashMap::new(),
             checked_lemmas: HashMap::new(),
+            programs: HashMap::new(),
         }
     }
 
@@ -566,6 +599,118 @@ impl<'a> Checker<'a> {
         (used, steps, self.contexts)
     }
 
+    fn verify_program(
+        &mut self,
+        program: &'a program::Program,
+        path: &str,
+    ) -> Result<(Proposition, Vec<String>), String> {
+        use program::Statement;
+        let function = *self
+            .functions
+            .get(program.function.as_str())
+            .ok_or_else(|| format!("{path}: program {} names an unknown function", program.id))?;
+        if function.body.is_some() {
+            return Err(format!(
+                "{path}: program function {:?} must be opaque",
+                program.function
+            ));
+        }
+        let mut sorts = std::collections::BTreeMap::new();
+        let mut seen = std::collections::HashSet::new();
+        for id in program.variables() {
+            if !seen.insert(id) {
+                return Err(format!("{path}: duplicate program variable {id:?}"));
+            }
+            let declaration = self
+                .declarations
+                .get(id)
+                .ok_or_else(|| format!("{path}: undeclared program variable {id:?}"))?;
+            sorts.insert(id.to_owned(), declaration.sort);
+        }
+        if function.params.len() != program.params.len() {
+            return Err(format!(
+                "{path}: program {} has a different parameter count from its function",
+                program.id
+            ));
+        }
+        for (id, sort) in program.params.iter().zip(&function.params) {
+            let actual = *sorts
+                .get(id)
+                .ok_or_else(|| format!("{path}: undeclared parameter {id:?}"))?;
+            actual.expect(*sort)?;
+        }
+        if *sorts.get(&program.result).unwrap_or(&Sort::Int) != function.result {
+            return Err(format!(
+                "{path}: program result sort does not match its function"
+            ));
+        }
+        self.check_proposition(&program.requires)?;
+        self.check_proposition(&program.ensures)?;
+        fn check_statements(checker: &Checker<'_>, statements: &[Statement]) -> Result<(), String> {
+            for statement in statements {
+                match statement {
+                    Statement::Assign { value, .. } => {
+                        checker.sort(value, &[])?.expect(Sort::Int)?;
+                    }
+                    Statement::If {
+                        condition,
+                        then_body,
+                        else_body,
+                    } => {
+                        checker.sort(condition, &[])?.expect(Sort::Prop)?;
+                        check_statements(checker, then_body)?;
+                        check_statements(checker, else_body)?;
+                    }
+                    Statement::While {
+                        condition,
+                        body,
+                        invariant,
+                        variant,
+                    } => {
+                        checker.sort(condition, &[])?.expect(Sort::Prop)?;
+                        checker.sort(invariant, &[])?.expect(Sort::Prop)?;
+                        checker.sort(variant, &[])?.expect(Sort::Int)?;
+                        check_statements(checker, body)?;
+                    }
+                    Statement::Return { value } => {
+                        checker.sort(value, &[])?.expect(Sort::Int)?;
+                    }
+                }
+            }
+            Ok(())
+        }
+        check_statements(self, &program.body)?;
+        program::check_definite_assignment(program)?;
+        let variables = program.variables();
+        let mut proofs: HashMap<&str, &Evidence> = HashMap::new();
+        for obligation in &program.obligations {
+            if proofs
+                .insert(obligation.id.as_str(), &obligation.proof)
+                .is_some()
+            {
+                return Err(format!(
+                    "{path}: duplicate program obligation {:?}",
+                    obligation.id
+                ));
+            }
+        }
+        let mut premises = Vec::new();
+        for (id, raw) in program::conditions(program)? {
+            let goal = program::close(raw, &variables, &sorts);
+            let proof = proofs
+                .remove(id.as_str())
+                .ok_or_else(|| format!("{path}: missing proof for program obligation {id:?}"))?;
+            let obligation_path = format!("{path}.{id}");
+            self.check_conclusion(proof, &goal, &obligation_path)?;
+            premises.push(obligation_path);
+        }
+        if let Some((id, _)) = proofs.into_iter().next() {
+            return Err(format!("{path}: unknown program obligation {id:?}"));
+        }
+        let target = program::contract(program, function, &sorts)?;
+        Ok((target, premises))
+    }
+
     fn check_proposition(&self, proposition: &Proposition) -> Result<(), String> {
         proposition.weight()?;
         let sort = self.sort(proposition, &[])?;
@@ -600,7 +745,10 @@ impl<'a> Checker<'a> {
                 integer(value)?;
                 Ok(Sort::Int)
             }
-            Add { left, right } | Sub { left, right } | Mul { left, right } => {
+            Add { left, right }
+            | Sub { left, right }
+            | Mul { left, right }
+            | Div { left, right } => {
                 require(left, Sort::Int)?;
                 require(right, Sort::Int)?;
                 Ok(Sort::Int)
@@ -609,8 +757,26 @@ impl<'a> Checker<'a> {
                 require(operand, Sort::Int)?;
                 Ok(Sort::Int)
             }
+            Len { seq } => {
+                require(seq, Sort::Seq)?;
+                Ok(Sort::Int)
+            }
+            Nth { seq, index } => {
+                require(seq, Sort::Seq)?;
+                require(index, Sort::Int)?;
+                Ok(Sort::Int)
+            }
+            Sorted { seq } => {
+                require(seq, Sort::Seq)?;
+                Ok(Sort::Prop)
+            }
             Eq { left, right } => {
                 require(right, child(left)?)?;
+                Ok(Sort::Prop)
+            }
+            Le { left, right } => {
+                require(left, Sort::Int)?;
+                require(right, Sort::Int)?;
                 Ok(Sort::Prop)
             }
             Lt { left, right } => {
@@ -760,6 +926,26 @@ impl<'a> Checker<'a> {
                     self.render_scoped(base, true, typed, binders)
                 );
             }
+            Proposition::Len { seq } => {
+                return format!("len({})", self.render_scoped(seq, true, typed, binders));
+            }
+            Proposition::Nth { seq, index } => {
+                return format!(
+                    "{}[{}]",
+                    self.render_scoped(seq, true, typed, binders),
+                    self.render_scoped(index, false, typed, binders)
+                );
+            }
+            Proposition::Sorted { seq } => {
+                return format!("sorted({})", self.render_scoped(seq, true, typed, binders));
+            }
+            Proposition::Div { left, right } => {
+                return format!(
+                    "({} div {})",
+                    self.render_scoped(left, true, typed, binders),
+                    self.render_scoped(right, true, typed, binders)
+                );
+            }
             Proposition::App { id, args } => {
                 let name = &self.functions[id.as_str()].name;
                 let label = format!("{name:?}[{id:?}]");
@@ -793,6 +979,7 @@ impl<'a> Checker<'a> {
             Proposition::Sub { left, right } => (left, "−", right),
             Proposition::Mul { left, right } => (left, "·", right),
             Proposition::Eq { left, right } => (left, "=", right),
+            Proposition::Le { left, right } => (left, "≤", right),
             Proposition::Lt { left, right } => (left, "<", right),
             Proposition::And { left, right } => (left, "∧", right),
             Proposition::Or { left, right } => (left, "∨", right),
@@ -1280,8 +1467,9 @@ impl<'a> Checker<'a> {
                         formals.len()
                     ));
                 }
-                for arg in args {
-                    self.sort(arg, &scope.binders)?.expect(Sort::Int)?;
+                let expected = law_arg_sorts(id);
+                for (arg, sort) in args.iter().zip(&expected) {
+                    self.sort(arg, &scope.binders)?.expect(*sort)?;
                 }
                 reference_id = Some(id.clone());
                 substitutions = Some(args.clone());
@@ -1347,6 +1535,78 @@ impl<'a> Checker<'a> {
                     None,
                     None,
                 )
+            }
+            Evidence::Linear { conclusion, terms } => {
+                self.sort(conclusion, &scope.binders)?.expect(Sort::Prop)?;
+                let mut hypotheses = Vec::new();
+                let mut premises = Vec::new();
+                for (binder, proposition, _assumption, depth) in &scope.hyps {
+                    let shifted = proposition.shift(scope.binders.len() - depth);
+                    hypotheses.push(((*binder).to_owned(), shifted));
+                }
+                let mut parsed = Vec::new();
+                for term in terms {
+                    let coefficient = linear::Rational::parse(&term.coefficient)
+                        .map_err(|error| format!("{path}: {error}"))?;
+                    if !premises.contains(&term.binder) {
+                        let (_, _, assumption, _) = scope
+                            .hyps
+                            .iter()
+                            .rev()
+                            .find(|(binder, _, _, _)| *binder == term.binder)
+                            .ok_or_else(|| {
+                                format!("{path}: linear: unknown hypothesis {:?}", term.binder)
+                            })?;
+                        premises.push(assumption.clone());
+                    }
+                    parsed.push((term.binder.clone(), coefficient));
+                }
+                linear::verify(conclusion, &parsed, &hypotheses)
+                    .map_err(|error| format!("{path}: {error}"))?;
+                ("linear", premises, conclusion.clone(), None, None)
+            }
+            Evidence::Have {
+                binder,
+                statement,
+                proof,
+                body,
+            } => {
+                self.sort(statement, &scope.binders)?.expect(Sort::Prop)?;
+                if binder.is_empty() {
+                    return Err(format!("{path}: empty have binder"));
+                }
+                let proof_path = format!("{path}.proof");
+                let actual = self.infer(proof, scope, &proof_path)?;
+                premise_conversion = self.compare(statement, &actual)?.ok_or_else(|| {
+                    format!("{path}: have proof does not establish the stated fact")
+                })?;
+                let body_path = format!("{path}.body");
+                let (assumption, result) = self.infer_under_hypothesis(
+                    binder,
+                    statement,
+                    body,
+                    scope,
+                    (
+                        &body_path,
+                        format!("{path}.assumption"),
+                        "Use the checked intermediate conclusion as a local hypothesis.",
+                    ),
+                )?;
+                (
+                    "have",
+                    vec![proof_path, body_path],
+                    result,
+                    Some(binder.clone()),
+                    Some(assumption),
+                )
+            }
+            Evidence::ProgramRef { id } => {
+                let program = self
+                    .programs
+                    .get(id.as_str())
+                    .ok_or_else(|| format!("{path}: unknown program reference {id:?}"))?;
+                let (target, obligations) = self.verify_program(program, path)?;
+                ("program_ref", obligations, target, None, None)
             }
             Evidence::AndIntro { left, right } => {
                 let left_path = format!("{path}.left");

@@ -16,8 +16,10 @@ def get_definition(name: str) -> tuple[list[Var], Expr]:
 class Function:
     """A logos-defined function. Callable (builds App nodes) and carries its definition."""
     def __init__(self, name: str, params: list[Var], body: Expr | None,
-                 original_fn: Callable = None, result_type: type | None = None):
+                 original_fn: Callable = None, result_type: type | None = None,
+                 portable_id: str | None = None):
         self.name = name
+        self.portable_id = portable_id
         self.params = params
         self.body = body
         self.result_type = result_type

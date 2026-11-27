@@ -21,13 +21,20 @@ from pathlib import Path
 from types import CodeType, FunctionType
 
 from logos.define import Function
+from logos.programs import (
+    Assign, If, Program, ProgramContract, ProgramVariable, Return, While,
+    program_contract,
+)
+from logos.sequence import Seq, SeqType
 from logos.expr import (
-    Add, And, App, Eq, Expr, ExistsNode, ForallNode, Implies, Lit, Lt, Mul,
-    Neg, Neq, Not, Or, Pow, Sub, Var,
+    Add, And, App, Div, Eq, Expr, ExistsNode, ForallNode, Ge, Gt, Implies,
+    Le, Len, Lit, Lt, Mul, Neg, Neq, Not, Nth, Or, Pow, Sorted, Sub, Var,
 )
 from logos.goal import Goal
-from logos.helpers import structural_eq
-from logos.kernel import Congr, ForallIntro, HypRef, ImpliesIntro, Symm, Trans
+from logos.helpers import structural_eq, substitute_symbols
+from logos.kernel import (
+    Congr, ForallIntro, HypRef, ImpliesIntro, ProgramRef, Symm, Trans,
+)
 from logos.portable import LogosProofError
 from logos.runner import TacticFailed
 from logos.tactics._ring import Ring
@@ -68,6 +75,7 @@ class _Fragment:
     guard: Expr | None = None
     then_body: Expr | None = None
     else_body: Expr | None = None
+    program: Program | None = None
 
     def selected(self, branch: str | None) -> Expr | None:
         if branch == "then":
@@ -84,6 +92,15 @@ def theorem_about(theorem_body, about: FunctionType):
     parameters = [variables[name] for name in names]
     result = Var(result_name, int)
     value = theorem_body(*parameters, **{result_name: result})
+    if fragment.program is not None:
+        if not isinstance(value, ProgramContract):
+            raise LogosContractError(
+                f"logos.theorem: the body of {theorem_body.__name__!r} must return "
+                "logos.program_contract(...) for a function with a loop"
+            )
+        return _program_theorem(
+            theorem_body, about, variables, names, fragment, result, value
+        )
     if isinstance(value, Contract):
         value = Contract(
             _normalize(value.ensures),
@@ -111,6 +128,190 @@ def theorem_about(theorem_body, about: FunctionType):
         parameters=parameters, result=result, requires=value.requires,
         ensures=value.ensures, fragment=fragment, branch=branch,
     )
+
+
+def _program_theorem(theorem_body, about, variables, names, fragment, result, value):
+    program = fragment.program
+    locals_by_name = {item.name: item.var for item in program.locals}
+    known = dict(variables)
+    known.update(locals_by_name)
+    known[result.name] = result
+
+    def canonical(expr):
+        mapping = {}
+        for variable in _variables(expr):
+            if variable.name not in known:
+                raise LogosContractError(
+                    f"logos.program_contract: {variable.name!r} is not a parameter or local "
+                    f"of {about.__name__!r}"
+                )
+            mapping[id(variable)] = known[variable.name]
+        return substitute_symbols(expr, mapping)
+
+    requires = _normalize(canonical(value.requires))
+    ensures = _normalize(canonical(value.ensures))
+    invariant = _normalize(canonical(value.invariant))
+    variant = _normalize(canonical(value.variant))
+    _validate_program_parts(
+        about, names, list(locals_by_name), result, requires, ensures, invariant, variant
+    )
+    program.requires = requires
+    program.ensures = ensures
+    program.result = ProgramVariable("result", int, result)
+    program.body = _attach_loop(program.body, invariant, variant)
+    statement = _program_contract_statement(about, program, requires, ensures)
+    return ProgramTheorem(
+        statement, name=theorem_body.__name__, about=about, program=program,
+        fragment=fragment, names=names, variables=variables,
+    )
+
+
+def _attach_loop(statements, invariant, variant):
+    attached = []
+    seen = False
+    for statement in statements:
+        if isinstance(statement, While):
+            if seen:
+                raise LogosContractError("logos.program_contract: only one loop is supported")
+            seen = True
+            attached.append(While(statement.condition, statement.body, invariant, variant))
+        else:
+            attached.append(statement)
+    if not seen:
+        raise LogosContractError("logos.program_contract: the source has no loop to annotate")
+    return tuple(attached)
+
+
+def _program_contract_statement(about, program, requires, ensures):
+    parameters = [item.var for item in program.params]
+    result = program.result.var
+    equality = Eq(result, App(about.__name__, parameters, program.function))
+    statement = Implies(equality, ensures)
+    statement = Implies(requires, statement)
+    statement = ForallNode(result, statement)
+    for parameter in reversed(parameters):
+        statement = ForallNode(parameter, statement)
+    return statement
+
+
+def _validate_program_parts(about, names, local_names, result, requires, ensures, invariant, variant):
+    allowed_inputs = {name for name in names}
+    allowed_locals = {name for name in local_names}
+    allowed_all = allowed_inputs | allowed_locals
+
+    def vars_of(expr, label):
+        found = list(_variables(expr))
+        for variable in found:
+            if variable.name not in allowed_all and variable is not result:
+                raise LogosContractError(
+                    f"logos.program_contract: {label} mentions {variable.name!r}, which is "
+                    f"not a parameter or local of {about.__name__!r}"
+                )
+        return found
+
+    for variable in vars_of(requires, "requires"):
+        if variable.name not in allowed_inputs:
+            raise LogosContractError(
+                "logos.program_contract: requires may only mention input parameters"
+            )
+    for variable in vars_of(ensures, "ensures"):
+        if variable.name in allowed_locals:
+            raise LogosContractError(
+                "logos.program_contract: ensures may only mention parameters and result"
+            )
+    for variable in vars_of(invariant, "invariant"):
+        if variable is result:
+            raise LogosContractError(
+                "logos.program_contract: invariant must not mention result"
+            )
+    for variable in vars_of(variant, "variant"):
+        if variable is result:
+            raise LogosContractError(
+                "logos.program_contract: variant must not mention result"
+            )
+    if _sort(requires) is not bool:
+        raise LogosContractError("logos.program_contract: requires must be a proposition")
+    if _sort(ensures) is not bool:
+        raise LogosContractError("logos.program_contract: ensures must be a proposition")
+    if _sort(invariant) is not bool:
+        raise LogosContractError("logos.program_contract: invariant must be a proposition")
+    if _sort(variant) is not int:
+        raise LogosContractError("logos.program_contract: variant must be an integer term")
+
+
+class ProgramTheorem(Theorem):
+    """A contract theorem whose executable body is a checked loop program."""
+
+    def __init__(self, statement, *, name, about, program, fragment, names, variables):
+        super().__init__(statement, name=name)
+        self.about = about
+        self.program = program
+        self._fragment = fragment
+        self._names = tuple(names)
+        self._variables = dict(variables)
+        self._proof_spec = [self._program_evidence]
+
+    def _revalidate(self):
+        names, variables, fragment = _bind_source(self.about)
+        if tuple(names) != self._names:
+            self._receipt = None
+            raise LogosContractError(
+                f"contract for {self.about.__name__!r} no longer matches its source: the "
+                "parameter binding changed; redeclare the theorem from the current function"
+            )
+        fresh = fragment.program
+        if fresh is None or not _same_program(fresh, self._fragment.program):
+            self._receipt = None
+            raise LogosContractError(
+                f"contract for {self.about.__name__!r} no longer matches its source: the "
+                "translated loop program changed after the theorem was declared; redeclare "
+                "the theorem from the current function"
+            )
+
+    def _run_proof(self, statement):
+        self._revalidate()
+        from logos.proofs import build_program_obligations
+        self.program.obligations = build_program_obligations(self.program)
+        return ProgramRef(self.program, statement)
+
+    def _program_evidence(self, goal):
+        return self._run_proof(goal.statement)
+
+    def _dependency_evidence(self, refresh):
+        self._revalidate()
+        return self._run_proof(self.statement)
+
+
+def _same_program(left, right):
+    if left.name != right.name:
+        return False
+    if len(left.body) != len(right.body):
+        return False
+    return all(_same_statement(a, b) for a, b in zip(left.body, right.body))
+
+
+def _same_statement(left, right):
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, Assign):
+        return left.name == right.name and structural_eq(left.value, right.value)
+    if isinstance(left, If):
+        return (
+            structural_eq(left.condition, right.condition)
+            and len(left.then_body) == len(right.then_body)
+            and len(left.else_body) == len(right.else_body)
+            and all(_same_statement(a, b) for a, b in zip(left.then_body, right.then_body))
+            and all(_same_statement(a, b) for a, b in zip(left.else_body, right.else_body))
+        )
+    if isinstance(left, While):
+        return (
+            structural_eq(left.condition, right.condition)
+            and len(left.body) == len(right.body)
+            and all(_same_statement(a, b) for a, b in zip(left.body, right.body))
+        )
+    if isinstance(left, Return):
+        return structural_eq(left.value, right.value)
+    return False
 
 
 class ContractTheorem(Theorem):
@@ -331,6 +532,32 @@ def _int_annotation(node):
     return isinstance(node, ast.Name) and node.id == "int"
 
 
+def _annotation_sort(node):
+    if _int_annotation(node):
+        return int
+    if (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "list"
+        and _int_annotation(node.slice)
+    ):
+        return Seq
+    return None
+
+
+def _imported_sort(annotation):
+    if annotation is int:
+        return int
+    import types
+    if annotation == list[int]:
+        return Seq
+    if isinstance(annotation, types.GenericAlias) and annotation.__origin__ is list:
+        args = annotation.__args__
+        if args == (int,):
+            return Seq
+    return None
+
+
 def _fragment(definition, fn, path):
     if isinstance(definition, ast.AsyncFunctionDef):
         raise LogosContractError(
@@ -355,31 +582,36 @@ def _fragment(definition, fn, path):
         )
     parameters = [*arguments.posonlyargs, *arguments.args]
     names = [parameter.arg for parameter in parameters]
+    variables = {}
     for parameter in parameters:
-        if not _int_annotation(parameter.annotation):
+        sort = _annotation_sort(parameter.annotation)
+        if sort is None:
             raise LogosContractError(
                 f"{path}:{parameter.lineno}: parameter {parameter.arg!r} of "
-                f"{fn.__name__!r} must be annotated with the built-in int"
+                f"{fn.__name__!r} must be annotated with int or list[int]"
             )
+        variables[parameter.arg] = Var(parameter.arg, sort)
     if not _int_annotation(definition.returns):
         raise LogosContractError(
             f"{path}:{definition.lineno}: {fn.__name__!r} must annotate its return with "
             "the built-in int"
         )
     annotations = fn.__annotations__
-    for name in names:
-        if annotations.get(name) is not int:
+    for parameter in parameters:
+        expected = _imported_sort(annotations.get(parameter.arg))
+        if expected is None or expected is not variables[parameter.arg].type:
             raise LogosContractError(
-                f"the imported {fn.__name__!r} must carry the built-in int annotation on "
-                f"{name!r}; postponed annotations are not supported"
+                f"the imported {fn.__name__!r} must carry the built-in int or list[int] "
+                f"annotation on {parameter.arg!r}; postponed annotations are not supported"
             )
-    if annotations.get("return") is not int:
+    if _imported_sort(annotations.get("return")) is not int:
         raise LogosContractError(
             f"the imported {fn.__name__!r} must carry the built-in int return annotation; "
             "postponed annotations are not supported"
         )
     body = definition.body
-    variables = {name: Var(name, int) for name in names}
+    if any(isinstance(node, (ast.While, ast.For, ast.AsyncFor)) for node in body):
+        return _program_fragment(definition, fn, path, names, variables)
     if (
         len(body) == 1
         and isinstance(body[0], ast.If)
@@ -405,11 +637,232 @@ def _fragment(definition, fn, path):
     if len(body) != 1 or not isinstance(body[0], ast.Return) or body[0].value is None:
         raise LogosContractError(
             f"{path}:{definition.lineno}: the body of {fn.__name__!r} must be a single "
-            "return statement or one if/else with a return in each branch; loops, "
-            "assignments and other statements are not supported"
+            "return statement, one if/else with a return in each branch, or a loop program "
+            "ending in one return; assignments and other statements are only supported "
+            "with a loop"
         )
     return names, variables, _Fragment(
         body=_term(body[0].value, variables, fn, path)
+    )
+
+
+def _assigned_names(statements):
+    for node in statements:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if not isinstance(target, ast.Name):
+                    yield None, node.lineno
+                else:
+                    yield target.id, node.lineno
+        elif isinstance(node, ast.AnnAssign):
+            if not isinstance(node.target, ast.Name):
+                yield None, node.lineno
+            else:
+                yield node.target.id, node.lineno
+        elif isinstance(node, ast.If):
+            yield from _assigned_names(node.body)
+            yield from _assigned_names(node.orelse)
+        elif isinstance(node, ast.While):
+            yield from _assigned_names(node.body)
+            yield from _assigned_names(node.orelse)
+
+
+def _program_fragment(definition, fn, path, names, variables):
+    body = definition.body
+    loops = [node for node in ast.walk(definition) if isinstance(node, ast.While)]
+    if len(loops) != 1:
+        raise LogosContractError(
+            f"{path}:{definition.lineno}: {fn.__name__!r} must contain exactly one while "
+            "loop in this fragment"
+        )
+    if any(isinstance(node, (ast.For, ast.AsyncFor)) for node in ast.walk(definition)):
+        raise LogosContractError(
+            f"{path}:{definition.lineno}: for loops are not supported; use one while loop"
+        )
+    if not isinstance(body[-1], ast.Return) or body[-1].value is None:
+        raise LogosContractError(
+            f"{path}:{definition.lineno}: the program in {fn.__name__!r} must end with one "
+            "return statement"
+        )
+    if any(isinstance(node, ast.Return) for node in body[:-1]):
+        raise LogosContractError(
+            f"{path}:{definition.lineno}: {fn.__name__!r} may only return after the loop; "
+            "early returns are not supported"
+        )
+    assigned = {}
+    for name, line in _assigned_names(body):
+        if name is None:
+            raise LogosContractError(
+                f"{path}:{line}: only plain local names can be assigned"
+            )
+        if name in variables:
+            raise LogosContractError(
+                f"{path}:{line}: {name!r} is a parameter of {fn.__name__!r}; the fragment "
+                "does not mutate inputs"
+            )
+        assigned.setdefault(name, line)
+    for name, line in assigned.items():
+        if name.startswith("_"):
+            raise LogosContractError(
+                f"{path}:{line}: local {name!r} starts with an underscore; use a plain name"
+            )
+        variables[name] = Var(name, int)
+    locals_ = tuple(
+        ProgramVariable(name, int, variables[name]) for name in assigned
+    )
+    initialized = set(names)
+    statements = []
+    for node in body[:-1]:
+        statement = _program_statement(node, variables, fn, path, initialized, top=True)
+        statements.append(statement)
+    ret = Return(_term(body[-1].value, variables, fn, path))
+    statements.append(ret)
+    params = tuple(ProgramVariable(name, variables[name].type, variables[name]) for name in names)
+    result = ProgramVariable("result", int, Var("result", int))
+    symbol = Function(
+        fn.__name__,
+        [variables[name] for name in names],
+        None,
+        result_type=int,
+        portable_id=f"fn:{fn.__name__}",
+    )
+    program = Program(
+        name=fn.__name__,
+        function=symbol,
+        params=params,
+        result=result,
+        locals=locals_,
+        requires=Lit(True),
+        ensures=Lit(True),
+        body=tuple(statements),
+        ghosts=(ProgramVariable("__variant", int, Var("__variant", int)),),
+    )
+    return names, variables, _Fragment(program=program)
+
+
+def _program_statement(node, variables, fn, path, initialized, *, top=False):
+    if isinstance(node, ast.Assign):
+        if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
+            raise LogosContractError(
+                f"{path}:{node.lineno}: assignments in {fn.__name__!r} must name one local"
+            )
+        name = node.targets[0].id
+        value = _term(node.value, variables, fn, path)
+        for used in _used_names(node.value):
+            if used not in variables:
+                continue
+            if used not in initialized:
+                raise LogosContractError(
+                    f"{path}:{node.lineno}: {used!r} is read before assignment in "
+                    f"{fn.__name__!r}"
+                )
+        initialized.add(name)
+        return Assign(name, value)
+    if isinstance(node, ast.If):
+        condition = _condition(node.test, variables, fn, path, ordered=True)
+        then_initialized = set(initialized)
+        else_initialized = set(initialized)
+        then_body = tuple(
+            _program_statement(item, variables, fn, path, then_initialized)
+            for item in node.body
+        )
+        else_body = tuple(
+            _program_statement(item, variables, fn, path, else_initialized)
+            for item in node.orelse
+        )
+        if then_initialized != initialized or else_initialized != initialized:
+            raise LogosContractError(
+                f"{path}:{node.lineno}: each branch of the if in {fn.__name__!r} must "
+                "assign exactly the same locals; this fragment keeps every local "
+                "initialized before the branch"
+            )
+        return If(condition, then_body, else_body)
+    if isinstance(node, ast.While):
+        if node.orelse:
+            raise LogosContractError(
+                f"{path}:{node.lineno}: while/else is not supported"
+            )
+        condition = _condition(node.test, variables, fn, path, ordered=True)
+        body_initialized = set(initialized)
+        loop_body = tuple(
+            _program_statement(item, variables, fn, path, body_initialized, top=True)
+            for item in node.body
+        )
+        # A loop may introduce a temporary such as the midpoint. It is checked
+        # for definite assignment inside the body; the return after the loop can
+        # only read locals that were initialized before the loop.
+        # The invariant and variant are filled from the contract after the body
+        # is translated, so they are placeholders here.
+        return While(condition, loop_body, Lit(True), Lit(0))
+    if isinstance(node, ast.Return):
+        raise LogosContractError(
+            f"{path}:{node.lineno}: returns inside the loop are not supported; keep one "
+            "return after the loop and carry the answer in a local"
+        )
+    if isinstance(node, ast.Pass):
+        return If(Lit(False), (), ())
+    raise LogosContractError(
+        f"{path}:{getattr(node, 'lineno', '?')}: unsupported statement "
+        f"{type(node).__name__} in {fn.__name__!r}; use assignments, one if/else tree, "
+        "one while loop and one final return"
+    )
+
+
+def _used_names(node):
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load):
+            yield child.id
+
+
+def _condition(node, variables, fn, path, *, ordered=False):
+    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And):
+        result = _condition(node.values[0], variables, fn, path)
+        for value in node.values[1:]:
+            result = result & _condition(value, variables, fn, path)
+        return result
+    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or):
+        result = _condition(node.values[0], variables, fn, path)
+        for value in node.values[1:]:
+            result = result | _condition(value, variables, fn, path)
+        return result
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        return ~_condition(node.operand, variables, fn, path)
+    if (
+        not isinstance(node, ast.Compare)
+        or len(node.ops) != 1
+        or len(node.comparators) != 1
+    ):
+        expectation = (
+            "one <, == or != comparison"
+            if not ordered
+            else "one comparison"
+        )
+        raise LogosContractError(
+            f"{path}:{getattr(node, 'lineno', '?')}: the condition of {fn.__name__!r} must "
+            f"be {expectation} between integer expressions"
+        )
+    left = _term(node.left, variables, fn, path)
+    right = _term(node.comparators[0], variables, fn, path)
+    operation = node.ops[0]
+    if isinstance(operation, ast.Eq):
+        return Eq(left, right)
+    if isinstance(operation, ast.NotEq):
+        return Not(Eq(left, right))
+    if isinstance(operation, ast.Lt):
+        return Lt(left, right)
+    if isinstance(operation, ast.LtE) and ordered:
+        return Le(left, right)
+    if isinstance(operation, ast.Gt) and ordered:
+        return Lt(right, left)
+    if isinstance(operation, ast.GtE) and ordered:
+        return Le(right, left)
+    if not ordered:
+        raise LogosContractError(
+            f"{path}:{node.lineno}: the condition of {fn.__name__!r} uses an unsupported "
+            "comparison; only <, == and != are supported"
+        )
+    raise LogosContractError(
+        f"{path}:{node.lineno}: unsupported comparison in {fn.__name__!r}"
     )
 
 
@@ -425,31 +878,6 @@ def _return_term(statements, variables, fn, path, branch):
             "statement; nested branches and other statements are not supported"
         )
     return _term(statements[0].value, variables, fn, path)
-
-
-def _condition(node, variables, fn, path):
-    if (
-        not isinstance(node, ast.Compare)
-        or len(node.ops) != 1
-        or len(node.comparators) != 1
-    ):
-        raise LogosContractError(
-            f"{path}:{getattr(node, 'lineno', '?')}: the condition of {fn.__name__!r} must "
-            "be one <, == or != comparison between integer expressions"
-        )
-    left = _term(node.left, variables, fn, path)
-    right = _term(node.comparators[0], variables, fn, path)
-    operation = node.ops[0]
-    if isinstance(operation, ast.Eq):
-        return Eq(left, right)
-    if isinstance(operation, ast.NotEq):
-        return Not(Eq(left, right))
-    if isinstance(operation, ast.Lt):
-        return Lt(left, right)
-    raise LogosContractError(
-        f"{path}:{node.lineno}: the condition of {fn.__name__!r} uses an unsupported "
-        "comparison; only <, == and != are supported"
-    )
 
 
 def _negate(expr):
@@ -482,15 +910,27 @@ def _select_branch(requires, guard, name):
 
 
 def _normalize(expr):
-    """Rewrite ``!=`` to ``~(... == ...)`` before the portable encoding."""
+    """Rewrite derived comparisons before the portable encoding."""
     if isinstance(expr, Neq):
         return Not(Eq(_normalize(expr.left), _normalize(expr.right)))
-    if isinstance(expr, (Add, Sub, Mul, Eq, Lt, And, Or, Implies)):
+    if isinstance(expr, Gt):
+        return Lt(_normalize(expr.right), _normalize(expr.left))
+    if isinstance(expr, Ge):
+        return Le(_normalize(expr.right), _normalize(expr.left))
+    if isinstance(expr, Implies):
+        return Implies(_normalize(expr.antecedent), _normalize(expr.consequent))
+    if isinstance(expr, (Add, Sub, Mul, Div, Eq, Le, Lt, And, Or)):
         return type(expr)(_normalize(expr.left), _normalize(expr.right))
     if isinstance(expr, Pow):
         return Pow(_normalize(expr.base), _normalize(expr.exp))
     if isinstance(expr, (Neg, Not)):
         return type(expr)(_normalize(expr.operand))
+    if isinstance(expr, (ForallNode, ExistsNode)):
+        return type(expr)(expr.var, _normalize(expr.body))
+    if isinstance(expr, Len) or isinstance(expr, Sorted):
+        return type(expr)(_normalize(expr.seq))
+    if isinstance(expr, Nth):
+        return Nth(_normalize(expr.seq), _normalize(expr.index))
     return expr
 
 
@@ -498,21 +938,52 @@ def _term(node, variables, fn, path):
     if isinstance(node, ast.Name):
         if node.id not in variables:
             raise LogosContractError(
-                f"{path}:{node.lineno}: {node.id!r} in {fn.__name__!r} is not a parameter; "
-                "globals, closures and other names are not supported"
+                f"{path}:{node.lineno}: {node.id!r} in {fn.__name__!r} is not a parameter or "
+                "local; globals, closures and other names are not supported"
             )
         return variables[node.id]
     if isinstance(node, ast.Constant) and type(node.value) is int:
         return Lit(node.value)
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        return Add(
-            _term(node.left, variables, fn, path),
-            _term(node.right, variables, fn, path),
+    if isinstance(node, ast.BinOp):
+        left = _term(node.left, variables, fn, path)
+        right = _term(node.right, variables, fn, path)
+        if isinstance(node.op, ast.Add):
+            return Add(left, right)
+        if isinstance(node.op, ast.Sub):
+            return Sub(left, right)
+        if isinstance(node.op, ast.Mult):
+            return Mul(left, right)
+        if isinstance(node.op, ast.FloorDiv):
+            return Div(left, right)
+        raise LogosContractError(
+            f"{path}:{node.lineno}: unsupported operator in {fn.__name__!r}; use +, -, *, //"
+        )
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        return Neg(_term(node.operand, variables, fn, path))
+    if isinstance(node, ast.Call):
+        if (
+            isinstance(node.func, ast.Name)
+            and node.func.id == "len"
+            and len(node.args) == 1
+            and not node.keywords
+        ):
+            return Len(_term(node.args[0], variables, fn, path))
+        raise LogosContractError(
+            f"{path}:{node.lineno}: only len(xs) calls are supported in {fn.__name__!r}"
+        )
+    if isinstance(node, ast.Subscript):
+        if isinstance(node.slice, ast.Slice):
+            raise LogosContractError(
+                f"{path}:{node.lineno}: slices are not supported in {fn.__name__!r}"
+            )
+        return Nth(
+            _term(node.value, variables, fn, path),
+            _term(node.slice, variables, fn, path),
         )
     raise LogosContractError(
         f"{path}:{getattr(node, 'lineno', '?')}: unsupported expression "
-        f"{type(node).__name__} in {fn.__name__!r}; only parameters, integer literals "
-        "and + are supported"
+        f"{type(node).__name__} in {fn.__name__!r}; use parameters, locals, integer "
+        "literals, +, -, *, //, len(xs) and xs[i]"
     )
 
 
@@ -612,9 +1083,14 @@ def _variables(expr):
         yield expr
     elif isinstance(expr, Lit):
         return
-    elif isinstance(expr, (Add, Sub, Mul, Eq, Lt, And, Or)):
+    elif isinstance(expr, (Add, Sub, Mul, Div, Eq, Le, Lt, And, Or)):
         yield from _variables(expr.left)
         yield from _variables(expr.right)
+    elif isinstance(expr, (Len, Sorted)):
+        yield from _variables(expr.seq)
+    elif isinstance(expr, Nth):
+        yield from _variables(expr.seq)
+        yield from _variables(expr.index)
     elif isinstance(expr, Implies):
         yield from _variables(expr.antecedent)
         yield from _variables(expr.consequent)
@@ -623,11 +1099,14 @@ def _variables(expr):
         yield from _variables(expr.exp)
     elif isinstance(expr, (Neg, Not)):
         yield from _variables(expr.operand)
-    elif isinstance(expr, (ForallNode, ExistsNode)):
-        raise LogosContractError(
-            "logos.contract: quantifiers are not supported inside a contract; the function "
-            "signature is the universe and requires= supplies explicit premises"
-        )
+    elif isinstance(expr, ForallNode):
+        for variable in _variables(expr.body):
+            if variable is not expr.var:
+                yield variable
+    elif isinstance(expr, ExistsNode):
+        for variable in _variables(expr.body):
+            if variable is not expr.var:
+                yield variable
     else:
         raise LogosContractError(
             f"logos.contract: unsupported expression {type(expr).__name__}; use +, -, *, "
@@ -637,10 +1116,13 @@ def _variables(expr):
 
 def _sort(expr):
     if isinstance(expr, Var):
+        from logos.sequence import SeqType
         if expr.type is int:
             return int
         if expr.type is bool:
             return bool
+        if isinstance(expr.type, SeqType):
+            return expr.type
         raise LogosContractError(
             f"logos.contract: unsupported sort {expr.type!r} on {expr.name!r}"
         )
@@ -652,7 +1134,7 @@ def _sort(expr):
         raise LogosContractError(
             f"logos.contract: unsupported literal {expr.value!r}; use integers or booleans"
         )
-    if isinstance(expr, (Add, Sub, Mul)):
+    if isinstance(expr, (Add, Sub, Mul, Div)):
         if _sort(expr.left) is not int or _sort(expr.right) is not int:
             raise LogosContractError(
                 f"logos.contract: {type(expr).__name__} expects integer operands"
@@ -674,6 +1156,31 @@ def _sort(expr):
         if _sort(expr.operand) is not int:
             raise LogosContractError("logos.contract: unary - expects an integer operand")
         return int
+    if isinstance(expr, Len):
+        from logos.sequence import SeqType
+        if not isinstance(_sort(expr.seq), SeqType):
+            raise LogosContractError("logos.contract: len expects a sequence")
+        return int
+    if isinstance(expr, Nth):
+        from logos.sequence import SeqType
+        if not isinstance(_sort(expr.seq), SeqType) or _sort(expr.index) is not int:
+            raise LogosContractError("logos.contract: nth expects a sequence and an integer index")
+        return int
+    if isinstance(expr, Sorted):
+        from logos.sequence import SeqType
+        if not isinstance(_sort(expr.seq), SeqType):
+            raise LogosContractError("logos.contract: sorted expects a sequence")
+        return bool
+    if isinstance(expr, Le):
+        if _sort(expr.left) is not int or _sort(expr.right) is not int:
+            raise LogosContractError("logos.contract: <= expects integer operands")
+        return bool
+    if isinstance(expr, (ForallNode, ExistsNode)):
+        if _sort(expr.body) is not bool:
+            raise LogosContractError(
+                "logos.contract: a quantifier body must be a proposition"
+            )
+        return bool
     if isinstance(expr, Eq):
         if _sort(expr.left) is not _sort(expr.right):
             raise LogosContractError(

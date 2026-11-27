@@ -7,13 +7,13 @@ installed checker. Earlier v1 files with empty dependency lists still replay.
 
 | Object | Fields |
 | --- | --- |
-| Proof file | `format: "logos-proof-v1"`, `theory: "logos-core-v1"`, optional `name: string or null`, `declarations: [Declaration]`, optional `functions: [Function]`, `custom_axioms: [CustomAxiom]`, `lemmas: [Lemma]`, `target: Expression`, `proof: Evidence` |
-| Declaration | `id: string`, `name: string` (display label), `sort: "prop" \| "int"` |
+| Proof file | `format: "logos-proof-v1"`, `theory: "logos-core-v1"`, optional `name: string or null`, `declarations: [Declaration]`, optional `functions: [Function]`, optional `programs: [Program]`, `custom_axioms: [CustomAxiom]`, `lemmas: [Lemma]`, `target: Expression`, `proof: Evidence` |
+| Declaration | `id: string`, `name: string` (display label), `sort: "prop" \| "int" \| "seq"` |
 | Function | `id: string`, `name: string`, `params: [Sort]`, `result: Sort`, optional `body: Expression` |
 | CustomAxiom | `id: string`, `statement: Expression` |
 | Lemma | `id: string`, `statement: Expression`, `proof: Evidence` |
 
-IDs are nonempty strings and unique across all bundle lists. The eight
+IDs are nonempty strings and unique across all bundle lists. Checker-owned
 core-law IDs are reserved. Display labels may repeat. A symbol declaration
 alone assumes no truth. Transparent function bodies can reference earlier
 function declarations and take the declared parameters as bound variables.
@@ -28,7 +28,12 @@ Omitting a body declares an opaque function.
 | `neg` | Integer `operand` |
 | `pow` | Integer `base` and natural literal `exponent` |
 | `eq` | `left` and `right` of the same sort |
+| `le` | Non-strict integer order over `left` and `right`, both of sort `int` |
 | `lt` | Strict integer order over `left` and `right`, both of sort `int` |
+| `div` | Integer `left` divided by nonzero integer `right` |
+| `len` | Sequence `seq` of sort `seq` |
+| `nth` | Sequence `seq` and integer `index` |
+| `sorted` | Sequence `seq`; the checker-owned sortedness predicate |
 | `and`, `or`, `implies` | Propositions `left` and `right` |
 | `not` | Proposition `operand` |
 | `false` | No fields. The proposition falsehood (⊥). |
@@ -55,7 +60,10 @@ Omitting a body declares an opaque function.
 | `symm` | Equality `proof`. |
 | `trans` | Equality proofs `left` and `right` with convertible middle expressions. |
 | `congr` | Equality `proof` and expression `context` with an extra innermost binder of the operands' sort. Substitutes each operand into the context. |
-| `core_law` | Law `id` and ordered integer substitution `args`. |
+| `core_law` | Law `id` and ordered typed substitution `args`. |
+| `linear` | Order `conclusion` and `terms: [{binder, coefficient}]`. Non-negative rational coefficients combine inequality hypotheses with the negated conclusion; equality hypotheses may carry either sign. The combination must cancel every atom and leave falsehood. |
+| `have` | `binder`, `statement`, its `proof`, and a `body` checked with the statement as a local hypothesis. |
+| `program_ref` | Program `id`. Recomputes every program obligation, checks the supplied proof for each, and derives the program contract. |
 | `block` | `steps` and zero-based `result` index. The result and all its step dependencies must verify. |
 | `step_ref` | `index` of an earlier step within the innermost block. |
 
@@ -91,16 +99,48 @@ distribution require checked evidence.
 | `mul_one` | `a · 1 = a` |
 | `distrib` | `a · (b + c) = a · b + a · c` |
 
-Four further core laws are checker-owned propositions over integers. They
-use the same `core_law` evidence tag and the same ordered integer
-substitution; only the conclusion is a proposition rather than an equality.
+Core order and sequence laws are checker-owned propositions. They use the
+same `core_law` evidence tag and an ordered typed substitution; only the
+conclusion is a proposition rather than an equality.
 
-| Core law | Checker-owned proposition over integers |
+| Core law | Checker-owned proposition |
 | --- | --- |
-| `lt_irrefl` | `¬(a < a)` |
-| `lt_trans` | `a < b → (b < c → a < c)` |
-| `lt_add` | `a < b → a + c < b + c` |
-| `lt_neq` | `a < b → ¬(a = b)` |
+| `lt_irrefl`, `lt_trans`, `lt_add`, `lt_neq` | Strict integer order facts stated above. |
+| `le_refl`, `le_trans`, `le_antisymm` | Non-strict order is reflexive, transitive and antisymmetric. |
+| `le_lt_trans`, `lt_le_trans`, `lt_succ_le`, `lt_add_one_le` | Mixed strict/non-strict transport and integer successor facts. |
+| `le_total`, `lt_trichotomy`, `not_lt_le` | Integer totality. |
+| `lt_to_le`, `eq_symm`, `le_add` | Basic order and equality consequences. |
+| `half_lower`, `half_upper` | `0 <= a`, `a < b` give `a <= (a+b)//2 < b`. |
+| `length_nonneg` | `0 <= len(xs)`. |
+| `sorted_elim` | Sorted `xs` orders every in-range pair `i <= j` with `xs[i] <= xs[j]`. |
+| `sorted_lower`, `sorted_upper` | An element on the low side of a smaller in-range element is smaller than the target, and symmetrically on the high side. |
+| `sorted_gap` | When the target is below every element left of `low`, above every element right of `high`, and `low >= high`, no in-range element equals the target. |
+
+### Soundness of the order and sequence laws
+
+`lt` and `le` are the usual integer orders. Each integer law is true for every
+integer substitution. `half_lower` and `half_upper` are floor division facts:
+for `0 <= a < b`, `a <= (a+b)//2` because `2a <= a+b`, and `(a+b)//2 < b`
+because `a+b < 2b`. `length_nonneg` is the range of a finite sequence length.
+
+`sorted(xs)` means `xs[i] <= xs[j]` for every `0 <= i <= j < len(xs)`.
+`sorted_elim` is that definition. `sorted_lower` follows by transitivity:
+`xs[i] <= xs[mid] < target`. `sorted_upper` follows from
+`target < xs[mid] <= xs[i]`. `sorted_gap` splits on whether an index is below
+`low` or at least `high`; because `low >= high`, every in-range index falls on
+one side, where the target is respectively smaller or larger, so it cannot
+equal the target. None of these laws mentions a particular search algorithm.
+
+### Soundness of linear certificates
+
+A `linear` term is an exact rational Farkas certificate. An inequality
+hypothesis may only receive a non-negative coefficient; an equality is zero
+and may be multiplied by either sign. Combining the indicated hypotheses with
+the negated conclusion cancels every atom and leaves a false constant relation
+(`0 <= c` with `c > 0`, or `0 < c` with `c >= 0`). Every integer solution is a
+rational solution, so the contradiction over the rationals excludes all
+integer assignments. The checker parses coefficients exactly and never trusts
+the tactic that produced them.
 
 ### Soundness of the order laws
 
@@ -124,6 +164,33 @@ so equality and `y < x` both satisfy the complement used by an else branch.
 The checker rejects inputs beyond its replay resource limits, including
 proof files over 8 MiB and integer computations over 65,536 bits. A limit
 error is a failed replay. Integer results are exact within the limits.
+
+### Executable programs
+
+A `Program` describes one source-bound executable function. Expressions use
+declaration IDs for its parameters, locals, ghost variant variable and result.
+Its `body` is a list of `assign`, `if`, `while` and `return` statements. A
+`while` carries its `invariant` and `variant`.
+
+`program_ref` recomputes these closed obligations and requires exactly one
+checked proof for each ID:
+
+- `main`: the precondition implies the weakest precondition of the body and
+  the postcondition;
+- `loopN.preserve`: invariant and guard imply the body's weakest precondition
+  of the invariant;
+- `loopN.exit`: invariant and negated guard imply the continuation;
+- `loopN.variant_nonnegative`: invariant implies `0 <= variant`;
+- `loopN.variant_decreases`: with the ghost equal to the old variant, invariant
+  and guard imply the body either leaves the guard or strictly decreases the
+  variant;
+- `readN`: every evaluated `nth` index is inside `[0, len(seq))` on its path.
+
+The function declaration used by a program must be opaque, so the program is
+its only definition. The contract is
+`pre -> (result = f(params) -> post)`. The source-to-program translation and
+the imported code-object match are the trust boundary; Rust checks the
+program's obligations and never trusts a proposed loop summary.
 
 ## Results and policy
 
@@ -323,7 +390,7 @@ Use `logos.var(name, bool)` for proposition symbols or `logos.var(name, int)`
 for integer symbols. Use `@logos.theorem` with typed parameters and
 `t.intro(...)` for scoped universal proofs. `t.ring()` constructs evidence
 from integer polynomial normalization. Its certificates contain instances
-of the eight core laws and explicit equality and congruence steps. Distinct Python symbol
+of the checker-owned core laws and explicit equality and congruence steps. Distinct Python symbol
 objects keep distinct IDs even when their labels match. In this fragment,
 each theorem's declaration context starts from its statement's symbols in
 first-occurrence order. Shared symbol objects use the same ID across the
@@ -376,8 +443,16 @@ judgment for the target.
 The order slice adds `lt` and four core laws for strict integer order, plus
 source-bound contracts whose guard is `<`. Its else path uses the
 propositional complement `~(x < y)`, so the equality boundary and `y < x`
-both belong to that path. General inequality automation (`linarith`) and
-`<=`, `>`, `>=` remain milestone work.
+both belong to that path. The loop fragment adds checked linear certificates,
+`<=`, and sequence programs; the legacy `linarith` tactic remains outside the
+checked fragment.
+
+The sequence and program slice adds finite integer sequences, sortedness,
+checked linear arithmetic, `<=`, and executable loop programs with
+`program_ref`. It proves the source-bound binary search contract over every
+sorted sequence and integer target, including the empty sequence, duplicates
+and absence. Legacy tests remain in the suite; the binary search example and
+its mutation tests are new.
 
 | Remaining legacy test | Required work |
 | --- | --- |
