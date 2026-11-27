@@ -33,8 +33,9 @@ fn renders_typed_commutativity_and_named_substitution() {
     let markdown = String::from_utf8(output.stdout).unwrap();
     assert!(markdown.starts_with("# Checked proof\n"));
     assert!(markdown.contains(r"\forall x \in \mathbb{Z},\quad \forall y \in \mathbb{Z}"));
-    assert!(markdown.contains(r#"Substitute $`a \mapsto y, b \mapsto x`$ into the law."#));
+    assert!(markdown.contains(r#"Substitute $a \mapsto y, b \mapsto x$ into the law."#));
     assert!(markdown.contains("Uses zero custom axioms."));
+    assert!(!markdown.contains("$`"));
     assert!(markdown.contains("The conclusion follows from (4)."));
     assert!(markdown.contains("be arbitrary."));
     assert!(!markdown.contains("Author's commentary"));

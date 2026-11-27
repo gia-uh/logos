@@ -428,7 +428,7 @@ def test_witness_substitution_preserves_outer_variable_under_nested_binders(tmp_
     markdown = subprocess.check_output([*args, "--markdown", path], text=True)
     assert r"\forall x \in \mathbb{Z},\quad \exists y \in \mathbb{Z}" in markdown
     assert r"\forall x_{2} \in \mathbb{Z}" in markdown
-    assert "The witness term is $`x + 1`$." in markdown
+    assert "The witness term is $x + 1$." in markdown
 
 
 @pytest.mark.parametrize(("value", "diagnostic"), [

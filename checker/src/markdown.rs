@@ -65,11 +65,11 @@ pub fn render(checked: &Verified) -> String {
     display(&mut out, &math.formula(&judgment.statement, &[]));
 
     writeln!(out, "## Domains and definitions\n").unwrap();
-    writeln!(out, "- $`\\mathbb{{Z}}`$ is the type of mathematical integers. $`\\mathsf{{Prop}}`$ is the type of propositions.").unwrap();
+    writeln!(out, "- $\\mathbb{{Z}}$ is the type of mathematical integers. $\\mathsf{{Prop}}$ is the type of propositions.").unwrap();
     for symbol in &judgment.declarations {
         writeln!(
             out,
-            "- Free symbol $`{} \\in {}`$.",
+            "- Free symbol ${} \\in {}$.",
             math.symbols[symbol.id.as_str()],
             domain(symbol.sort),
         )
@@ -82,7 +82,7 @@ pub fn render(checked: &Verified) -> String {
             params.push(format!("p_{{{}}}", index + 1));
             writeln!(
                 out,
-                "- Parameter $`{} \\in {}`$ of $`{label}`$.",
+                "- Parameter ${} \\in {}$ of ${label}$.",
                 params[index],
                 domain(*sort)
             )
@@ -92,7 +92,7 @@ pub fn render(checked: &Verified) -> String {
         if let Some(body) = &function.body {
             writeln!(
                 out,
-                "- Transparent definition of $`{label}`$ with result type $`{}`$.",
+                "- Transparent definition of ${label}$ with result type ${}$.",
                 domain(function.result)
             )
             .unwrap();
@@ -103,7 +103,7 @@ pub fn render(checked: &Verified) -> String {
         } else {
             writeln!(
                 out,
-                "- Opaque function $`{call}`$ with result type $`{}`$.",
+                "- Opaque function ${call}$ with result type ${}$.",
                 domain(function.result)
             )
             .unwrap();
@@ -140,7 +140,7 @@ pub fn render(checked: &Verified) -> String {
             .iter()
             .zip(&vars)
             .filter(|(var, _)| introduced.insert(var.id.as_str()))
-            .map(|(var, name)| format!("$`{name} \\in {}`$", domain(var.sort)))
+            .map(|(var, name)| format!("${name} \\in {}$", domain(var.sort)))
             .collect();
         if !arbitrary.is_empty() {
             writeln!(out, "Let {} be arbitrary.\n", arbitrary.join(" and ")).unwrap();
@@ -157,12 +157,12 @@ pub fn render(checked: &Verified) -> String {
             if introduced.insert(id.as_str()) {
                 writeln!(
                     out,
-                    "Take $`{name} \\in {}`$ arbitrary.\n",
+                    "Take ${name} \\in {}$ arbitrary.\n",
                     domain(body_scope.variables[pos].sort)
                 )
                 .unwrap();
             }
-            format!("Generalize over the arbitrary variable $`{name}`$.")
+            format!("Generalize over the arbitrary variable ${name}$.")
         });
 
         let explanation = match step.rule {
@@ -228,13 +228,13 @@ pub fn render(checked: &Verified) -> String {
                 .collect::<Vec<_>>();
             writeln!(
                 out,
-                " Substitute $`{}`$ into the law.",
+                " Substitute ${}$ into the law.",
                 substitutions.join(", ")
             )
             .unwrap();
             writeln!(
                 out,
-                " Its formal equality is $`{}`$.",
+                " Its formal equality is ${}$.",
                 math.formal(&law.formal_statement)
             )
             .unwrap();
@@ -244,7 +244,7 @@ pub fn render(checked: &Verified) -> String {
             with_hole.push("\\square".into());
             writeln!(
                 out,
-                " The substitution context is $`{}`$.",
+                " The substitution context is ${}$.",
                 math.formula(template, &with_hole)
             )
             .unwrap();
@@ -253,7 +253,7 @@ pub fn render(checked: &Verified) -> String {
             let witness = &step.substitutions.as_ref().expect("checked witness")[0];
             writeln!(
                 out,
-                " The witness term is $`{}`$.",
+                " The witness term is ${}$.",
                 math.formula(witness, &vars)
             )
             .unwrap();
@@ -304,7 +304,7 @@ pub fn render(checked: &Verified) -> String {
                     conversion.explanation,
                 ).unwrap();
                 if has_power(&conversion.left) || has_power(&conversion.right) {
-                    writeln!(out, "In the normal form, natural powers use $`a^0 = 1`$ and $`a^{{n+1}} = a^n \\cdot a`$.").unwrap();
+                    writeln!(out, "In the normal form, natural powers use $a^0 = 1$ and $a^{{n+1}} = a^n \\cdot a$.").unwrap();
                 }
                 let left = math.formula(&conversion.left, &vars);
                 let right = math.formula(&conversion.right, &vars);
