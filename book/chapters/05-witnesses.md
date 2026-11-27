@@ -10,13 +10,19 @@ An existential statement promises a value. It does not say which one, and it doe
 
 ## Before you start
 
-**Prerequisites.** Chapters 1, 3 and 4: `p.assume`, `p.apply`, `p.and_intro`, `p.cases`, `p.negate`, `p.not_elim` and `p.ex_falso`. You should be comfortable reading a goal and a local hypothesis before each step.
+**Prerequisites.** Writing Your First Proof, Facts That Hold Together, and When a Proof Splits in Two: `p.assume`, `p.apply`, `p.and_intro`, `p.cases`, `p.negate`, `p.not_elim` and `p.ex_falso`. You should be comfortable reading a goal and a local hypothesis before each step.
 
 **Outcomes.** You will open an existential with `p.obtain`, close one with `p.witness`, build a named existential with `p.exists`, introduce an arbitrary value with `p.fix`, and explain why a witness may not mention a symbol outside its scope.
 
 ## Two directions of an existential
 
-The sum of two even integers is even. “$a$ is even” means that some integer $i$ satisfies $a = 2i$. The hypothesis gives us two such integers, one for each summand. The conclusion asks for one integer for the sum.
+The sum of two even integers is even. “$a$ is even” means that some integer $i$ satisfies $a = 2i$. The hypothesis gives us two such integers, one for each summand. The conclusion asks for $k$ such that $a+b=2k$.
+
+Substitute the equations from the hypotheses and factor out 2:
+
+$$a+b = 2i+2j = 2(i+j).$$
+
+Which expression supplies $k$? The coefficient of 2 in the last expression is $i+j$. In Logos, `exists(Int, lambda i: a == 2 * i)` states the premise about $a$. Given evidence for that premise, `p.obtain` returns a fresh symbolic integer `i` and a fact `a_eq` for $a=2i$. The symbol represents the promised value and carries no Python integer value. Open the second premise in the same way.
 
 ```python {run}
 import logos
@@ -30,6 +36,11 @@ def even_sum(a: Int, b: Int):
         & exists(Int, lambda j: b == 2 * j)
     ) >> exists(Int, lambda k: a + b == 2 * k)
 
+```
+
+Now use `p.ring` to derive $a+b=2(i+j)$ from the two named equations. It constructs a polynomial certificate that the checker recomputes. Give the chosen term and the equation for that term to `p.witness`.
+
+```python {run continue}
 @even_sum.proof
 def prove_even_sum(p, a, b):
     """Open both witnesses, add the equations, and package their sum."""
@@ -44,21 +55,13 @@ def prove_even_sum(p, a, b):
     return p.witness(i + j, sum_eq)
 ```
 
-`exists(Int, lambda i: a == 2 * i)` builds the proposition $\exists i. a = 2i$. The `Int` argument fixes the sort of the bound variable; `lambda` names it in the body.
-
-`p.obtain(assumptions.left())` opens the existential. It returns a pair: a fresh local integer, here `i`, and a fact for the body with the bound variable replaced by that integer. The fact `a_eq` proves $a = 2i$. The variable `i` is not a Python integer and carries no numeric value. It is a symbolic name that stands for the witness the hypothesis promises.
-
-`p.witness(i + j, sum_eq)` goes the other way. It takes a value and evidence that the body holds at that value, and returns evidence for the current existential goal. The value here is $i + j$; the evidence is the equation $a + b = 2(i + j)$, which `p.ring` derived from the two opened equations.
-
-`p.ring(equation, using=[...])` proves a polynomial identity over the integers. It builds an explicit certificate from the equations you name. The checker parses the certificate and recomputes the identity; it does not trust the algebra in the prose.
-
-After the final `p.witness`, the goal no longer mentions `i` or `j`. That is the point of an existential: the value exists, but the proof of the existential does not expose which value it was to the caller. Inside the proof, `i` and `j` are available; outside, only the existential is.
+The packaged conclusion says only that some $k$ works. Its statement contains neither of the local symbols `i` and `j`.
 
 ## A forall introduces an arbitrary value
 
 The universal quantifier is the dual. To prove $\forall x. P(x)$, you introduce an arbitrary $x$ and prove $P(x)$ without assuming anything special about $x$. The checker generalizes the result at the end.
 
-The theorem below has a premise before the universal: if $a$ is even, then every multiple of $a$ is even. The premise is an existential, and the conclusion contains a forall inside the implication.
+The theorem below has a premise before the universal: if $a$ is even, then every multiple of $a$ is even. The premise is an existential, and the conclusion contains a forall inside the implication. Open the premise to get $a=2i$, then use `p.fix("x")` to bind an arbitrary $x$. Multiplying the equation by $x$ gives $ax=2(ix)$, so the body of the forall has witness $ix$. Package that fact inside the block and pass it to `fixed.finish` to generalize over $x$.
 
 ```python {run continue}
 @logos.theorem
@@ -84,11 +87,13 @@ def prove_even_multiple(p, a):
 
 Why not use `p.fix` for every theorem parameter? The outer parameters of `@logos.theorem` are already universally quantified. The proof function receives them as symbolic values and the checker generalizes at the end. `p.fix` is for a forall that appears *inside* the statement, after a premise or inside another connective.
 
-The scope of `x` is the `with` block. A fact produced inside the block may mention `x`, but a fact returned to the caller may not, unless the returned statement still binds `x`. `fixed.finish` performs that generalization; after the block, `x` is a name for a value that the caller cannot choose.
+The scope of `x` is the `with` block. A fact produced inside the block may mention `x`, but a fact returned to the caller may not, unless the returned statement still binds `x`. `fixed.finish` performs that generalization; after the block, the Python name `x` still exists, but the Logos symbol it names is out of scope.
 
 ## Nested existentials
 
-`p.witness` always closes the *current* goal. That is convenient for the outermost quantifier, but it is not enough to build an inner existential before the outer one. `p.exists(goal, value, evidence)` builds a fact for an explicitly named existential goal without changing the current goal.
+The goal is $\exists x.\;\exists y.\;(a=x) \land (b=y)$. Choose $x=a$. Substitute that choice in the body before reading the code. What existential remains, and what value of $y$ makes its two equalities reflexive?
+
+The inner goal is $\exists y.\;(a=a) \land (b=y)$. Pick $y=b$ and combine `p.refl(a)` with `p.refl(b)`. Use `p.exists(inner_goal, b, evidence)` to package that conjunction for the explicit inner goal. Now `p.witness(a, inner)` has evidence for the entire body at $x=a$.
 
 ```python {run continue}
 @logos.theorem
@@ -104,25 +109,24 @@ def prove_pair_witness(p, a, b):
     return p.witness(a, inner)
 ```
 
-The goal is $\exists x. \exists y. (a = x) \land (b = y)$. The outer witness is $a$, so the inner goal is $\exists y. (a = a) \land (b = y)$. `p.exists` packages $b$ and the conjunction $(a = a) \land (b = b)$ as a fact for that inner goal. Then `p.witness(a, inner)` closes the outer existential with that fact as evidence.
-
-`p.refl(a)` proves the trivial equality $a = a$. It is the equality introduction rule; it needs no hypotheses. `p.and_intro` combines the two equalities.
-
-The order matters. If you call `p.witness` first, it tries to close the outer existential and expects evidence for the whole body at the chosen value, including the inner existential. Building the inner fact first gives it something to consume.
+Construction proceeds inside out because the outer introduction needs the inner existential as its evidence.
 
 ## Scope is not a formality
 
-A witness may mention only symbols that are in scope at the point where it is used. If it mentions a variable introduced inside a branch or a universal scope that has already closed, the exported artifact would refer to a value the reader cannot reconstruct.
+In `even_multiple`, `fixed.finish(p.witness(i * x, product))` packages the witness while the arbitrary `x` is in scope. To see why that timing matters, replace the final `return fixed.result` with this attempt to export the local witness directly. Use `p.exists` to target an explicit existential because the current goal outside `p.fix` is universal.
 
-`p.witness` enforces the rule before the checker sees the artifact. A value that mentions an unknown symbol produces:
+```python
+    escaped_goal = exists(Int, lambda k: a * x == 2 * k)
+    return p.exists(escaped_goal, i * x, product)
+```
+
+Python still resolves `x` and `product` as local names. Logos rejects the witness because the `with p.fix("x")` block has ended.
 
 ```text
 the witness mentions symbols that are not in scope
 ```
 
-The machine-readable details name the offending symbol under `unbound`. In a chapter, the usual cause is a typo or a value copied from a hypothesis that was opened in a different branch.
-
-The same rule applies to `p.apply` when it instantiates a universal lemma: the argument must be built from symbols in the current scope. Chapter 6 uses that rule when it applies a lemma with a term that was opened earlier.
+The diagnostic's `unbound` field lists `x`. Restore `return fixed.result`. The finished fact binds $x$ in the universal statement, so it can leave the block. The same scope rule applies to arguments used to instantiate a universal lemma with `p.apply`.
 
 ## Check the three proofs
 
@@ -150,10 +154,8 @@ A second common failure is a missing `fixed.finish(...)` inside `p.fix`. The sco
 
 ## Exit exercise
 
-Prove
+1. Given $\exists i.\;a=2i$, prove $\exists k.\;3a=2k$. Choose a witness, write the exact equation it requires, and explain what the checker would compare if you supplied a different witness with the same evidence.
+2. Prove $(\exists i.\;a=2i) \Rightarrow (\exists k.\;a+a=2k)$. Then decide whether the premise is necessary. Justify your answer with a checked proof or a counterexample.
+3. Given $a=b$, prove $\forall x.\;\exists y.\;(a+x=y)\land(b+x=y)$. State where you must package the witness and what evidence can leave the scope of $x$.
 
-$$\bigl(\exists i.\; a = 2i\bigr) \;\Rightarrow\; \bigl(\exists k.\; a + a = 2k\bigr).$$
-
-Open the hypothesis with `p.obtain`, then choose a witness for the conclusion in terms of the opened integer. The equation $a + a = 2(i + i)$ follows from the hypothesis by `p.ring`. Confirm that the final `certified` is `True`.
-
-As a second exercise, prove the same statement with the witness $a$ and the equation $a + a = 2a$. You still assume the premise to enter the implication, but the witness and the evidence do not use it. Both proofs are valid. Which one would you show to a reader who wants to know why the hypothesis was needed?
+Check that your proofs certify before comparing approaches.
