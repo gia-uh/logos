@@ -33,13 +33,16 @@ from functools import lru_cache
 from pathlib import Path
 
 from logos.expr import (
-    Add, And, App, Eq, ExistsNode, Expr, ForallNode, Implies, Lit, Mul, Neg,
-    Not, Or, Sub, Var,
+    Add, And, App, Eq, ExistsNode, Expr, ForallNode, Implies, Le, Lit, Lt,
+    Mul, Neg, Not, Or, Sub, Var,
 )
-from logos.helpers import free_symbol_ids, structural_eq, substitute_symbols
+from logos.helpers import free_symbol_ids, normalize_order, structural_eq, substitute_symbols
 from logos.kernel import (
-    AndElimL, AndElimR, Congr, ExistsElim, ExistsIntro, ForallIntro, HypRef,
-    ImpliesIntro, ProofTerm, Refl, Symm, Trans,
+    AndElimL, AndElimR, AndIntro, AxiomRef, CaseAnalysis, Congr, CoreLaw,
+    EqSubst, ExFalso, ExistsElim, ExistsIntro, ForallElim, ForallIntro, Have,
+    HypRef, ImpliesElim, ImpliesIntro, Induction, Least, Linear, NotElim,
+    NotIntro, ProofTerm, RecursorBase, RecursorStep, Refl, Symm, TheoremRef,
+    Trans,
 )
 from logos.portable import LogosProofError
 from logos.runner import TacticFailed
@@ -454,7 +457,7 @@ def _location(frame) -> tuple[str, int, str]:
 
 
 def unfold(expr: Expr) -> Expr:
-    """Unfold transparent definitions at the head of a proposition."""
+    """Unfold transparent definitions throughout a proposition."""
     while isinstance(expr, App) and expr.symbol is not None:
         symbol = expr.symbol
         body = getattr(symbol, "body", None)
@@ -464,11 +467,43 @@ def unfold(expr: Expr) -> Expr:
         expr = substitute_symbols(
             body, {id(param): argument for param, argument in zip(params, expr.args)}
         )
-    return expr
+    if not hasattr(expr, "__dataclass_fields__") or isinstance(expr, (Var, Lit)):
+        return expr
+    values = {}
+    for name in expr.__dataclass_fields__:
+        value = getattr(expr, name)
+        if isinstance(value, Expr):
+            value = unfold(value)
+        elif isinstance(value, list):
+            value = [
+                tuple(unfold(part) if isinstance(part, Expr) else part for part in item)
+                if isinstance(item, tuple)
+                else unfold(item) if isinstance(item, Expr)
+                else item
+                for item in value
+            ]
+        values[name] = value
+    return type(expr)(**values)
+
+
+def _sort_of(expr: Expr) -> type:
+    if isinstance(expr, Var):
+        return expr.type
+    if isinstance(expr, Lit):
+        return type(expr.value)
+    if isinstance(expr, App):
+        symbol = expr.symbol
+        return getattr(symbol, "result_type", None) or int
+    if isinstance(expr, (And, Or, Not, Implies, Eq, Lt, Le, ExistsNode, ForallNode)):
+        return bool
+    return int
 
 
 def _same(left: Expr, right: Expr) -> bool:
-    return structural_eq(unfold(left), unfold(right))
+    return structural_eq(
+        normalize_order(unfold(left)),
+        normalize_order(unfold(right)),
+    )
 
 
 def _flipped_equality(statement: Expr, expected: Expr) -> bool:
@@ -501,18 +536,31 @@ def _occurrence(expr: Expr, pattern: Expr):
             path = _occurrence(value, pattern)
             if path is not None:
                 return (name, *path)
+        elif isinstance(value, (list, tuple)):
+            for index, item in enumerate(value):
+                if isinstance(item, Expr):
+                    path = _occurrence(item, pattern)
+                    if path is not None:
+                        return (name, index, *path)
     return None
 
 
-def _replace_at(expr: Expr, path: tuple[str, ...], value: Expr) -> Expr:
+def _replace_at(expr: Expr, path: tuple, value: Expr) -> Expr:
     if not path:
         return value
     head, *rest = path
+    if isinstance(head, int):
+        items = list(expr)
+        items[head] = _replace_at(items[head], tuple(rest), value)
+        return type(expr)(items) if isinstance(expr, list) else tuple(items)
     child = getattr(expr, head)
-    fields = {
-        name: (getattr(expr, name) if name != head else _replace_at(child, tuple(rest), value))
-        for name in expr.__dataclass_fields__
-    }
+    fields = {}
+    for name in expr.__dataclass_fields__:
+        current = getattr(expr, name)
+        if name == head:
+            fields[name] = _replace_at(child, tuple(rest), value)
+        else:
+            fields[name] = current
     return type(expr)(**fields)
 
 
@@ -696,6 +744,22 @@ class Fact:
         return f"Fact({format_expr(self.statement)!r})"
 
 
+def _wrap_frames(proof: ProofTerm, frames) -> ProofTerm:
+    """Close the local frames that a branch actually introduced."""
+    for frame in reversed(tuple(frames)):
+        if frame.kind == "assume":
+            proof = ImpliesIntro(frame.statement, frame.name, proof)
+        elif frame.kind == "forall":
+            proof = ForallIntro(frame.variable, proof)
+        else:
+            proof = ExistsElim(frame.proof, frame.variable, frame.name, proof)
+    return proof
+
+
+def _fraction_text(value) -> str:
+    return str(value.numerator) if value.denominator == 1 else f"{value.numerator}/{value.denominator}"
+
+
 class ProofContext:
     """The ``p`` argument of a book-style proof function."""
 
@@ -756,6 +820,7 @@ class ProofContext:
     def assume(self, proposition: Expr) -> Fact:
         if self.goal is None:
             raise self.failure("assume_after_close", "there is no goal left to assume")
+        proposition = normalize_order(proposition)
         goal = unfold(self.goal)
         if not isinstance(goal, Implies) or not _same(goal.antecedent, proposition):
             raise self.failure(
@@ -797,7 +862,9 @@ class ProofContext:
         fact_name = names[1] if len(names) >= 2 else "obtained"
         variable = Var(self._fresh(witness_name), statement.var.type)
         name = self._fresh(fact_name)
-        hypothesis = substitute_symbols(statement.body, {id(statement.var): variable})
+        hypothesis = normalize_order(
+            substitute_symbols(statement.body, {id(statement.var): variable})
+        )
         self.hypotheses[name] = hypothesis
         self.frames.append(
             _Frame(
@@ -821,13 +888,470 @@ class ProofContext:
         self.opened.append(fact)
         return variable, fact
 
+    def _fact(self, statement: Expr, proof: ProofTerm, label: str | None = None) -> Fact:
+        file, line, source_line = _location(_caller_outside())
+        if label is None:
+            names = _assignment_names(file, line)
+            label = names[0] if names else "fact"
+        return Fact(
+            self,
+            statement,
+            proof,
+            label=label,
+            file=file,
+            line=line,
+            source_line=source_line,
+        )
+
+    def _match_fact(self, expected: Expr, fact: Fact) -> ProofTerm:
+        """Use a fact as evidence for ``expected``, flipping equalities once."""
+        if _same(fact.statement, expected):
+            return fact.proof
+        if _flipped_equality(fact.statement, expected):
+            return Symm(fact.proof)
+        file, line, source_line = _location(_caller_outside())
+        raise self.failure(
+            "evidence_mismatch",
+            "the evidence does not prove the expected statement",
+            expected=expected,
+            got=fact.statement,
+            file=file,
+            line=line,
+            source_line=source_line,
+        )
+
+    # -- general evidence-producing operations ---------------------------------
+
+    def apply(self, lemma, *arguments) -> Fact:
+        """Instantiate a checked theorem (or local implication fact) step by step.
+
+        An expression argument instantiates a ``forall``; a ``Fact``
+        discharges an implication.  Nothing is closed behind the reader's
+        back: the returned fact carries the remaining statement.
+        """
+        from logos.theorem import Axiom as AuthorAxiom, Theorem
+
+        if isinstance(lemma, Theorem):
+            proof: ProofTerm = TheoremRef(lemma)
+            statement = lemma.statement
+            name = lemma.name
+        elif isinstance(lemma, AuthorAxiom):
+            proof = AxiomRef(lemma)
+            statement = lemma.statement
+            name = lemma.name
+        elif isinstance(lemma, Fact):
+            proof = lemma.proof
+            statement = lemma.statement
+            name = lemma.label
+        else:
+            raise self.failure(
+                "apply_kind",
+                "apply expects a theorem, axiom or local fact",
+                got=type(lemma).__name__,
+            )
+        file, line, source_line = _location(_caller_outside())
+        for index, argument in enumerate(arguments):
+            shape = unfold(statement)
+            if isinstance(argument, Fact):
+                if not isinstance(shape, Implies):
+                    raise self.failure(
+                        "apply_not_implication",
+                        "apply received a fact but no implication remains",
+                        expected=shape,
+                        got=argument.statement,
+                        extra={"lemma": name, "argument": index},
+                        file=file,
+                        line=line,
+                        source_line=source_line,
+                    )
+                try:
+                    premise = self._match_fact(shape.antecedent, argument)
+                except AuthoringFailure as error:
+                    raise self.failure(
+                        "apply_premise_mismatch",
+                        f"the fact does not prove the antecedent needed by {name}",
+                        expected=shape.antecedent,
+                        got=argument.statement,
+                        extra={"lemma": name, "argument": index},
+                        file=file,
+                        line=line,
+                        source_line=source_line,
+                    ) from error
+                proof = ImpliesElim(proof, premise)
+                statement = shape.consequent
+                continue
+            if isinstance(argument, ProofTerm):
+                if not isinstance(shape, Implies):
+                    raise self.failure(
+                        "apply_not_implication",
+                        "apply received a proof term but no implication remains",
+                        expected=shape,
+                        got="proof term",
+                        extra={"lemma": name, "argument": index},
+                        file=file,
+                        line=line,
+                        source_line=source_line,
+                    )
+                proof = ImpliesElim(proof, argument)
+                statement = shape.consequent
+                continue
+            if not isinstance(shape, ForallNode):
+                raise self.failure(
+                    "apply_not_forall",
+                    "apply received a term but no universal binder remains",
+                    expected=shape,
+                    got=argument,
+                    extra={"lemma": name, "argument": index},
+                    file=file,
+                    line=line,
+                    source_line=source_line,
+                )
+            term = argument if isinstance(argument, Expr) else Lit(argument)
+            unbound = free_symbol_ids(term) - self.allowed
+            if unbound:
+                raise self.failure(
+                    "apply_escape",
+                    "the argument mentions symbols that are not in scope",
+                    expected=shape,
+                    got=term,
+                    extra={"lemma": name, "argument": index, "unbound": sorted(
+                        getattr(item, "name", "?")
+                        for item in _walk_expr(term)
+                        if id(item) in unbound and isinstance(item, Var)
+                    )},
+                    file=file,
+                    line=line,
+                    source_line=source_line,
+                )
+            proof = ForallElim(proof, term)
+            statement = substitute_symbols(shape.body, {id(shape.var): term})
+        return self._fact(statement, proof)
+
+    def and_intro(self, left: Fact, right: Fact) -> Fact:
+        if not isinstance(left, Fact) or not isinstance(right, Fact):
+            raise TypeError("and_intro expects two facts")
+        statement = And(left.statement, right.statement)
+        return self._fact(statement, AndIntro(left.proof, right.proof))
+
+    def exists(self, goal: Expr, value: Expr, evidence: Fact) -> Fact:
+        """Package a witness as evidence for an existential statement."""
+        goal = normalize_order(goal)
+        shape = unfold(goal)
+        if not isinstance(shape, ExistsNode):
+            raise self.failure(
+                "exists_goal",
+                "exists expects an existential statement",
+                expected="exists x. P(x)",
+                got=goal,
+            )
+        if not isinstance(value, Expr):
+            value = Lit(value)
+        unbound = free_symbol_ids(value) - self.allowed
+        if unbound:
+            raise self.failure(
+                "witness_escape",
+                "the witness mentions symbols that are not in scope",
+                expected=shape,
+                got=value,
+                extra={"unbound": sorted(
+                    getattr(item, "name", "?")
+                    for item in _walk_expr(value)
+                    if id(item) in unbound and isinstance(item, Var)
+                )},
+            )
+        expected = substitute_symbols(shape.body, {id(shape.var): value})
+        proof = self._match_fact(expected, evidence)
+        return self._fact(goal, ExistsIntro(value, proof, shape))
+
+    def subst(self, fact: Fact, equality: Fact) -> Fact:
+        """Replace one side of an equality throughout a fact."""
+        equality_statement = unfold(equality.statement)
+        if not isinstance(equality_statement, Eq):
+            raise self.failure(
+                "subst_equality",
+                "subst needs an equality",
+                expected="a = b",
+                got=equality.statement,
+            )
+        path = _occurrence(fact.statement, equality_statement.left)
+        if path is None:
+            raise self.failure(
+                "subst_occurrence",
+                "the equality's left side does not occur in the fact",
+                expected=equality_statement.left,
+                got=fact.statement,
+            )
+        variable = Var(self._fresh("target"), _sort_of(equality_statement.left))
+        template = _replace_at(fact.statement, path, variable)
+        proof = EqSubst(equality.proof, variable, template, fact.proof)
+        statement = _replace_at(fact.statement, path, equality_statement.right)
+        return self._fact(statement, proof)
+
+    def refl(self, expression: Expr) -> Fact:
+        if not isinstance(expression, Expr):
+            expression = Lit(expression)
+        return self._fact(Eq(expression, expression), Refl(expression))
+
+    def symm(self, fact: Fact) -> Fact:
+        statement = unfold(fact.statement)
+        if not isinstance(statement, Eq):
+            raise self.failure(
+                "symm_goal",
+                "symm expects an equality",
+                goal=fact.statement,
+            )
+        return self._fact(Eq(statement.right, statement.left), Symm(fact.proof))
+
+    def trans(self, left: Fact, right: Fact) -> Fact:
+        first = unfold(left.statement)
+        second = unfold(right.statement)
+        if not isinstance(first, Eq) or not isinstance(second, Eq):
+            raise self.failure(
+                "trans_goal",
+                "trans expects two equalities",
+                expected="a = b, b = c",
+                got=left.statement,
+            )
+        if not _same(first.right, second.left):
+            raise self.failure(
+                "trans_middle",
+                "the middle terms of the equalities do not match",
+                expected=first.right,
+                got=second.left,
+            )
+        return self._fact(Eq(first.left, second.right), Trans(left.proof, right.proof))
+
+    def not_elim(self, negation: Fact, premise: Fact) -> Fact:
+        shape = unfold(negation.statement)
+        if not isinstance(shape, Not):
+            raise self.failure(
+                "not_elim_goal",
+                "not_elim needs a negated fact",
+                expected="~A",
+                got=negation.statement,
+            )
+        return self._fact(
+            Lit(False),
+            NotElim(negation.proof, self._match_fact(shape.operand, premise)),
+        )
+
+    def ex_falso(self, falsehood: Fact) -> Fact:
+        if self.goal is None:
+            raise self.failure("ex_falso_after_close", "there is no goal left")
+        return self._fact(self.goal, ExFalso(falsehood.proof, self.goal))
+
+    def not_lt_of_lt(self, low: Expr, high: Expr, fact: Fact) -> Fact:
+        """From ``low < high`` derive ``~(high < low)`` without a new axiom."""
+        low = low if isinstance(low, Expr) else Lit(low)
+        high = high if isinstance(high, Expr) else Lit(high)
+        shape = unfold(fact.statement)
+        if not isinstance(shape, Lt) or not _same(shape.left, low) or not _same(shape.right, high):
+            raise self.failure(
+                "not_lt_wrong_fact",
+                "not_lt_of_lt needs the inequality low < high",
+                expected=Lt(low, high),
+                got=fact.statement,
+            )
+        name = self._fresh("back")
+        inner = ImpliesElim(
+            ImpliesElim(CoreLaw("lt_trans", (low, high, low)), fact.proof),
+            HypRef(name),
+        )
+        body = NotElim(CoreLaw("lt_irrefl", (low,)), inner)
+        proof = NotIntro(ImpliesIntro(Lt(high, low), name, body))
+        return self._fact(Not(Lt(high, low)), proof)
+
+    def order(self, law: str, *args, using=()) -> Fact:
+        """Cite a core order law with explicit integer arguments and premises."""
+        from logos.core_laws import law_statement
+        from logos.order import order_law, split_implications
+
+        args = tuple(arg if isinstance(arg, Expr) else Lit(arg) for arg in args)
+        try:
+            full = order_law(law, args)
+        except ValueError:
+            full = law_statement(law, tuple(args))
+        premises, conclusion = split_implications(normalize_order(unfold(full)))
+        available = list(using)
+        used = []
+        for premise in premises:
+            match = None
+            for fact in available:
+                try:
+                    self._match_fact(premise, fact)
+                except AuthoringFailure:
+                    continue
+                match = fact
+                break
+            if match is None:
+                for name, statement in self.hypotheses.items():
+                    candidate = Fact(self, statement, HypRef(name), label=name)
+                    try:
+                        self._match_fact(premise, candidate)
+                    except AuthoringFailure:
+                        continue
+                    match = candidate
+                    break
+            if match is None:
+                raise self.failure(
+                    "order_premise_missing",
+                    f"the {law} law needs a premise that is not in scope",
+                    expected=premise,
+                    goal=conclusion,
+                    extra={"law": law},
+                )
+            used.append(match)
+        proof: ProofTerm = CoreLaw(law, tuple(args))
+        for fact in used:
+            proof = ImpliesElim(proof, fact.proof)
+        return self._fact(conclusion, proof)
+
+    def linear(self, goal: Expr, *, using=()) -> Fact:
+        """Prove a linear inequality from named facts with a checked certificate."""
+        from logos.proofs import farkas
+
+        if not isinstance(goal, Expr):
+            goal = Lit(goal)
+        goal = normalize_order(goal)
+        facts = list(using)
+        base = [
+            (name, normalize_order(statement))
+            for name, statement in self.hypotheses.items()
+        ]
+        wrapped = []
+        for fact in facts:
+            name = self._fresh(fact.label or "fact")
+            base.append((name, normalize_order(fact.statement)))
+            wrapped.append((name, fact))
+        labels = farkas(unfold(goal), base)
+        if labels is None:
+            raise self.failure(
+                "linear_goal_unreachable",
+                "linear arithmetic could not derive the goal from these facts",
+                goal=goal,
+                extra={"using": [_detail_fact(fact) for fact in facts]},
+            )
+        proof: ProofTerm = Linear(
+            unfold(goal),
+            tuple((name, _fraction_text(value)) for name, value in labels.items()),
+        )
+        for name, fact in reversed(wrapped):
+            proof = Have(name, fact.statement, fact.proof, proof)
+        return self._fact(goal, proof)
+
+    def recursor_base(self, function) -> Fact:
+        from logos.expr import App
+
+        base = function.recursor[0]
+        statement = Eq(function(Lit(0)), base)
+        return self._fact(statement, RecursorBase(function))
+
+    def recursor_step(self, function, argument: Expr, nonnegative: Fact) -> Fact:
+        from logos.expr import App
+
+        if not isinstance(argument, Expr):
+            argument = Lit(argument)
+        base, step_body, previous = function.recursor
+        expected = Not(Lt(argument, Lit(0)))
+        if not _same(expected, nonnegative.statement):
+            raise self.failure(
+                "recursor_nonnegative",
+                "the recursive step needs a nonnegative argument",
+                expected=expected,
+                got=nonnegative.statement,
+            )
+        argument_var = function.params[0]
+        value = function(argument)
+        statement = Eq(
+            function(argument + Lit(1)),
+            substitute_symbols(
+                step_body,
+                {id(argument_var): argument, id(previous): value},
+            ),
+        )
+        return self._fact(statement, RecursorStep(function, argument, nonnegative.proof))
+
+    def rewrite(self, fact: Fact, equality: Fact) -> Fact:
+        """Rewrite the second argument of a transparent ``divides`` fact."""
+        statement = fact.statement
+        equality_statement = unfold(equality.statement)
+        if (
+            not isinstance(statement, App)
+            or statement.symbol is None
+            or len(statement.args) != 2
+            or not isinstance(equality_statement, Eq)
+        ):
+            raise self.failure(
+                "rewrite_shape",
+                "rewrite expects a divides fact and an equality",
+                expected="divides(d, a), a = b",
+                got=fact.statement,
+            )
+        variable = Var(self._fresh("target"), statement.args[1].type)
+        template = statement.symbol(statement.args[0], variable)
+        expected = substitute_symbols(template, {id(variable): equality_statement.left})
+        proof = self._match_fact(expected, fact)
+        new_statement = substitute_symbols(template, {id(variable): equality_statement.right})
+        return self._fact(new_statement, EqSubst(equality.proof, variable, template, proof))
+
+    def least(self, lower: Expr, nonempty: Fact) -> Fact:
+        """Apply the least-element rule to a nonempty bounded predicate."""
+        if not isinstance(lower, Expr):
+            lower = Lit(lower)
+        shape = unfold(normalize_order(nonempty.statement))
+        if not isinstance(shape, ExistsNode) or not isinstance(unfold(shape.body), And):
+            raise self.failure(
+                "least_shape",
+                "least needs an existential of a lower bound and a predicate",
+                expected="exists m. ~(m < lower) & P(m)",
+                got=nonempty.statement,
+            )
+        membership = unfold(shape.body)
+        if not isinstance(unfold(membership.left), Not):
+            raise self.failure(
+                "least_lower",
+                "least needs a nonnegativity conjunct",
+                expected="~(m < lower) & P(m)",
+                got=shape.body,
+            )
+        predicate = membership.right
+        var = shape.var
+        minimal_var = Var(self._fresh("smaller"), var.type)
+        minimal = ForallNode(
+            minimal_var,
+            Implies(
+                And(
+                    Not(Lt(minimal_var, lower)),
+                    Lt(minimal_var, var),
+                ),
+                Not(substitute_symbols(predicate, {id(var): minimal_var})),
+            ),
+        )
+        statement = ExistsNode(var, And(membership, minimal))
+        return self._fact(statement, Least(lower, var, predicate, nonempty.proof))
+
+    def fix(self, name: str = "x") -> "_Fixed":
+        return _Fixed(self, name)
+
+    def negate(self, statement: Expr | None = None) -> "_Negation":
+        return _Negation(self, statement)
+
+    def cases(self, disjunction: Fact) -> "_Cases":
+        return _Cases(self, disjunction)
+
+    def contradict(self, proposition: Expr) -> "_Contradiction":
+        return _Contradiction(self, proposition)
+
+    def induction(self, variable: Var, lower=0, *, nonnegative: Fact | None = None) -> "_Induction":
+        return _Induction(self, variable, lower, nonnegative)
+
     def ring(self, equation: Expr, *, using=()) -> Fact:
         facts = tuple(using)
         for fact in facts:
             if not isinstance(fact, Fact):
                 raise TypeError("ring(using=...) expects facts returned by obtain/assume")
         file, line, source_line = _location(_caller_outside())
-        equation = _as_written_equation(file, line, equation)
+        equation = normalize_order(_as_written_equation(file, line, equation))
         proof = _ring_using(equation, facts, self)
         target = _assignment_names(file, line)
         return Fact(
@@ -850,6 +1374,8 @@ class ProofContext:
                 "witness needs an existential goal",
                 goal=self.goal,
             )
+        if not isinstance(value, Expr):
+            value = Lit(value)
         unbound = free_symbol_ids(value) - self.allowed
         if unbound:
             names = sorted(
@@ -935,6 +1461,442 @@ class ProofContext:
         for binder in reversed(self.binders):
             proof = ForallIntro(binder, proof)
         return proof
+
+
+class _Scope:
+    """Temporary state for one branch of a proof, with its own frames."""
+
+    def __init__(self, context: ProofContext, goal: Expr):
+        self.context = context
+        self.goal = goal
+        self.proof: ProofTerm | None = None
+        self._saved = None
+
+    def _open(self, hypotheses=None):
+        context = self.context
+        self._saved = (
+            context.goal, context.frames, context.hypotheses, context.allowed,
+            context.opened,
+        )
+        context.goal = self.goal
+        context.frames = []
+        if hypotheses is None:
+            hypotheses = context.hypotheses
+        context.hypotheses = dict(hypotheses)
+        context.allowed = set(context.allowed)
+        context.opened = list(context.opened)
+
+    def _hypothesis(self, proposition: Expr, hint: str, *, frame: bool = True) -> Fact:
+        context = self.context
+        proposition = normalize_order(proposition)
+        name = context._fresh(hint)
+        if frame:
+            context.frames.append(_Frame("assume", name, statement=proposition))
+        context.hypotheses[name] = proposition
+        return Fact(context, proposition, HypRef(name), label=hint)
+
+    def finish(self, result) -> None:
+        target = self.context.goal if self.context.goal is not None else self.goal
+        if isinstance(result, Fact):
+            proof = self.context._match_fact(target, result)
+        elif isinstance(result, ProofTerm):
+            proof = result
+        else:
+            raise self.context.failure(
+                "proof_result",
+                "a branch must return a Fact or a proof term",
+                got=type(result).__name__,
+            )
+        self.proof = _wrap_frames(proof, self.context.frames)
+
+    def close(self):
+        context = self.context
+        if self._saved is None:
+            raise self.context.failure("scope_closed", "the branch was not opened")
+        context.goal, context.frames, context.hypotheses, context.allowed, context.opened = self._saved
+        self._saved = None
+
+
+class _Fixed(_Scope):
+    """Introduce a universal variable from a ``forall`` goal."""
+
+    def __init__(self, context: ProofContext, name: str):
+        self.name = name
+        self.statement = None
+        self.variable = None
+        super().__init__(context, Lit(False))
+
+    def __enter__(self):
+        shape = unfold(self.context.goal)
+        if not isinstance(shape, ForallNode):
+            raise self.context.failure(
+                "fix_goal",
+                "fix needs a universal goal",
+                expected="forall x. P(x)",
+                got=self.context.goal,
+            )
+        self.statement = self.context.goal
+        self.variable = Var(self.context._fresh(self.name), shape.var.type)
+        self.goal = substitute_symbols(shape.body, {id(shape.var): self.variable})
+        self._open()
+        self.context.frames.append(_Frame("forall", self.variable.name, variable=self.variable))
+        self.context.allowed.add(id(self.variable))
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        if exc_type is not None:
+            self.close()
+            return False
+        if self.proof is None:
+            self.close()
+            raise self.context.failure(
+                "fix_unfinished",
+                "the forall branch was never finished with .finish(...)",
+                goal=self.statement,
+            )
+        self.result = Fact(self.context, self.statement, self.proof, label=self.name)
+        self.close()
+        return False
+
+
+class _Negation(_Scope):
+    """Prove ``~A`` by assuming ``A`` and deriving false."""
+
+    def __init__(self, context: ProofContext, statement: Expr | None = None):
+        self.statement = statement
+        self.assumption = None
+        super().__init__(context, Lit(False))
+
+    def __enter__(self):
+        if self.statement is None:
+            self.statement = self.context.goal
+        self.statement = normalize_order(self.statement)
+        shape = unfold(self.statement)
+        if not isinstance(shape, Not):
+            raise self.context.failure(
+                "negate_goal",
+                "negate needs a negated statement",
+                expected="~A",
+                got=self.statement,
+            )
+        self._open()
+        self.assumption = self._hypothesis(shape.operand, "suppose")
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        if exc_type is not None:
+            self.close()
+            return False
+        if self.proof is None:
+            self.close()
+            raise self.context.failure(
+                "negate_unfinished",
+                "the negation was never finished with .finish(...)",
+                goal=self.statement,
+            )
+        self.result = Fact(self.context, self.statement, NotIntro(self.proof), label="not")
+        self.close()
+        return False
+
+
+class _CaseBranch(_Scope):
+    def __init__(self, context: ProofContext, goal: Expr, proposition: Expr, name: str):
+        self.proposition = proposition
+        self.name = name
+        self.assumption = None
+        super().__init__(context, goal)
+
+    def __enter__(self):
+        self._open()
+        self.proposition = normalize_order(self.proposition)
+        self.context.hypotheses[self.name] = self.proposition
+        self.assumption = Fact(
+            self.context, self.proposition, HypRef(self.name), label=self.name
+        )
+        return self.assumption
+
+    def __exit__(self, exc_type, exc, traceback):
+        if exc_type is not None:
+            self.close()
+            return False
+        if self.proof is None:
+            self.close()
+            raise self.context.failure(
+                "case_unfinished",
+                "this case was never finished with cases.finish(...)",
+                goal=self.goal,
+            )
+        self.close()
+        return False
+
+
+class _Cases:
+    """Case analysis on a disjunction, with one scope per branch."""
+
+    def __init__(self, context: ProofContext, disjunction: Fact):
+        shape = unfold(normalize_order(disjunction.statement))
+        if not isinstance(shape, Or):
+            raise context.failure(
+                "cases_goal",
+                "cases needs a disjunction",
+                expected="A | B",
+                got=disjunction.statement,
+            )
+        self.context = context
+        self.disjunction = disjunction
+        self.shape = shape
+        self.case_name = context._fresh("case")
+        self.goal = context.goal
+        self.left_proof = None
+        self.right_proof = None
+        self._active = None
+        self.result = None
+
+    def left(self):
+        branch = _CaseBranch(self.context, self.goal, self.shape.left, self.case_name)
+        branch._owner = self
+        return self._track(branch, "left")
+
+    def right(self):
+        branch = _CaseBranch(self.context, self.goal, self.shape.right, self.case_name)
+        branch._owner = self
+        return self._track(branch, "right")
+
+    def _track(self, branch, side):
+        class _Tracked:
+            def __enter__(inner):
+                self._active = branch
+                value = branch.__enter__()
+                inner.value = value
+                return value
+
+            def __exit__(inner, exc_type, exc, traceback):
+                try:
+                    return branch.__exit__(exc_type, exc, traceback)
+                finally:
+                    proof = branch.proof
+                    if proof is not None:
+                        if side == "left":
+                            self.left_proof = proof
+                        else:
+                            self.right_proof = proof
+                    self._active = None
+        return _Tracked()
+
+    def finish(self, result) -> None:
+        if self._active is None:
+            raise self.context.failure(
+                "cases_outside",
+                "cases.finish must be called inside a case branch",
+                goal=self.goal,
+            )
+        self._active.finish(result)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        if exc_type is not None:
+            return False
+        if self.left_proof is None or self.right_proof is None:
+            raise self.context.failure(
+                "cases_unfinished",
+                "both branches of a case analysis need evidence",
+                goal=self.goal,
+            )
+        proof = CaseAnalysis(
+            self.disjunction.proof,
+            self.case_name,
+            self.left_proof,
+            self.right_proof,
+        )
+        self.result = Fact(self.context, self.goal, proof, label="cases")
+        return False
+
+
+class _Contradiction(_Scope):
+    """Prove a strict-order goal from the negation of that goal."""
+
+    def __init__(self, context: ProofContext, proposition: Expr):
+        proposition = normalize_order(proposition)
+        shape = unfold(proposition)
+        if not isinstance(shape, Lt):
+            raise context.failure(
+                "contradict_goal",
+                "contradict needs a strict-order statement to prove",
+                expected="a < b",
+                got=proposition,
+            )
+        self.proposition = proposition
+        self.assumption = None
+        super().__init__(context, Lit(False))
+
+    def __enter__(self):
+        self._open()
+        self.assumption = self._hypothesis(Not(self.proposition), "contrary")
+        self.hypothesis = self.assumption
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        if exc_type is not None:
+            self.close()
+            return False
+        if self.proof is None:
+            self.close()
+            raise self.context.failure(
+                "contradict_unfinished",
+                "the contradiction was never finished with .finish(...)",
+                goal=self.proposition,
+            )
+        not_not = NotIntro(self.proof)
+        name = self.context._fresh("decided")
+        proof = CaseAnalysis(
+            CoreLaw("lt_decidable", (self.proposition.left, self.proposition.right)),
+            name,
+            HypRef(name),
+            ExFalso(NotElim(not_not, HypRef(name)), self.proposition),
+        )
+        self.result = Fact(self.context, self.proposition, proof, label="contradiction")
+        self.close()
+        return False
+
+
+class _InductionBase(_Scope):
+    def __init__(self, context: ProofContext, goal: Expr):
+        super().__init__(context, goal)
+
+    def __enter__(self):
+        self._open()
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        if exc_type is not None:
+            self.close()
+            return False
+        if self.proof is None:
+            self.close()
+            raise self.context.failure(
+                "induction_base_unfinished",
+                "the induction base was never finished with .finish(...)",
+                goal=self.goal,
+            )
+        self.close()
+        return False
+
+
+class _InductionStep(_Scope):
+    def __init__(self, context: ProofContext, goal: Expr, variable: Var, rule: "_Induction"):
+        self.variable = variable
+        self.rule = rule
+        self.nonnegative = None
+        self.hypothesis = None
+        self.nonnegative_statement = Not(Lt(variable, rule.lower))
+        self.hypothesis_statement = substitute_symbols(
+            rule.predicate, {id(rule.indvar): variable}
+        )
+        super().__init__(context, goal)
+
+    def __enter__(self):
+        self._open(hypotheses=self.rule.hypotheses)
+        self.context.allowed.add(id(self.variable))
+        self.nonnegative = self._hypothesis(self.nonnegative_statement, "nonnegative")
+        self.hypothesis = self._hypothesis(self.hypothesis_statement, "previous")
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        if exc_type is not None:
+            self.close()
+            return False
+        if self.proof is None:
+            self.close()
+            raise self.context.failure(
+                "induction_step_unfinished",
+                "the induction step was never finished with .finish(...)",
+                goal=self.goal,
+            )
+        self.step_proof = ForallIntro(self.variable, self.proof)
+        self.close()
+        return False
+
+
+class _Induction:
+    """Ordinary integer induction with an explicit base and step."""
+
+    def __init__(self, context: ProofContext, variable: Var, lower, nonnegative):
+        self.context = context
+        self.variable = variable
+        self.lower = lower if isinstance(lower, Expr) else Lit(lower)
+        self.parent_goal = context.goal
+        self.indvar = Var(context._fresh(variable.name), variable.type)
+        self.predicate = substitute_symbols(self.parent_goal, {id(variable): self.indvar})
+        self.base_scope = None
+        self.step_scope = None
+        self.proof = None
+        self.result = None
+        self._nonnegative = nonnegative
+        self.hypotheses = {
+            name: statement
+            for name, statement in context.hypotheses.items()
+            if id(variable) not in free_symbol_ids(statement)
+        }
+
+    def base(self):
+        goal = substitute_symbols(self.predicate, {id(self.indvar): self.lower})
+        self.base_scope = _InductionBase(self.context, goal)
+        return self.base_scope
+
+    def step(self):
+        # The kernel uses ``k + 1`` for the successor case.
+        variable = Var(self.context._fresh("k"), self.indvar.type)
+        goal = substitute_symbols(self.predicate, {id(self.indvar): variable + Lit(1)})
+        self.step_scope = _InductionStep(self.context, goal, variable, self)
+        return self.step_scope
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        if exc_type is not None:
+            return False
+        if (
+            self.base_scope is None
+            or self.base_scope.proof is None
+            or self.step_scope is None
+            or self.step_scope.proof is None
+        ):
+            raise self.context.failure(
+                "induction_unfinished",
+                "induction needs a finished base and step",
+                goal=self.parent_goal,
+            )
+        self.proof = Induction(
+            self.lower,
+            self.indvar,
+            self.predicate,
+            self.base_scope.proof,
+            self.step_scope.step_proof,
+        )
+        nonnegative = self._nonnegative
+        if nonnegative is None:
+            for name, statement in self.context.hypotheses.items():
+                candidate = Fact(self.context, statement, HypRef(name), label=name)
+                if _same(candidate.statement, Not(Lt(self.variable, self.lower))):
+                    nonnegative = candidate
+                    break
+        if nonnegative is None:
+            raise self.context.failure(
+                "induction_bound",
+                "induction needs the current variable's lower-bound fact",
+                expected=Not(Lt(self.variable, self.lower)),
+            )
+        premise = self.context._match_fact(Not(Lt(self.variable, self.lower)), nonnegative)
+        conclusion = ForallElim(self.proof, self.variable)
+        proof = ImpliesElim(conclusion, premise)
+        instantiated = substitute_symbols(
+            self.predicate, {id(self.indvar): self.variable}
+        )
+        self.result = Fact(self.context, instantiated, proof, label="induction")
+        return False
 
 
 def _walk_expr(expr: Expr):

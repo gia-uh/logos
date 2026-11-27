@@ -2,6 +2,7 @@ from __future__ import annotations
 import inspect
 from typing import Callable, get_type_hints
 from logos.expr import Expr, Var, App, _lift
+from logos.helpers import normalize_order
 
 # Registry: function name → (params, body_expr)
 _definitions: dict[str, tuple[list[Var], Expr]] = {}
@@ -57,7 +58,7 @@ def define(fn: Callable) -> Function:
         Var(name, hints.get(name, param.annotation if param.annotation is not inspect.Parameter.empty else object))
         for name, param in sig.parameters.items()
     ]
-    body_expr: Expr = fn(*params)
+    body_expr: Expr = normalize_order(fn(*params))
     func_name = fn.__name__
     _definitions[func_name] = (params, body_expr)
     return Function(func_name, params, body_expr, original_fn=fn, result_type=hints.get('return'))
@@ -73,7 +74,7 @@ def recursor(name: str, base, step: Callable[[Var, Var], Expr]) -> Function:
     argument = Var("n", int)
     previous = Var("value", int)
     base_expr = _lift(base)
-    step_expr = step(argument, previous)
+    step_expr = normalize_order(step(argument, previous))
     if not isinstance(step_expr, Expr):
         raise TypeError("logos.recursor: the step must return an Expr")
     return Function(
