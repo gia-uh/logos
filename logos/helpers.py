@@ -1,5 +1,5 @@
 from logos.expr import (
-    Expr, Lit, Var, Add, Sub, Mul, Div, Mod, Neg, Pow,
+    Expr, Lit, Var, Add, Sub, Mul, Div, Mod, Neg, Pow, Len, Nth, Sorted,
     Eq, Neq, Lt, Le, Gt, Ge, And, Or, Not, Implies,
     ForallNode, ExistsNode, App, CaseExpr,
 )
@@ -14,6 +14,9 @@ def structural_eq(a: Expr, b: Expr) -> bool:
         case Sub(l1,r1), Sub(l2,r2):     return structural_eq(l1,l2) and structural_eq(r1,r2)
         case Mul(l1,r1), Mul(l2,r2):     return structural_eq(l1,l2) and structural_eq(r1,r2)
         case Div(l1,r1), Div(l2,r2):     return structural_eq(l1,l2) and structural_eq(r1,r2)
+        case Len(s1),    Len(s2):        return structural_eq(s1, s2)
+        case Nth(s1,i1), Nth(s2,i2):     return structural_eq(s1,s2) and structural_eq(i1,i2)
+        case Sorted(s1), Sorted(s2):     return structural_eq(s1, s2)
         case Mod(l1,r1), Mod(l2,r2):     return structural_eq(l1,l2) and structural_eq(r1,r2)
         case Neg(o1),    Neg(o2):         return structural_eq(o1, o2)
         case Pow(b1,e1), Pow(b2,e2):     return structural_eq(b1,b2) and structural_eq(e1,e2)

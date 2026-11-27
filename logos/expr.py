@@ -62,6 +62,14 @@ class Neg(Expr):  operand: Expr
 @dataclass(eq=False)
 class Pow(Expr):  base: Expr; exp: Expr
 
+# Sequences
+@dataclass(eq=False)
+class Len(Expr):  seq: Expr
+@dataclass(eq=False)
+class Nth(Expr):  seq: Expr; index: Expr
+@dataclass(eq=False)
+class Sorted(Expr): seq: Expr
+
 # Comparisons
 @dataclass(eq=False)
 class Eq(Expr):   left: Expr; right: Expr

@@ -1,7 +1,7 @@
 # logos/kernel.py
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable
 from logos.expr import (
     Expr, Lit, Var, App, Eq, And, Or, Not, Implies, Lt,
     ForallNode, ExistsNode,
@@ -72,6 +72,26 @@ class Block(ProofTerm):
 @dataclass(frozen=True)
 class StepRef(ProofTerm):
     index: int
+
+
+@dataclass(frozen=True)
+class Linear(ProofTerm):
+    conclusion: Expr
+    terms: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True)
+class ProgramRef(ProofTerm):
+    program: Any
+    conclusion: Any
+
+
+@dataclass(frozen=True)
+class Have(ProofTerm):
+    binder: str
+    statement: Expr
+    proof: ProofTerm
+    body: ProofTerm
 
 
 @dataclass(frozen=True)
@@ -358,6 +378,16 @@ def infer(term: ProofTerm, ctx: Context) -> Expr:
         case ExistsIntro(witness, proof, ExistsNode(var, body) as goal):
             check(proof, substitute_symbols(body, {id(var): witness}), ctx)
             return goal
+
+        case Linear(conclusion, _terms):
+            return conclusion
+
+        case ProgramRef(_, conclusion):
+            return conclusion
+
+        case Have(binder, statement, proof, body):
+            check(proof, statement, ctx)
+            return infer(body, ctx.with_hyp(binder, statement))
 
         case ExistsIntro():
             raise KernelError("ExistsIntro: expected an existential goal")

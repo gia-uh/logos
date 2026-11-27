@@ -8,12 +8,16 @@ from pathlib import Path
 import shutil
 import subprocess
 
-from logos.expr import Add, And, App, Eq, Expr, ExistsNode, ForallNode, Implies, Lit, Lt, Mul, Neg, Not, Or, Pow, Sub, Var
+from logos.expr import (
+    Add, And, App, Div, Eq, Expr, ExistsNode, ForallNode, Implies, Le, Len,
+    Lit, Lt, Mul, Neg, Not, Nth, Or, Pow, Sorted, Sub, Var,
+)
 from logos.kernel import (
     AndElimL, AndElimR, AndIntro, AxiomRef, Block, Congr, CoreLaw, EqSubst, ExistsElim,
     ExistsIntro, ForallElim, CaseAnalysis, ExFalso, ForallIntro, HypRef, ImpliesElim,
     ImpliesIntro, Induction, Least, NotElim, NotIntro, OrIntroL, OrIntroR, ProofTerm,
     RecursorBase, RecursorStep, Refl, StepRef, Symm, TheoremRef, Trans,
+    Have, Linear, ProgramRef,
 )
 
 FORMAT = "logos-proof-v1"
@@ -77,6 +81,9 @@ def _sort(type_):
         return "int"
     if type_ is bool:
         return "prop"
+    from logos.sequence import SeqType
+    if isinstance(type_, SeqType):
+        return "seq"
     raise LogosProofError(f"unsupported portable sort {type_!r}")
 
 
@@ -86,8 +93,10 @@ def _result_type(expr):
             return type_
         case Lit(value):
             return type(value)
-        case Add() | Sub() | Mul() | Pow() | Neg():
+        case Add() | Sub() | Mul() | Div() | Pow() | Neg() | Len() | Nth():
             return int
+        case Sorted():
+            return bool
         case Eq() | Lt() | And() | Or() | Not() | Implies() | ForallNode() | ExistsNode():
             return bool
         case App(_, _, symbol) if symbol is not None:
@@ -111,6 +120,9 @@ def artifact_bytes(
     lemmas = []
     functions = []
     function_ids = {}
+    programs = []
+    program_ids = {}
+    pending_programs = []
 
     def declare(symbols):
         scope = set()
@@ -170,6 +182,48 @@ def artifact_bytes(
             functions.append(declaration)
         return function_ids[key]
 
+    def encode_statement(statement, scope, names):
+        from logos.programs import Assign, If, Return, While
+        if isinstance(statement, Assign):
+            if statement.name not in names:
+                raise LogosProofError(f"unknown program assignment target {statement.name!r}")
+            return {"tag": "assign", "name": names[statement.name],
+                    "value": proposition(statement.value, scope)}
+        if isinstance(statement, If):
+            return {"tag": "if", "condition": proposition(statement.condition, scope),
+                    "then_body": [encode_statement(item, scope, names) for item in statement.then_body],
+                    "else_body": [encode_statement(item, scope, names) for item in statement.else_body]}
+        if isinstance(statement, While):
+            return {"tag": "while", "condition": proposition(statement.condition, scope),
+                    "body": [encode_statement(item, scope, names) for item in statement.body],
+                    "invariant": proposition(statement.invariant, scope),
+                    "variant": proposition(statement.variant, scope)}
+        if isinstance(statement, Return):
+            return {"tag": "return", "value": proposition(statement.value, scope)}
+        raise LogosProofError(f"unsupported program statement {type(statement).__name__}")
+
+    def encode_program(program, scope):
+        # Every program variable and its function symbol becomes a declaration.
+        scope = declare(tuple(item.var for item in program.variables))
+        names = {item.name: symbol_ids[id(item.var)] for item in program.variables}
+        function = function_id(program.function)
+        body = [encode_statement(statement, scope, names) for statement in program.body]
+        obligations = []
+        for name, evidence in program.obligations.items():
+            obligations.append({"id": name, "proof": proof(evidence, scope)})
+        return {
+            "id": program_ids[id(program)],
+            "function": function,
+            "params": [symbol_ids[id(item.var)] for item in program.params],
+            "locals": [symbol_ids[id(item.var)] for item in program.locals],
+            "ghosts": [symbol_ids[id(item.var)] for item in program.ghosts],
+            "result": symbol_ids[id(program.result.var)],
+            "requires": proposition(program.requires, scope),
+            "ensures": proposition(program.ensures, scope),
+            "body": body,
+            "obligations": obligations,
+        }
+
     def proposition(expr, scope, bound=()):
         def encode(child):
             return proposition(child, scope, bound)
@@ -197,8 +251,14 @@ def artifact_bytes(
                         "body": proposition(body, scope, (*bound, var))}
             case App(_, args, symbol):
                 return {"tag": "app", "id": function_id(symbol), "args": [encode(arg) for arg in args]}
-            case Add(left, right) | Sub(left, right) | Mul(left, right) | Eq(left, right) | Lt(left, right) | And(left, right) | Or(left, right) | Implies(left, right):
+            case Add(left, right) | Sub(left, right) | Mul(left, right) | Div(left, right) | Eq(left, right) | Le(left, right) | Lt(left, right) | And(left, right) | Or(left, right) | Implies(left, right):
                 return {"tag": type(expr).__name__.lower(), "left": encode(left), "right": encode(right)}
+            case Len(seq):
+                return {"tag": "len", "seq": encode(seq)}
+            case Nth(seq, index):
+                return {"tag": "nth", "seq": encode(seq), "index": encode(index)}
+            case Sorted(seq):
+                return {"tag": "sorted", "seq": encode(seq)}
             case _:
                 raise LogosProofError(f"unsupported portable proposition or term {type(expr).__name__}")
 
@@ -250,6 +310,21 @@ def artifact_bytes(
                         "proof": derive(child)}
             case CoreLaw(id_, args):
                 return {"tag": "core_law", "id": id_, "args": [encode(arg) for arg in args]}
+            case Linear(conclusion, terms):
+                return {"tag": "linear", "conclusion": encode(conclusion),
+                        "terms": [{"binder": binder, "coefficient": coefficient}
+                                  for binder, coefficient in terms]}
+            case Have(binder, statement, fact, body):
+                return {"tag": "have", "binder": binder, "statement": encode(statement),
+                        "proof": derive(fact), "body": derive(body)}
+            case ProgramRef(program, _conclusion):
+                key = id(program)
+                if key not in program_ids:
+                    id_ = f"g{len(program_ids) + 1}"
+                    register(id_)
+                    program_ids[key] = id_
+                    pending_programs.append(program)
+                return {"tag": "program_ref", "id": program_ids[key]}
             case Block(steps, result):
                 return {"tag": "block", "steps": [derive(step) for step in steps], "result": result}
             case StepRef(index):
@@ -296,6 +371,8 @@ def artifact_bytes(
         target_proof = proof(evidence, scope)
         # References retain their live objects. Serializing each once lets Rust
         # detect cycles and check shared dependencies without trusting receipts.
+        for program in pending_programs:
+            programs.append(encode_program(program, scope))
         for ref, id_ in pending:
             if isinstance(ref, Axiom):
                 scope = declare(statement_declarations(ref.statement))
@@ -311,6 +388,7 @@ def artifact_bytes(
                 "format": FORMAT, "theory": THEORY, "name": name,
                 "declarations": declared, "custom_axioms": axioms, "lemmas": lemmas,
                 **({"functions": functions} if functions else {}),
+                **({"programs": programs} if programs else {}),
                 "target": target, "proof": target_proof,
             }, separators=(",", ":")) + "\n"
         ).encode("utf-8")
