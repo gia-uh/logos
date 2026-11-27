@@ -4,6 +4,39 @@ from logos.expr import (
     ForallNode, ExistsNode, App, CaseExpr,
 )
 
+def normalize_order(expr: Expr) -> Expr:
+    """Rewrite ``>``, ``>=`` and ``!=`` into the portable core forms."""
+    match expr:
+        case Gt(left, right):
+            return Lt(normalize_order(right), normalize_order(left))
+        case Ge(left, right):
+            return Le(normalize_order(right), normalize_order(left))
+        case Neq(left, right):
+            return Not(Eq(normalize_order(left), normalize_order(right)))
+        case Add(left, right) | Sub(left, right) | Mul(left, right) | Div(left, right) | Eq(left, right) | Le(left, right) | Lt(left, right) | And(left, right) | Or(left, right) | Implies(left, right):
+            return type(expr)(normalize_order(left), normalize_order(right))
+        case Neg(operand) | Not(operand):
+            return type(expr)(normalize_order(operand))
+        case Pow(base, exponent):
+            return Pow(normalize_order(base), normalize_order(exponent))
+        case ForallNode(var, body):
+            return ForallNode(var, normalize_order(body))
+        case ExistsNode(var, body):
+            return ExistsNode(var, normalize_order(body))
+        case App(name, args, symbol):
+            return App(name, [normalize_order(arg) for arg in args], symbol)
+        case CaseExpr(branches):
+            return CaseExpr([(normalize_order(cond), normalize_order(value)) for cond, value in branches])
+        case Len(seq):
+            return Len(normalize_order(seq))
+        case Nth(seq, index):
+            return Nth(normalize_order(seq), normalize_order(index))
+        case Sorted(seq):
+            return Sorted(normalize_order(seq))
+        case _:
+            return expr
+
+
 def structural_eq(a: Expr, b: Expr) -> bool:
     if type(a) is not type(b):
         return False

@@ -17,6 +17,8 @@
 - Book-style proofs: `@logos.definition`, `Prop`, `Int`, and an authoring context with `assume`, `obtain`, `ring(using=...)` and `witness`
 - Structured authoring failures with the failing source line, expected goal, opened equalities and machine-readable `details`
 - The first Spanish book lesson, `book/vecinos.md`, tangled with Scriptorium and checked from the installed wheel
+- The complete executable Spanish Euclid chapter, `book/euclides.md`, with least prime divisors, factorial induction and a strict zero-axiom certificate
+- Book authoring operations for named lemma application, universal introduction, induction, cases, least elements, contradiction, substitution and linear arithmetic
 - The Python kernel now infers congruence terms
 
 ## [0.1.0] - 2026-06-17

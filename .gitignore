@@ -41,6 +41,8 @@ htmlcov/
 /checker/target/
 /.acceptance/
 
-# Files produced by `scriptorium tangle` and the lesson's certificate
+# Files produced by `scriptorium tangle` and the lessons' certificates
 /book/vecinos.py
 /book/vecinos.logos
+/book/euclides.py
+/book/euclides.logos

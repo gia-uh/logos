@@ -2,6 +2,7 @@ from __future__ import annotations
 import inspect
 from typing import get_type_hints
 from logos.expr import Expr, Var, ForallNode
+from logos.helpers import normalize_order
 from logos.goal import Goal
 from logos.runner import run, TacticFailed
 from logos.portable import (
@@ -149,7 +150,7 @@ def _build_from_fn(fn, cls):
         hints = {}
     params = [p for p in inspect.signature(fn).parameters if p != 'return']
     vars_ = [Var(p, hints.get(p, object)) for p in params]
-    stmt = fn(*vars_)
+    stmt = normalize_order(fn(*vars_))
     if not isinstance(stmt, Expr):
         raise TypeError(
             f"@logos.{cls.__name__.lower()} body must return an Expr, "

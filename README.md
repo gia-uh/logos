@@ -261,7 +261,7 @@ logos check --strict authored-primes.logos
 
 The shipped `primes.logos` and the certificate rebuilt from the installed wheel are byte-for-byte identical. Both verify with zero custom axioms.
 
-## Book lesson: consecutive divisors
+## Book lessons: consecutive divisors and Euclid
 
 `book/vecinos.md` is the first runnable chapter of the Spanish Logos book. It uses
 `@logos.definition`, `Prop`, `Int`, and a proof function whose first parameter is
@@ -297,8 +297,35 @@ logos check --strict vecinos.logos
 
 The acceptance test also flips `quotient = j - k` to `quotient = k - j`. The
 proof fails at the authored source line and reports the expected goal plus both
-opened equalities, as text and on `LogosProofError.details`. See
-[`book/README.md`](book/README.md) for the replay and evidence paths.
+opened equalities, as text and on `LogosProofError.details`.
+
+[`book/euclides.md`](book/euclides.md) is the second chapter. It reuses that `divides` definition and
+`common_divisor` proof, then authors the least prime divisor, factorial
+positivity, factorial divisibility and Euclid's theorem with the same `p`
+context. The page adds reusable operations for named lemma application,
+induction, case analysis, least elements, contradiction and linear arithmetic:
+
+```python
+with p.induction(n, 0, nonnegative=nonnegative) as induction:
+    with induction.base() as base:
+        base.finish(p.linear(0 < factorial(0), using=[zero_eq]))
+    with induction.step() as step:
+        ...
+        step.finish(p.subst(product_positive, p.symm(step_eq)))
+return induction.result
+```
+
+```bash
+cd book
+scriptorium tangle euclides.md
+python euclides.py
+logos check --strict euclides.logos
+```
+
+The Euclid negative control changes `m = f + 1` to `m = f`; the proof still
+reaches `common_divisor` and fails there because it has `q | f` twice instead of
+`q | f` and `q | (f + 1)`. See [`book/README.md`](book/README.md) for the replay
+and evidence paths.
 
 ## Read a proof or build on it
 

@@ -223,7 +223,8 @@ def _linear(expr: Expr) -> tuple[dict, Fraction] | None:
             if inner is None:
                 return None
             return {key: value * right_lit for key, value in inner[0].items()}, inner[1] * right_lit
-        return None
+        # A non-linear product is still an atomic term for linear reasoning.
+        return {_key(expr): Fraction(1)}, Fraction(0)
     # Atomic terms: sequence reads, lengths, division nodes and opaque calls.
     return {_key(expr): Fraction(1)}, Fraction(0)
 
