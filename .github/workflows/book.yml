@@ -1,0 +1,71 @@
+name: English book
+
+on:
+  pull_request:
+    paths:
+      - 'book/**'
+      - 'logos/**'
+      - 'checker/**'
+      - 'tests/test_english_book.py'
+      - 'tests/test_first_proof_chapter.py'
+      - '.github/workflows/book.yml'
+      - 'pyproject.toml'
+  push:
+    branches: [main]
+    paths:
+      - 'book/**'
+      - 'logos/**'
+      - 'checker/**'
+      - 'tests/test_english_book.py'
+      - 'tests/test_first_proof_chapter.py'
+      - '.github/workflows/book.yml'
+      - 'pyproject.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: book-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  book:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Install the checker, the wheel and Scriptorium
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/checker/target
+        run: |
+          cargo install --locked --path checker --root "$RUNNER_TEMP/portable"
+          uv build --wheel --out-dir "$RUNNER_TEMP/wheels"
+          uv venv --python 3.12 "$RUNNER_TEMP/author"
+          uv pip install --python "$RUNNER_TEMP/author/bin/python" "$RUNNER_TEMP"/wheels/*.whl pytest
+          uv pip install --python "$RUNNER_TEMP/author/bin/python" \
+            "scriptorium @ git+https://github.com/gia-uh/scriptorium@v0.14.0"
+
+      - name: Test the chapters from the installed wheel
+        run: |
+          export PATH="$RUNNER_TEMP/portable/bin:$RUNNER_TEMP/author/bin:$PATH"
+          python -m pytest -q tests/test_english_book.py tests/test_first_proof_chapter.py
+
+      - name: Render the site and the PDF
+        run: |
+          export PATH="$RUNNER_TEMP/portable/bin:$RUNNER_TEMP/author/bin:$PATH"
+          scriptorium render book/scriptorium.yaml --only site
+          scriptorium render book/scriptorium.yaml --only print
+          ! grep -rl 'Traceback (most recent call last)' book/site/*.html
+
+      - name: Upload the site
+        uses: actions/upload-artifact@v4
+        with:
+          name: english-book-site
+          path: book/site
+          if-no-files-found: error
+          include-hidden-files: true
