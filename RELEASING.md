@@ -39,6 +39,7 @@ No token, key or password belongs in the repository or in a commit.
 ## Build the artifacts
 
 Run from a clean checkout of the commit to release, with the checker on `PATH`.
+The commands use `uv`; `python -m build` substitutes if it is not installed.
 
 The order matters. `tools/package_reading.py` copies the rendered book into
 `logos/_book/`; a wheel built before it installs but has no offline reading.
@@ -49,11 +50,15 @@ cargo install --locked --path checker --root "$PWD/.release/portable"
 export PATH="$PWD/.release/portable/bin:$PATH"
 logos --version
 
-# 2. A clean environment with the package and the book toolchain.
+# 2. A clean environment with an installed package, not an editable one.
+#    The suite asserts that the book renderer imports the wheel from
+#    site-packages, so `pip install -e .` fails tests/test_first_proof_chapter.py.
+uv build --wheel --out-dir .release/base-wheels
 python3.12 -m venv .release/author
-.release/author/bin/python -m pip install -e . pytest
+.release/author/bin/python -m pip install .release/base-wheels/*.whl pytest
 .release/author/bin/python -m pip install \
   "scriptorium[pdf] @ git+https://github.com/gia-uh/scriptorium@9325898877e714b4f12f12c4e88650ab65c4fe09"
+export PATH="$PWD/.release/author/bin:$PATH"
 
 # 3. Render the book, finish the site, and package the reading.
 scriptorium render book/scriptorium.yaml --only site
@@ -105,8 +110,8 @@ PY
 cargo fmt --manifest-path checker/Cargo.toml --check
 cargo test --locked --manifest-path checker/Cargo.toml
 
-# The Python suite, with the checker on PATH.
-python -m pytest -q
+# The Python suite, against the installed wheel, with the checker on PATH.
+.release/author/bin/python -m pytest -q
 ```
 
 Record the SHA-256 of both artifacts:
