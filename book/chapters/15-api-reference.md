@@ -6,390 +6,984 @@ stem: api-reference
 
 # Public API Reference
 
-This chapter is generated from the installed source by
-`tools/generate_api_reference.py`. It exists so every public class, function and
-method has a named place in the book. The rift rule in `.rift.yaml` reports a
-class missing from the chapters as an error; the reference test fails when this
-page and the source disagree.
+Use this chapter to find the supported import, call signature, and result of a
+Logos operation. It covers exports from `logos` and `logos.tactics` plus the
+documented proof-context and tactic-extension interfaces. Class members are
+called on the returned object or on the context provided by Logos. Signatures
+come from Python source, so a missing type annotation has the same meaning
+here as in Python. Implementation inventory lives in
+[the maintainer file](https://github.com/gia-uh/logos/blob/main/book/maintenance/api-inventory.md).
 
-“Public” here means a non-underscore top-level class, or a non-underscore
-function or a method declared with `self` or `cls`. Names that begin with an
-underscore are implementation details, even when another module imports them.
+- [Existential lookup](#existential-lookup)
+- [Expressions](#expressions)
+- [Theorems and evidence](#theorems-and-evidence)
+- [Definitions](#definitions)
+- [Program contracts](#program-contracts)
+- [Proof context](#proof-context)
+- [Tactics](#tactics)
+- [Tactic extensions](#tactic-extensions)
 
-## Classes
+## Existential lookup
 
-| Class | Module | Purpose |
+| What you have | Operation | Result |
 | --- | --- | --- |
-| `AuthoringFailure` | `logos.authoring` | A failed authoring step with a human message and machine data. |
-| `Fact` | `logos.authoring` | A proposition and checked evidence for it, plus where it was written. |
-| `ProofContext` | `logos.authoring` | The ``p`` argument of a book-style proof function. |
-| `BookNotInstalled` | `logos.book` | The distribution has no offline book and no rendered checkout. |
-| `LogosContractError` | `logos.contracts` | A contract, or the source binding behind it, could not be established. |
-| `Contract` | `logos.contracts` | The two halves of a function contract, written with signature names. |
-| `ProgramTheorem` | `logos.contracts` | A contract theorem whose executable body is a checked loop program. |
-| `ContractTheorem` | `logos.contracts` | A theorem whose statement comes from a source-bound function contract. |
-| `TranslatedFunction` | `logos.contracts` | The source-bound executable program of one declarative function. |
-| `Clause` | `logos.declarative` | One named clause bound to a declarative function. |
-| `FunctionDeclaration` | `logos.declarative` | The source-bound declaration behind one ``@logos.function``. |
-| `Function` | `logos.define` | A logos-defined function. Callable (builds App nodes) and carries its definition. |
-| `Entity` | `logos.domains` | Base class for a domain entity. |
-| `Domain` | `logos.domains` | Abstract base for constraint domains over typed entities. |
-| `BinaryChoice` | `logos.domains._finite` | — |
-| `Counterexample` | `logos.domains._finite` | — |
-| `MissingRolePremise` | `logos.domains._finite` | — |
-| `KKEntity` | `logos.domains.logic_puzzles` | An entity in a Knights-and-Knaves puzzle. |
-| `KnightsKnaves` | `logos.domains.logic_puzzles` | Domain for knights-and-knaves (truth-teller / liar) puzzles. |
-| `Expr` | `logos.expr` | Base class for all expression nodes. Operators build expression trees. |
-| `Lit` | `logos.expr` | — |
-| `Var` | `logos.expr` | — |
-| `Add` | `logos.expr` | — |
-| `Sub` | `logos.expr` | — |
-| `Mul` | `logos.expr` | — |
-| `Div` | `logos.expr` | — |
-| `Mod` | `logos.expr` | — |
-| `Neg` | `logos.expr` | — |
-| `Pow` | `logos.expr` | — |
-| `Len` | `logos.expr` | — |
-| `Nth` | `logos.expr` | — |
-| `Sorted` | `logos.expr` | — |
-| `Eq` | `logos.expr` | — |
-| `Neq` | `logos.expr` | — |
-| `Lt` | `logos.expr` | — |
-| `Le` | `logos.expr` | — |
-| `Gt` | `logos.expr` | — |
-| `Ge` | `logos.expr` | — |
-| `And` | `logos.expr` | — |
-| `Or` | `logos.expr` | — |
-| `Not` | `logos.expr` | — |
-| `Implies` | `logos.expr` | — |
-| `ForallNode` | `logos.expr` | — |
-| `ExistsNode` | `logos.expr` | — |
-| `App` | `logos.expr` | — |
-| `CaseExpr` | `logos.expr` | — |
-| `Goal` | `logos.goal` | — |
-| `KernelError` | `logos.kernel` | — |
-| `Context` | `logos.kernel` | — |
-| `ProofTerm` | `logos.kernel` | — |
-| `Refl` | `logos.kernel` | — |
-| `Symm` | `logos.kernel` | — |
-| `Trans` | `logos.kernel` | — |
-| `CoreLaw` | `logos.kernel` | — |
-| `Congr` | `logos.kernel` | — |
-| `Block` | `logos.kernel` | — |
-| `StepRef` | `logos.kernel` | — |
-| `Linear` | `logos.kernel` | — |
-| `ProgramRef` | `logos.kernel` | — |
-| `Have` | `logos.kernel` | — |
-| `Note` | `logos.kernel` | Authored commentary that travels after its checked evidence. |
-| `Subst` | `logos.kernel` | — |
-| `Axiom` | `logos.kernel` | — |
-| `AxiomRef` | `logos.kernel` | — |
-| `TheoremRef` | `logos.kernel` | — |
-| `HypRef` | `logos.kernel` | — |
-| `ForallIntro` | `logos.kernel` | — |
-| `ForallElim` | `logos.kernel` | — |
-| `ImpliesIntro` | `logos.kernel` | — |
-| `ImpliesElim` | `logos.kernel` | — |
-| `AndIntro` | `logos.kernel` | — |
-| `AndElimL` | `logos.kernel` | — |
-| `AndElimR` | `logos.kernel` | — |
-| `OrIntroL` | `logos.kernel` | — |
-| `OrIntroR` | `logos.kernel` | — |
-| `CaseAnalysis` | `logos.kernel` | Proves C given: proof of (A\|B), proof of C with A as hyp, proof of C with B as hyp. |
-| `NotIntro` | `logos.kernel` | Proves ~A given proof of A >> False. |
-| `NotElim` | `logos.kernel` | Proves False from proofs of ~A and A. |
-| `ExFalso` | `logos.kernel` | Proves anything given proof of False (ex falso quodlibet). |
-| `ExistsIntro` | `logos.kernel` | Proves Exists(x, P) given a witness w and a proof of P[x := w]. |
-| `ExistsElim` | `logos.kernel` | Proves C from Exists(x, P) and a proof of C under P[x := var]. |
-| `EqSubst` | `logos.kernel` | Leibniz elimination: from a == b and P[a], derive P[b]. |
-| `Induction` | `logos.kernel` | Ordinary induction on integers at or above ``lower``. |
-| `Least` | `logos.kernel` | Least element of a nonempty integer predicate at or above ``lower``. |
-| `RecursorBase` | `logos.kernel` | The base equation f(0) = base of a primitive-recursive function. |
-| `RecursorStep` | `logos.kernel` | The step equation f(k + 1) = step(k, f(k)) for k >= 0. |
-| `LogosProofError` | `logos.portable` | A rejected proof. |
-| `ProofReceipt` | `logos.portable` | A verification result for the exact immutable artifact bytes. |
-| `ProgramVariable` | `logos.programs` | — |
-| `NamedClause` | `logos.programs` | One authored contract clause, kept beside the proposition it denotes. |
-| `Assign` | `logos.programs` | — |
-| `If` | `logos.programs` | — |
-| `While` | `logos.programs` | — |
-| `Return` | `logos.programs` | — |
-| `Call` | `logos.programs` | A direct call to another checked function. |
-| `Program` | `logos.programs` | — |
-| `ProgramContract` | `logos.programs` | — |
-| `ProofSearchError` | `logos.proofs` | — |
-| `TacticFailed` | `logos.runner` | — |
-| `TrailingTactics` | `logos.runner` | A tactic closed the goal while tactics remained in the list. |
-| `SeqType` | `logos.sequence` | The sort of finite integer sequences. |
-| `Equation` | `logos.tactics._ring` | — |
-| `Ring` | `logos.tactics._ring` | — |
-| `Axiom` | `logos.theorem` | An author-declared assumption. |
-| `Theorem` | `logos.theorem` | A statement with tactics that can be verified by logos.check(). |
+| A predicate and a type | [`logos.exists`](#logosexists) | The symbolic statement ∃x. P(x). |
+| An existential tactic goal and a candidate value | [`logos.tactics.witness`](#logostacticswitness) | A tactic that replaces ∃x. P(x) with P(value). |
+| A current existential goal and evidence for the candidate | [`ProofContext.witness`](#proofcontextwitness) | Proof term to return from the proof function. |
+| An existential statement you want as an intermediate fact and evidence for the candidate | [`ProofContext.exists`](#proofcontextexists) | A fact for ∃x. P(x). The current goal stays open. |
+| An existential fact you want to use | [`ProofContext.obtain`](#proofcontextobtain) | A fresh local symbol and a fact about it. |
 
-## Functions and methods
+### Complete existential examples
 
-| Name | Module | Purpose |
-| --- | --- | --- |
-| `var` | `logos` | — |
-| `vars` | `logos` | — |
-| `lit` | `logos` | — |
-| `forall` | `logos` | logos.forall(int, int, lambda x, y: x + y == y + x) — lambda form. |
-| `chain` | `logos` | Right-associative implication chain: chain(A, B, C) = A >> (B >> C). |
-| `exists` | `logos` | — |
-| `main` | `logos.__main__` | — |
-| `format_expr` | `logos.authoring` | Render an expression the way a reader writes it in the book. |
-| `as_dict` | `logos.authoring.AuthoringFailure` | — |
-| `unfold` | `logos.authoring` | Unfold transparent definitions throughout a proposition. |
-| `left` | `logos.authoring.Fact` | — |
-| `right` | `logos.authoring.Fact` | — |
-| `failure` | `logos.authoring.ProofContext` | — |
-| `note` | `logos.authoring.ProofContext` | Attach authored commentary after the most recently derived fact. |
-| `assume` | `logos.authoring.ProofContext` | — |
-| `obtain` | `logos.authoring.ProofContext` | — |
-| `apply` | `logos.authoring.ProofContext` | Instantiate a checked theorem (or local implication fact) step by step. |
-| `and_intro` | `logos.authoring.ProofContext` | — |
-| `exists` | `logos.authoring.ProofContext` | Package a witness as evidence for an existential statement. |
-| `subst` | `logos.authoring.ProofContext` | Replace one side of an equality throughout a fact. |
-| `refl` | `logos.authoring.ProofContext` | — |
-| `symm` | `logos.authoring.ProofContext` | — |
-| `trans` | `logos.authoring.ProofContext` | — |
-| `not_elim` | `logos.authoring.ProofContext` | — |
-| `ex_falso` | `logos.authoring.ProofContext` | — |
-| `not_lt_of_lt` | `logos.authoring.ProofContext` | From ``low < high`` derive ``~(high < low)`` without a new axiom. |
-| `order` | `logos.authoring.ProofContext` | Cite a core order law with explicit integer arguments and premises. |
-| `linear` | `logos.authoring.ProofContext` | Prove a linear inequality from named facts with a checked certificate. |
-| `recursor_base` | `logos.authoring.ProofContext` | — |
-| `recursor_step` | `logos.authoring.ProofContext` | — |
-| `rewrite` | `logos.authoring.ProofContext` | Rewrite the second argument of a transparent ``divides`` fact. |
-| `least` | `logos.authoring.ProofContext` | Apply the least-element rule to a nonempty bounded predicate. |
-| `fix` | `logos.authoring.ProofContext` | — |
-| `negate` | `logos.authoring.ProofContext` | — |
-| `cases` | `logos.authoring.ProofContext` | — |
-| `contradict` | `logos.authoring.ProofContext` | — |
-| `induction` | `logos.authoring.ProofContext` | — |
-| `ring` | `logos.authoring.ProofContext` | — |
-| `witness` | `logos.authoring.ProofContext` | — |
-| `finish` | `logos.authoring.ProofContext` | — |
-| `finish` | `logos.authoring._Scope` | — |
-| `close` | `logos.authoring._Scope` | — |
-| `left` | `logos.authoring._Cases` | — |
-| `right` | `logos.authoring._Cases` | — |
-| `finish` | `logos.authoring._Cases` | — |
-| `base` | `logos.authoring._Induction` | — |
-| `step` | `logos.authoring._Induction` | — |
-| `binders_and_body` | `logos.authoring` | — |
-| `authoring_signature_matches` | `logos.authoring` | — |
-| `authoring_tactic` | `logos.authoring` | Wrap a book-style proof function as a tactic for the existing runner. |
-| `root` | `logos.book` | The directory holding ``site/`` and ``book.pdf``. |
-| `site` | `logos.book` | The directory that holds ``index.html`` and the offline pages. |
-| `pdf` | `logos.book` | The downloadable, self-contained PDF. |
-| `index` | `logos.book` | The book's home page. |
-| `manifest` | `logos.book` | The packaged book's metadata, or an empty mapping for a checkout render. |
-| `serve` | `logos.book` | Serve the offline pages on localhost until interrupted. |
-| `main` | `logos.book` | — |
-| `contract` | `logos.contracts` | Describe a postcondition and an optional explicit precondition. |
-| `selected` | `logos.contracts._Fragment` | — |
-| `theorem_about` | `logos.contracts` | Build the contract theorem for an ordinary function. |
-| `translate_call` | `logos.contracts._DeclContext` | — |
-| `translate_declarative` | `logos.contracts` | Translate a ``@logos.function`` body, rejecting unsupported syntax now. |
-| `law_sorts` | `logos.core_laws` | — |
-| `law_statement` | `logos.core_laws` | — |
-| `add_clause` | `logos.declarative.FunctionDeclaration` | — |
-| `clause_decorator` | `logos.declarative.FunctionDeclaration` | — |
-| `clauses` | `logos.declarative.FunctionDeclaration` | — |
-| `rebuild` | `logos.declarative.FunctionDeclaration` | — |
-| `annotations` | `logos.declarative.FunctionDeclaration` | — |
-| `fingerprint` | `logos.declarative.FunctionDeclaration` | — |
-| `invalidate` | `logos.declarative.FunctionDeclaration` | — |
-| `revalidate` | `logos.declarative.FunctionDeclaration` | Re-read every source binding, then every transitive callee. |
-| `ensure_proved` | `logos.declarative.FunctionDeclaration` | Build and prove this program and every callee, callees first. |
-| `artifact` | `logos.declarative.FunctionDeclaration` | — |
-| `receipt` | `logos.declarative.FunctionDeclaration` | — |
-| `certified` | `logos.declarative.FunctionDeclaration` | — |
-| `check` | `logos.declarative.FunctionDeclaration` | — |
-| `inspect` | `logos.declarative.FunctionDeclaration` | — |
-| `export` | `logos.declarative.FunctionDeclaration` | — |
-| `program_statement` | `logos.declarative` | The portable statement a checked function's program establishes. |
-| `function` | `logos.declarative` | ``@logos.function``: bind a Python function to a checkable program. |
-| `get_definition` | `logos.define` | — |
-| `define` | `logos.define` | @logos.define decorator — creates a Function object. |
-| `recursor` | `logos.define` | Declare a primitive-recursive integer function on the naturals. |
-| `extern` | `logos.define` | Declare an external (uninterpreted) function symbol. |
-| `definition` | `logos.define` | The book spelling of :func:`define` for transparent propositions. |
-| `cases` | `logos.define` | — |
-| `if_` | `logos.define` | — |
-| `theorem` | `logos.domains.Domain` | Build a logos Theorem encoding all domain axioms as premises. |
-| `solve` | `logos.domains.Domain` | Try every candidate conclusion; return the unique consistent one. |
-| `premises` | `logos.domains._finite.BinaryChoice` | — |
-| `validate` | `logos.domains._finite` | — |
-| `bind` | `logos.domains._finite` | — |
-| `theorem` | `logos.domains._finite` | — |
-| `budget` | `logos.domains._finite` | — |
-| `certify` | `logos.domains._finite` | Split into role cases, close impossible branches, and prove the goal in the rest. |
-| `solve` | `logos.domains._finite` | Return all models and prepare evidence only for a unique result. |
-| `sentence` | `logos.domains._prose` | Compose a sentence, letting the domain supply atoms and exact idioms. |
-| `contains` | `logos.domains.intervals` | The closed interval [lo, hi] contains x. |
-| `overlaps` | `logos.domains.intervals` | The closed intervals [a_lo, a_hi] and [b_lo, b_hi] share a point. |
-| `interval` | `logos.domains.intervals` | Close an overlap goal with a checked linear certificate. |
-| `overlap_self` | `logos.domains.intervals` | A nonempty interval overlaps itself. |
-| `prove_overlap_self` | `logos.domains.intervals` | Both sides of the overlap are the same non-strict bound. |
-| `overlap_comm` | `logos.domains.intervals` | Overlap is symmetric. |
-| `prove_overlap_comm` | `logos.domains.intervals` | Swap the two conjuncts. |
-| `common_point_overlaps` | `logos.domains.intervals` | A point contained in both intervals witnesses an overlap. |
-| `prove_common_point_overlaps` | `logos.domains.intervals` | Chain the two containment bounds through x. |
-| `disjoint_no_common_point` | `logos.domains.intervals` | An interval entirely to the left shares no point with one to its right. |
-| `prove_disjoint_no_common_point` | `logos.domains.intervals` | A common point would force a_hi < b_lo <= x <= a_hi. |
-| `check_all` | `logos.domains.intervals` | Check every lemma with the installed Rust verifier. |
-| `is_knight` | `logos.domains.logic_puzzles.KKEntity` | — |
-| `is_knave` | `logos.domains.logic_puzzles.KKEntity` | — |
-| `says` | `logos.domains.logic_puzzles.KKEntity` | Record that this entity asserts stmt. |
-| `solve_status` | `logos.domains.logic_puzzles.KnightsKnaves` | The status of the last solve for the current puzzle, or None before solving. |
-| `entity` | `logos.domains.logic_puzzles.KnightsKnaves` | Add an inhabitant with a distinct name. |
-| `describe` | `logos.domains.logic_puzzles.KnightsKnaves` | Render the claim itself in English without checking its truth. |
-| `solve` | `logos.domains.logic_puzzles.KnightsKnaves` | Return one assignment, all alternatives, or None; see solve_status. |
-| `export_proof` | `logos.domains.logic_puzzles.KnightsKnaves` | Verify the unique result with Rust and write its conditional proof. |
-| `prove` | `logos.domains.logic_puzzles.KnightsKnaves` | Introduce the puzzle premises, run tactics, and return a Rust-checked theorem. |
-| `cases_on_role` | `logos.domains.logic_puzzles.KnightsKnaves` | Open the knight branch first and the knave branch second. |
-| `use_statements` | `logos.domains.logic_puzzles.KnightsKnaves` | Add the truth or negation of utterances by speakers with a known role. |
-| `auto` | `logos.domains.logic_puzzles.KnightsKnaves` | Use finite role reasoning to finish the current open goal. |
-| `divides` | `logos.domains.number_theory` | d divides a when some integer k makes a equal to d * k. |
-| `prime` | `logos.domains.number_theory` | A prime is greater than one and has no divisor strictly between 1 and q. |
-| `divides_self` | `logos.domains.number_theory` | Every integer divides itself. |
-| `prove_divides_self` | `logos.domains.number_theory` | The quotient is one. |
-| `divides_trans` | `logos.domains.number_theory` | Divisibility is transitive. |
-| `prove_divides_trans` | `logos.domains.number_theory` | Multiply the two quotient equations. |
-| `divides_mul` | `logos.domains.number_theory` | A multiple of b is still a multiple of any divisor of b. |
-| `prove_divides_mul` | `logos.domains.number_theory` | Scale the quotient by c. |
-| `common_divisor` | `logos.domains.number_theory` | A divisor of two consecutive integers divides one. |
-| `prove_common_divisor` | `logos.domains.number_theory` | Subtract the two quotient equations; the difference is one. |
-| `not_dvd_one` | `logos.domains.number_theory` | No integer greater than one divides one. |
-| `prove_not_dvd_one` | `logos.domains.number_theory` | A product equal to one forces both factors to be 1 or -1. |
-| `factorial_positive` | `logos.domains.number_theory` | The factorial of a nonnegative integer is positive. |
-| `prove_factorial_positive` | `logos.domains.number_theory` | Induct from 0! = 1 and close the step with a product of positives. |
-| `mul_succ` | `logos.domains.number_theory` | Multiplying by a successor distributes the successor. |
-| `prove_mul_succ` | `logos.domains.number_theory` | Expand the left side. |
-| `lt_add_pos` | `logos.domains.number_theory` | Adding a positive integer keeps a strict inequality. |
-| `prove_lt_add_pos` | `logos.domains.number_theory` | Linear arithmetic combines the two hypotheses. |
-| `factorial_above_one` | `logos.domains.number_theory` | From 2 onward the factorial is greater than one. |
-| `prove_factorial_above_one` | `logos.domains.number_theory` | Induct from 2! = 2 and add the positive term k * k!. |
-| `factorial_dvd` | `logos.domains.number_theory` | Every integer above one and at most n divides n!. |
-| `prove_factorial_dvd` | `logos.domains.number_theory` | Induct on n, splitting the new divisor into d < k + 1 and d = k + 1. |
-| `least_prime_divisor` | `logos.domains.number_theory` | Every integer above one has a prime divisor. |
-| `prove_least_prime_divisor` | `logos.domains.number_theory` | Take the least divisor above one; a proper divisor would contradict it. |
-| `euclid` | `logos.domains.number_theory` | For every n at least two there is a prime greater than n. |
-| `prove_euclid` | `logos.domains.number_theory` | Build n! + 1, take its least prime divisor and rule out q <= n. |
-| `check_all` | `logos.domains.number_theory` | Check every lemma in dependency order and return their names. |
-| `example` | `logos.domains.number_theory` | A concrete case: five factorial plus one is 121, whose least prime factor is 11. |
-| `Forall` | `logos.expr` | Forall(x, y, body) → nested ForallNode(x, ForallNode(y, body)). |
-| `Exists` | `logos.expr` | — |
-| `with_hyp` | `logos.goal.Goal` | — |
-| `with_statement` | `logos.goal.Goal` | — |
-| `normalize_order` | `logos.helpers` | Rewrite ``>``, ``>=`` and ``!=`` into the portable core forms. |
-| `structural_eq` | `logos.helpers` | — |
-| `substitute` | `logos.helpers` | Replace all free occurrences of `var` in `expr` with `val`. |
-| `free_symbol_ids` | `logos.helpers` | — |
-| `substitute_symbols` | `logos.helpers` | Substitute by object identity, dropping mappings for shadowed binders. |
-| `try_unify` | `logos.helpers` | Match pattern against target with flex_vars as unifiable variables. |
-| `free_vars` | `logos.helpers` | — |
-| `with_hyp` | `logos.kernel.Context` | — |
-| `lookup` | `logos.kernel.Context` | — |
-| `infer` | `logos.kernel` | Infer the statement proved by `term` under `ctx`. Raises KernelError if invalid. |
-| `check` | `logos.kernel` | Validate that `term` proves `expected`. Raises KernelError on mismatch. |
-| `order_law` | `logos.order` | Return the full proposition asserted by ``law`` at ``args``. |
-| `split_implications` | `logos.order` | Return the antecedents and the consequent of an implication chain. |
-| `statement_declarations` | `logos.portable` | Collect free symbol objects in occurrence order in the supported fragment. |
-| `artifact_bytes` | `logos.portable` | — |
-| `verify_artifact` | `logos.portable` | — |
-| `inspect_artifact` | `logos.portable` | Return the Rust checker's Markdown reading of these exact proof bytes. |
-| `export_proof` | `logos.portable` | Write the current checked artifact for a named or anonymous proof. |
-| `variables` | `logos.programs.Program` | — |
-| `program_contract` | `logos.programs` | — |
-| `call_statements` | `logos.programs` | Every call in the program body, in source order. |
-| `wp` | `logos.proofs._Generator` | — |
-| `reads_in` | `logos.proofs._Generator` | — |
-| `verification_conditions` | `logos.proofs` | — |
-| `scaled` | `logos.proofs._Constraint` | — |
-| `plus` | `logos.proofs._Constraint` | — |
-| `farkas` | `logos.proofs` | — |
-| `fresh` | `logos.proofs._Search` | — |
-| `prove` | `logos.proofs._Search` | — |
-| `prove_condition` | `logos.proofs` | — |
-| `build_program_obligations` | `logos.proofs` | — |
-| `run` | `logos.runner` | Apply tactics in `by` to `goal`, returning a proof term. |
-| `run` | `logos.runner._Runner` | — |
-| `seq_var` | `logos.sequence` | — |
-| `length` | `logos.sequence` | — |
-| `nth` | `logos.sequence` | — |
-| `sorted` | `logos.sequence` | The checker-owned sortedness predicate over a sequence. |
-| `in_bounds` | `logos.sequence` | — |
-| `absent` | `logos.sequence` | Every in-range index holds something other than ``target``. |
-| `occurrence` | `logos.sequence` | Some in-range index holds ``target``. |
-| `emit` | `logos.tactics._ring.Ring` | — |
-| `key` | `logos.tactics._ring.Ring` | — |
-| `law` | `logos.tactics._ring.Ring` | — |
-| `reverse` | `logos.tactics._ring.Ring` | — |
-| `chain` | `logos.tactics._ring.Ring` | — |
-| `lift` | `logos.tactics._ring.Ring` | — |
-| `left_zero` | `logos.tactics._ring.Ring` | — |
-| `cancel_left` | `logos.tactics._ring.Ring` | Derive −a + (a + b) = b. |
-| `times_zero` | `logos.tactics._ring.Ring` | Distribution gives q + q = q for q = a*0. Cancel q. |
-| `as_product` | `logos.tactics._ring.Ring` | Derive a = 1*a. |
-| `factor` | `logos.tactics._ring.Ring` | Derive a*m + b*m = (a+b)*m using the pinned left distributive law. |
-| `neg_as_product` | `logos.tactics._ring.Ring` | Both (−1)*a and −a add to zero against a. Cancel a. |
-| `coefficients` | `logos.tactics._ring.Ring` | — |
-| `monomial_key` | `logos.tactics._ring.Ring` | — |
-| `factor_key` | `logos.tactics._ring.Ring` | — |
-| `add_coefficients` | `logos.tactics._ring.Ring` | — |
-| `join` | `logos.tactics._ring.Ring` | Join ordered operands, removing the operator's unit and zero factors. |
-| `insert` | `logos.tactics._ring.Ring` | Insert into a sorted, right-associated sum or product. |
-| `merge` | `logos.tactics._ring.Ring` | Merge sorted, right-associated operands of an associative operator. |
-| `multiply` | `logos.tactics._ring.Ring` | — |
-| `normalize` | `logos.tactics._ring.Ring` | — |
-| `normalize_uncached` | `logos.tactics._ring.Ring` | — |
-| `prove` | `logos.tactics._ring.Ring` | — |
-| `ring` | `logos.tactics.arithmetic` | Derive an integer polynomial identity from the core ring laws. |
-| `order` | `logos.tactics.arithmetic` | Close a strict-order goal with one core order law. |
-| `decide` | `logos.tactics.arithmetic` | Evaluate a ground boolean proposition and close the goal. |
-| `linarith` | `logos.tactics.arithmetic` | — |
-| `auto` | `logos.tactics.auto` | Automatic tactic. Tries a cascade of strategies up to `depth` search levels. |
-| `then` | `logos.tactics.combinators` | Apply tactics in sequence to the current goal (as a single compound tactic). |
-| `first` | `logos.tactics.combinators` | Try each tactic in order; succeed with the first that doesn't raise TacticFailed. |
-| `try_` | `logos.tactics.combinators` | Apply tactic_fn; if it fails, return a no-op (transforms goal to itself). |
-| `repeat` | `logos.tactics.combinators` | Apply tactic_fn until it fails; apply all successful steps. |
-| `all_goals` | `logos.tactics.combinators` | Apply tactic_fn to each open subgoal (for use after a splitting tactic). |
-| `refl` | `logos.tactics.rewrite` | — |
-| `eval_` | `logos.tactics.rewrite` | Evaluate ground (variable-free) arithmetic sub-expressions, then close with Refl. |
-| `norm_num` | `logos.tactics.rewrite` | Normalize numeric literals and close if equal. |
-| `unfold` | `logos.tactics.rewrite` | Replace App(name, args) nodes with the function's definition body. |
-| `rewrite` | `logos.tactics.rewrite` | Rewrite left-to-right using a named equation or Axiom/Theorem object. |
-| `rewrite_rev` | `logos.tactics.rewrite` | Rewrite right-to-left using a named equation or Axiom/Theorem object. |
-| `intro` | `logos.tactics.structural` | — |
-| `assumption` | `logos.tactics.structural` | — |
-| `exact` | `logos.tactics.structural` | — |
-| `apply` | `logos.tactics.structural` | Apply a theorem/axiom/hypothesis to close or transform the goal. |
-| `split` | `logos.tactics.structural` | — |
-| `left` | `logos.tactics.structural` | — |
-| `right` | `logos.tactics.structural` | — |
-| `witness` | `logos.tactics.structural` | Choose a witness and open the instantiated predicate as a proof goal. |
-| `cases` | `logos.tactics.structural` | Case analysis on a hypothesis A \| B in context. |
-| `have` | `logos.tactics.structural` | Forward modus ponens: from impl_hyp: A→B and ant_hyp: A, add new_name: B. |
-| `andL` | `logos.tactics.structural` | Extract left conjunct: from h: A & B, add result_name: A. |
-| `andR` | `logos.tactics.structural` | Extract right conjunct: from h: A & B, add result_name: B. |
-| `conj` | `logos.tactics.structural` | Conjunction intro: from h1: A and h2: B, add result_name: A & B. |
-| `contradiction` | `logos.tactics.structural` | — |
-| `receipt` | `logos.theorem._Proof` | — |
-| `certified` | `logos.theorem._Proof` | — |
-| `inspect` | `logos.theorem._Proof` | Return the Rust checker's Markdown reading of the current receipt. |
-| `proof` | `logos.theorem.Theorem` | Attach proof spec. |
-| `check` | `logos.theorem.Theorem` | Check this theorem now and certify its actual evidence. |
-| `axiom` | `logos.theorem` | @logos.axiom decorator or logos.axiom(expr) — creates a trusted Axiom. |
-| `theorem` | `logos.theorem` | @logos.theorem decorator — creates a Theorem object (no proof yet). |
-| `check` | `logos.theorem` | Run the tactics and certify their actual evidence with the Rust checker. |
-| `prove` | `logos.theorem` | Two modes: |
+To show that an integer greater than four exists, choose five. In a tactic
+proof, `witness` leaves `4 < 5`, the same comparison as `5 > 4`. Prove that
+comparison as a separate lemma and use `apply` to close the subgoal. Write
+`lit(4) < x` so the symbolic comparison has the same shape as the lemma.
 
-## Where to read next
+```python {run}
+from logos import Int, check, exists, lit, prove, theorem
+from logos.tactics import apply, witness
 
-The [Developer Guide](extend-the-checked-language-with-a-domain.html) shows how these
-pieces fit when you extend the checked language. The [proof format](https://github.com/gia-uh/logos/blob/main/docs/portable-proof-format.md)
-states the bytes an independent recipient verifies. For a use-case path through
-the same API, start at the introduction and follow the chapters in order.
+@theorem
+def five_above_four():
+    return lit(4) < 5
+
+@five_above_four.proof
+def prove_five_above_four(p):
+    return p.linear(lit(4) < 5)
+
+check(five_above_four)
+statement = exists(Int, lambda x: lit(4) < x)
+assert check(prove(statement, [witness(lit(5)), apply(five_above_four)])).certified
+print("Tactic witness certified")
+```
+
+In a proof function, establish `5 > 4` first. If the existential is the
+current goal, return `p.witness`. When the existential is needed as one part of
+a conjunction, build it with `p.exists` and combine the resulting facts.
+
+```python {run}
+from logos import Int, check, exists, lit, theorem
+
+@theorem
+def above_four():
+    return exists(Int, lambda x: x > 4)
+
+@above_four.proof
+def prove_above_four(p):
+    return p.witness(5, p.linear(lit(5) > 4))
+
+@theorem
+def two_claims():
+    return exists(Int, lambda x: x > 4) & (lit(4) < 6)
+
+@two_claims.proof
+def prove_two_claims(p):
+    above_four = p.exists(
+        exists(Int, lambda x: x > 4), 5, p.linear(lit(5) > 4)
+    )
+    return p.and_intro(above_four, p.linear(lit(4) < 6))
+
+assert check(above_four).certified
+assert check(two_claims).certified
+print("Proof-context witness and existential fact certified")
+```
+
+See [Witnesses and Their Scope](witnesses-and-their-scope.html) for a complete
+proof that opens an existential with `p.obtain`.
+
+## Expressions
+
+[Complete checked example](quick-start.html)
+
+### logos.Int
+
+Import with `from logos import Int`.
+
+Alias for Python `int`, the integer sort in portable statements.
+
+### logos.Prop
+
+Import with `from logos import Prop`.
+
+Alias for Python `bool`, the proposition sort in portable statements.
+
+### logos.Expr
+
+Import with `from logos import Expr`.
+
+Base class for all expression nodes. Operators build expression trees.
+
+### logos.Var constructor
+
+Import with `from logos import Var`.
+
+`Var(name: str, type: type)`
+
+Construct a symbolic variable. Its identity distinguishes it from other variables with the same name.
+
+### logos.Lit constructor
+
+Import with `from logos import Lit`.
+
+`Lit(value: Any)`
+
+Construct a symbolic literal from a Python value. Use integers or Booleans for portable proofs.
+
+### logos.Forall constructor
+
+Import with `from logos import Forall`.
+
+`Forall(*args: Var | Expr) -> Expr`
+
+Forall(x, y, body) → nested ForallNode(x, ForallNode(y, body)).
+
+### logos.Exists constructor
+
+Import with `from logos import Exists`.
+
+`Exists(var: Var, body: Expr) -> Expr`
+
+Bind one symbolic variable in the supplied predicate expression. Nest calls for multiple variables.
+
+### logos.Implies
+
+Import with `from logos import Implies`.
+
+`Implies(antecedent: Expr, consequent: Expr)`
+
+Build the symbolic implication from its antecedent and consequent, as with `A >> B`.
+
+### logos.var
+
+Import with `from logos import var`.
+
+`var(name: str, type_: type) -> Var`
+
+Return a fresh symbolic variable of the supplied type. Reuse the returned object to refer to the same symbol.
+
+### logos.vars
+
+Import with `from logos import vars`.
+
+`vars(names: str, type_: type) -> tuple[Var, ...]`
+
+Split whitespace-separated names and return one fresh symbolic variable per name.
+
+### logos.lit
+
+Import with `from logos import lit`.
+
+`lit(value) -> Lit`
+
+Lift a Python value into a symbolic literal. Use an integer or Boolean for portable proofs.
+
+### logos.forall
+
+Import with `from logos import forall`.
+
+`forall(type_: type, *rest) -> Expr`
+
+Pass one sort per parameter followed by a callable that returns a symbolic predicate. Return the universally quantified expression. A noncallable predicate argument is rejected.
+
+### logos.exists
+
+Import with `from logos import exists`.
+
+`exists(type_: type, fn) -> Expr`
+
+Pass a sort and a unary callable returning a symbolic predicate. Return an existential expression. The callable is evaluated on a fresh symbolic variable.
+
+### logos.chain
+
+Import with `from logos import chain`.
+
+`chain(*props: Expr) -> Expr`
+
+Build a right-associated implication from one or more propositions. `chain(A, B, C)` builds `A >> (B >> C)`. An empty chain has no conclusion and raises `IndexError`.
+
+### logos.format_expr
+
+Import with `from logos import format_expr`.
+
+`format_expr(expr: Expr) -> str`
+
+Render an expression the way a reader writes it in the book.
+
+### logos.Seq
+
+Import with `from logos import Seq`.
+
+The sort marker for a sequence of integers in program contracts.
+
+### logos.seq_var
+
+Import with `from logos import seq_var`.
+
+`seq_var(name: str) -> Var`
+
+Create a fresh symbolic variable of sequence sort.
+
+### logos.length
+
+Import with `from logos import length`.
+
+`length(xs: Expr) -> Len`
+
+Build the symbolic length of a sequence.
+
+### logos.nth
+
+Import with `from logos import nth`.
+
+`nth(xs: Expr, index) -> Nth`
+
+Build a symbolic zero-based element access. Program proofs must establish both index bounds.
+
+### logos.sorted
+
+Import with `from logos import sorted`.
+
+`sorted(xs: Expr) -> Sorted`
+
+The checker-owned sortedness predicate over a sequence.
+
+### logos.absent
+
+Import with `from logos import absent`.
+
+`absent(xs: Expr, target: Expr) -> Expr`
+
+Every in-range index holds something other than `target`.
+
+### logos.occurrence
+
+Import with `from logos import occurrence`.
+
+`occurrence(xs: Expr, target: Expr) -> Expr`
+
+Some in-range index holds `target`.
+
+## Theorems and evidence
+
+[Complete checked example](writing-your-first-proof.html)
+
+### logos.theorem
+
+Import with `from logos import theorem`.
+
+`theorem(fn=None, *, about=None)`
+
+@logos.theorem decorator — creates a Theorem object (no proof yet).
+
+### logos.axiom
+
+Import with `from logos import axiom`.
+
+`axiom(fn_or_stmt)`
+
+@logos.axiom decorator or logos.axiom(expr) — creates a trusted Axiom.
+
+### logos.prove
+
+Import with `from logos import prove`.
+
+`prove(thm_or_stmt, tactics=None, *, hints=None, depth: int=5, timeout: float | None=None)`
+
+With an expression and explicit tactics, return an anonymous proof for `check` to certify. With a `Theorem`, run bounded automatic search using `hints`, `depth` and `timeout` and return the certified theorem or raise `LogosProofError`.
+
+### logos.check
+
+Import with `from logos import check`.
+
+`check(thm)`
+
+Run the proof and certify its evidence with the Rust checker. Return the theorem, anonymous proof, or checked Python function. Missing proofs, unclosed goals and rejected evidence raise `LogosProofError`.
+
+### logos.Theorem constructor
+
+Import with `from logos import Theorem`.
+
+`Theorem(statement: Expr, *, name: str='', declarations=None)`
+
+A statement with tactics that can be verified by logos.check().
+
+### Theorem.proof
+
+`proof(*args)` on `Theorem`.
+
+Attach tactics as positional arguments or as a list, and return the theorem. As a decorator, accept a zero-argument tactic-producing function or a proof function whose first argument is `p`, followed by the quantified theorem parameters. Replacing the proof clears its receipt.
+
+### Theorem.check
+
+`check()` on `Theorem`.
+
+Check this theorem now and certify its actual evidence.
+
+### Theorem.inspect
+
+`inspect() -> str` on `Theorem`.
+
+Return checker-rendered Markdown for a currently certified proof. A missing or stale receipt raises `LogosProofError`.
+
+### Theorem.receipt
+
+`receipt` on `Theorem`.
+
+The current `ProofReceipt`, or `None` before certification or after the proof changes.
+
+### Theorem.certified
+
+`certified` on `Theorem`.
+
+Whether the theorem has a current checker receipt.
+
+### logos.Axiom constructor
+
+Import with `from logos import Axiom`.
+
+`Axiom(statement: Expr, *, name: str='')`
+
+An author-declared assumption.
+
+### logos.ProofReceipt
+
+Import with `from logos import ProofReceipt`.
+
+A verification result for the exact immutable artifact bytes.
+
+### logos.LogosProofError
+
+Import with `from logos import LogosProofError`.
+
+`LogosProofError(message='', *, details=None)`
+
+A rejected proof.
+
+### logos.export_proof
+
+Import with `from logos import export_proof`.
+
+`export_proof(theorem, path: str | Path) -> ProofReceipt`
+
+Write the current checked artifact for a named or anonymous proof.
+
+## Definitions
+
+[Complete checked example](definitions-that-unfold-lemmas-you-can-name.html)
+
+### logos.define
+
+Import with `from logos import define`.
+
+`define(fn: Callable) -> Function`
+
+@logos.define decorator — creates a Function object.
+
+### logos.definition
+
+Import with `from logos import definition`.
+
+`definition(fn: Callable) -> Function`
+
+The book spelling of :func:`define` for transparent propositions.
+
+### logos.recursor
+
+Import with `from logos import recursor`.
+
+`recursor(name: str, base, step: Callable[[Var, Var], Expr]) -> Function`
+
+Declare a primitive-recursive integer function on the naturals.
+
+### logos.extern
+
+Import with `from logos import extern`.
+
+`extern(name: str, arg_types: list[type], ret_type: type) -> Callable`
+
+Declare an external (uninterpreted) function symbol.
+
+### logos.cases
+
+Import with `from logos import cases`.
+
+`cases(*branches) -> Expr`
+
+Build a piecewise symbolic expression from condition/value pairs and a default value.
+
+### logos.if_
+
+Import with `from logos import if_`.
+
+`if_(condition: Expr, then_val: Expr, else_val: Expr) -> Expr`
+
+Build a symbolic conditional expression from a condition and its two possible values.
+
+## Program contracts
+
+[Complete checked example](binary-search-all-the-way-down.html)
+
+### logos.contract
+
+Import with `from logos import contract`.
+
+`contract(*, ensures: Expr, requires: Expr | None=None) -> Contract`
+
+Describe a postcondition and an optional explicit precondition.
+
+### logos.Contract constructor
+
+Import with `from logos import Contract`.
+
+The two halves of a function contract, written with signature names.
+
+### logos.LogosContractError
+
+Import with `from logos import LogosContractError`.
+
+A contract, or the source binding behind it, could not be established.
+
+### logos.program_contract
+
+Import with `from logos import program_contract`.
+
+`program_contract(*, requires: Expr, ensures: Expr, invariant: Expr, variant: Expr) -> ProgramContract`
+
+Build a loop contract with precondition, postcondition, invariant and decreasing integer variant.
+
+### logos.ProgramContract
+
+Import with `from logos import ProgramContract`.
+
+The precondition, postcondition, invariant and variant returned by `program_contract`.
+
+### logos.function
+
+Import with `from logos import function`.
+
+`function(fn)`
+
+Decorate an ordinary Python function that uses the supported program fragment. Return the same callable with `requires`, `ensures`, `invariant` and `decreases` clause decorators and bound `check()`, `inspect()`, `export(path)` and `clauses()` methods. Unsupported source raises `LogosContractError`.
+
+### logos.FunctionDeclaration
+
+Import with `from logos import FunctionDeclaration`.
+
+`FunctionDeclaration(fn)`
+
+The source-bound declaration behind one `@logos.function`.
+
+### FunctionDeclaration.check
+
+`check()` on `FunctionDeclaration`.
+
+Translate and verify the decorated function and return the original callable with a current certificate. Invalid source or proof obligations fail verification.
+
+### FunctionDeclaration.inspect
+
+`inspect()` on `FunctionDeclaration`.
+
+Return checker-rendered Markdown for the current certificate. Requires current verification.
+
+### FunctionDeclaration.export
+
+`export(path)` on `FunctionDeclaration`.
+
+Write the current portable artifact to `path` and return its receipt. Requires current verification.
+
+### FunctionDeclaration.receipt
+
+`receipt` on `FunctionDeclaration`.
+
+The current checker receipt, or `None` before verification or after a change invalidates it.
+
+### FunctionDeclaration.certified
+
+`certified` on `FunctionDeclaration`.
+
+Whether the declaration has a current checker receipt.
+
+### FunctionDeclaration.clauses
+
+`clauses()` on `FunctionDeclaration`.
+
+Return a tuple of authored contract clauses in clause-kind order.
+
+### logos.Clause
+
+Import with `from logos import Clause`.
+
+One named clause bound to a declarative function.
+
+## Proof context
+
+[Complete checked proof functions](witnesses-and-their-scope.html). For context managers, use the methods on the object they yield.
+
+### logos.authoring.ProofContext
+
+Import with `from logos.authoring import ProofContext`.
+
+`ProofContext(statement: Expr, binders: tuple[Var, ...], theorem: str, fn=None)`
+
+The `p` argument supplied to a proof function by `@theorem_name.proof`. Its goal and available facts change as you introduce assumptions and enter scopes.
+
+### ProofContext.note
+
+`note(text: str) -> None` on `ProofContext`.
+
+Attach authored commentary after the most recently derived fact.
+
+### ProofContext.assume
+
+`assume(proposition: Expr) -> Fact` on `ProofContext`.
+
+Introduce the antecedent of the current implication as a local fact and leave the consequent as the goal. The supplied proposition must match the antecedent.
+
+### ProofContext.obtain
+
+`obtain(existential: Fact) -> tuple[Var, Fact]` on `ProofContext`.
+
+Open a fact of shape ∃x. P(x), returning a fresh local variable and a fact for its instantiated predicate. The symbol is scoped to the elimination: it cannot appear free in the conclusion.
+
+### ProofContext.apply
+
+`apply(lemma, *arguments) -> Fact` on `ProofContext`.
+
+Instantiate a checked theorem (or local implication fact) step by step.
+
+### ProofContext.and_intro
+
+`and_intro(left: Fact, right: Fact) -> Fact` on `ProofContext`.
+
+Combine two facts for A and B into a fact for A & B.
+
+### ProofContext.exists
+
+`exists(goal: Expr, value: Expr, evidence: Fact) -> Fact` on `ProofContext`.
+
+Given ∃x. P(x), a value, and a `Fact` proving P(value), return a `Fact` for the existential without closing the current goal. A Python literal is lifted. A non-existential target reports `exists_goal`, and an out-of-scope value reports `witness_escape`. Mismatched evidence reports `evidence_mismatch`. See the [complete examples](#complete-existential-examples).
+
+### ProofContext.subst
+
+`subst(fact: Fact, equality: Fact) -> Fact` on `ProofContext`.
+
+Replace one side of an equality throughout a fact.
+
+### ProofContext.refl
+
+`refl(expression: Expr) -> Fact` on `ProofContext`.
+
+Return a fact proving the expression equal to itself.
+
+### ProofContext.symm
+
+`symm(fact: Fact) -> Fact` on `ProofContext`.
+
+Reverse an equality fact. Other fact shapes fail.
+
+### ProofContext.trans
+
+`trans(left: Fact, right: Fact) -> Fact` on `ProofContext`.
+
+Compose two equality facts at their matching middle expression. Non-equalities and mismatched middle expressions fail.
+
+### ProofContext.not_elim
+
+`not_elim(negation: Fact, premise: Fact) -> Fact` on `ProofContext`.
+
+From facts for ¬P and P, return a fact for falsehood. The operands must match.
+
+### ProofContext.ex_falso
+
+`ex_falso(falsehood: Fact) -> Fact` on `ProofContext`.
+
+Use a fact for falsehood to obtain a fact for the current goal. Requires an open goal.
+
+### ProofContext.not_lt_of_lt
+
+`not_lt_of_lt(low: Expr, high: Expr, fact: Fact) -> Fact` on `ProofContext`.
+
+From `low < high` derive `~(high < low)` without a new axiom.
+
+### ProofContext.order
+
+`order(law: str, *args, using=()) -> Fact` on `ProofContext`.
+
+Cite a core order law with explicit integer arguments and premises.
+
+### ProofContext.linear
+
+`linear(goal: Expr, *, using=()) -> Fact` on `ProofContext`.
+
+Prove a linear inequality from named facts with a checked certificate.
+
+### ProofContext.recursor_base
+
+`recursor_base(function) -> Fact` on `ProofContext`.
+
+Return the defining equality of the indicated recursor at zero.
+
+### ProofContext.recursor_step
+
+`recursor_step(function, argument: Expr, nonnegative: Fact) -> Fact` on `ProofContext`.
+
+Return the defining equality at the successor of the supplied argument. Supply a fact establishing that the argument is nonnegative.
+
+### ProofContext.rewrite
+
+`rewrite(fact: Fact, equality: Fact) -> Fact` on `ProofContext`.
+
+Rewrite the second argument of a transparent `divides` fact.
+
+### ProofContext.least
+
+`least(lower: Expr, nonempty: Fact) -> Fact` on `ProofContext`.
+
+Apply the least-element rule to a nonempty bounded predicate.
+
+### ProofContext.fix
+
+`fix(name: str='x') -> '_Fixed'` on `ProofContext`.
+
+Enter a universal goal with `with p.fix(name) as scope`. Use the fresh symbol `scope.variable` and call `scope.finish(evidence)` inside the block. Read `scope.result` afterward. Other goal shapes fail.
+
+### ProofContext.negate
+
+`negate(statement: Expr | None=None) -> '_Negation'` on `ProofContext`.
+
+Enter a negation goal with its operand as a local assumption. Derive a contradiction inside the block.
+
+### ProofContext.cases
+
+`cases(disjunction: Fact) -> '_Cases'` on `ProofContext`.
+
+Split a disjunction fact into two branches. Prove the same conclusion with the left alternative in one branch and the right in the other.
+
+### ProofContext.contradict
+
+`contradict(proposition: Expr) -> '_Contradiction'` on `ProofContext`.
+
+Enter a branch with the given proposition assumed and derive falsehood to discharge that assumption.
+
+### ProofContext.induction
+
+`induction(variable: Var, lower=0, *, nonnegative: Fact | None=None) -> '_Induction'` on `ProofContext`.
+
+Use integer induction from `lower` on the goal's variable. Prove the goal at the lower bound in `ind.base()`, and prove it at the successor from the induction hypothesis in `ind.step()`. Supply an appropriate lower-bound fact when it is not already available. See [the factorial proof](induction-that-builds-a-factorial.html).
+
+### ProofContext.ring
+
+`ring(equation: Expr, *, using=()) -> Fact` on `ProofContext`.
+
+Return a fact for an integer polynomial equality, optionally using equality facts. If normalization cannot establish the identity, the proof step fails.
+
+### ProofContext.witness
+
+`witness(value: Expr, evidence: Fact | ProofTerm) -> ProofTerm` on `ProofContext`.
+
+For the current goal ∃x. P(x), supply a value and evidence for P(value), then return the resulting proof term. A Python literal is lifted. Diagnostics include `witness_goal` for the wrong goal shape, `witness_escape` for an out-of-scope value, and `witness_mismatch` for a fact that proves the wrong predicate. See the [complete examples](#complete-existential-examples).
+
+### logos.authoring.Fact
+
+Import with `from logos.authoring import Fact`.
+
+Evidence for a symbolic proposition in a proof context. Read `statement` for the proposition; obtain facts from context operations.
+
+### Fact.left
+
+`left() -> 'Fact'` on `Fact`.
+
+Project the left conjunct from a conjunction fact.
+
+### Fact.right
+
+`right() -> 'Fact'` on `Fact`.
+
+Project the right conjunct from a conjunction fact.
+
+## Tactics
+
+A tactic receives a `Goal` and returns evidence or subgoals with a function to compose their evidence. Supply tactics in order to the runner. A failed step raises `TacticFailed` and a sequence with unclosed goals fails certification. See the [complete examples](#complete-existential-examples).
+
+### logos.tactics.all_goals
+
+Import with `from logos.tactics import all_goals`.
+
+`all_goals(tactic_fn)`
+
+Apply tactic_fn to each open subgoal (for use after a splitting tactic).
+
+### logos.tactics.andL
+
+Import with `from logos.tactics import andL`.
+
+`andL(hyp_name: str, result_name: str)`
+
+Extract left conjunct: from h: A & B, add result_name: A.
+
+### logos.tactics.andR
+
+Import with `from logos.tactics import andR`.
+
+`andR(hyp_name: str, result_name: str)`
+
+Extract right conjunct: from h: A & B, add result_name: B.
+
+### logos.tactics.apply
+
+Import with `from logos.tactics import apply`.
+
+`apply(ref)`
+
+Apply a theorem/axiom/hypothesis to close or transform the goal.
+
+### logos.tactics.assumption
+
+Import with `from logos.tactics import assumption`.
+
+`assumption()`
+
+Return a tactic that closes a goal with a matching local hypothesis, or fails if none matches.
+
+### logos.tactics.auto
+
+Import with `from logos.tactics import auto`.
+
+`auto(*hints, depth: int=5, timeout: float | None=None)`
+
+Automatic tactic. Tries a cascade of strategies up to `depth` search levels.
+
+### logos.tactics.cases
+
+Import with `from logos.tactics import cases`.
+
+`cases(hyp_name: str, case_name: str='h')`
+
+Build a piecewise symbolic expression from condition/value pairs and a default value.
+
+### logos.tactics.conj
+
+Import with `from logos.tactics import conj`.
+
+`conj(h1: str, h2: str, result_name: str)`
+
+Conjunction intro: from h1: A and h2: B, add result_name: A & B.
+
+### logos.tactics.contradiction
+
+Import with `from logos.tactics import contradiction`.
+
+`contradiction()`
+
+Return a tactic that closes a goal using a contradiction derivable from its local hypotheses. Fails if it cannot find one.
+
+### logos.tactics.decide
+
+Import with `from logos.tactics import decide`.
+
+`decide()`
+
+Test a closed Boolean proposition as a tactic. False or unsupported propositions fail. A successful test returns legacy evidence that does not certify the proposition under Rust replay. For portable integer inequalities use `ProofContext.linear`.
+
+### logos.tactics.eval_
+
+Import with `from logos.tactics import eval_`.
+
+`eval_()`
+
+Evaluate ground (variable-free) arithmetic sub-expressions, then close with Refl.
+
+### logos.tactics.exact
+
+Import with `from logos.tactics import exact`.
+
+`exact(term: ProofTerm)`
+
+Return a tactic that supplies the given proof term for checker validation against the current goal.
+
+### logos.tactics.first
+
+Import with `from logos.tactics import first`.
+
+`first(*tactics)`
+
+Try each tactic in order; succeed with the first that doesn't raise TacticFailed.
+
+### logos.tactics.have
+
+Import with `from logos.tactics import have`.
+
+`have(new_name: str, impl_hyp: str, ant_hyp: str)`
+
+Forward modus ponens: from impl_hyp: A→B and ant_hyp: A, add new_name: B.
+
+### logos.tactics.intro
+
+Import with `from logos.tactics import intro`.
+
+`intro(*names: str)`
+
+Return a tactic that opens one universal binder, implication, or negation per supplied name. Continue with the body or consequent, or with falsehood for a negation. Unsupported goal shapes fail.
+
+### logos.tactics.left
+
+Import with `from logos.tactics import left`.
+
+`left(right_type: Expr)`
+
+Return a tactic that chooses the left side of a disjunction and leaves that side as a goal. Pass the right proposition as `right_type`.
+
+### logos.tactics.linarith
+
+Import with `from logos.tactics import linarith`.
+
+`linarith()`
+
+Search for a linear arithmetic consequence of local hypotheses. Unsupported goals or failed searches raise `TacticFailed`. The legacy evidence returned on success does not certify the inequality under Rust replay. Use `ProofContext.linear` for portable certificates.
+
+### logos.tactics.norm_num
+
+Import with `from logos.tactics import norm_num`.
+
+`norm_num()`
+
+Normalize numeric literals and close if equal.
+
+### logos.tactics.order
+
+Import with `from logos.tactics import order`.
+
+`order(law: str)`
+
+Close a strict-order goal with one core order law.
+
+### logos.tactics.refl
+
+Import with `from logos.tactics import refl`.
+
+`refl()`
+
+Return a tactic that closes an equality with structurally identical sides. Other goal shapes fail.
+
+### logos.tactics.repeat
+
+Import with `from logos.tactics import repeat`.
+
+`repeat(tactic_fn)`
+
+Apply tactic_fn until it fails; apply all successful steps.
+
+### logos.tactics.rewrite
+
+Import with `from logos.tactics import rewrite`.
+
+`rewrite(ref)`
+
+Rewrite left-to-right using a named equation or Axiom/Theorem object.
+
+### logos.tactics.rewrite_rev
+
+Import with `from logos.tactics import rewrite_rev`.
+
+`rewrite_rev(ref)`
+
+Rewrite right-to-left using a named equation or Axiom/Theorem object.
+
+### logos.tactics.right
+
+Import with `from logos.tactics import right`.
+
+`right(left_type: Expr)`
+
+Return a tactic that chooses the right side of a disjunction and leaves that side as a goal. Pass the left proposition as `left_type`.
+
+### logos.tactics.ring
+
+Import with `from logos.tactics import ring`.
+
+`ring()`
+
+Return a tactic that closes integer polynomial equalities such as `a*m + b*m == (a+b)*m`. A non-equality or distinct polynomial normal forms fail. See [the complete divisibility proof](what-divides-two-neighbours.html) for the corresponding proof-context operation.
+
+### logos.tactics.split
+
+Import with `from logos.tactics import split`.
+
+`split()`
+
+Return a tactic for A & B that opens A and B as subgoals in that order. Other goal shapes fail.
+
+### logos.tactics.then
+
+Import with `from logos.tactics import then`.
+
+`then(*tactics)`
+
+Apply tactics in sequence to the current goal (as a single compound tactic).
+
+### logos.tactics.try_
+
+Import with `from logos.tactics import try_`.
+
+`try_(tactic_fn)`
+
+Apply tactic_fn; if it fails, return a no-op (transforms goal to itself).
+
+### logos.tactics.unfold
+
+Import with `from logos.tactics import unfold`.
+
+`unfold(*refs)`
+
+Replace App(name, args) nodes with the function's definition body.
+
+### logos.tactics.witness
+
+Import with `from logos.tactics import witness`.
+
+`witness(val: Expr)`
+
+Return a tactic for an existential goal ∃x. P(x). Pass a symbolic value such as `lit(5)`. The tactic opens one subgoal P(value) with the same hypotheses; the next tactic supplies its evidence. Other goal shapes raise `TacticFailed` with `witness: expected Exists`. The checker validates the witness sort and evidence. See the [complete examples](#complete-existential-examples).
+
+## Tactic extensions
+
+[Complete custom tactic](extend-the-checked-language-with-a-domain.html).
+
+### logos.goal.Goal
+
+Import with `from logos.goal import Goal`.
+
+`Goal(context: dict[str, Expr], statement: Expr)`
+
+Construct a tactic input containing `context` (named hypotheses) and `statement` (the conclusion to prove).
+
+### Goal.with_hyp
+
+`with_hyp(name: str, hyp: Expr) -> 'Goal'` on `Goal`.
+
+Return a new goal with the same conclusion and an added or replaced named hypothesis.
+
+### Goal.with_statement
+
+`with_statement(stmt: Expr) -> 'Goal'` on `Goal`.
+
+Return a new goal with the same hypotheses and the supplied conclusion.
+
+### logos.kernel.ProofTerm
+
+Import with `from logos.kernel import ProofTerm`.
+
+Base type for evidence returned by tactics and checked by the verifier.
+
+### logos.runner.TacticFailed
+
+Import with `from logos.runner import TacticFailed`.
+
+Signal that a tactic cannot handle its current goal. The proof runner reports the failure, and tactic alternatives can catch it.
+
+### logos.runner.TacticResult
+
+Import with `from logos.runner import TacticResult`.
+
+A closing `ProofTerm` or a pair of subgoals and a function composing their proofs into evidence for the original goal.

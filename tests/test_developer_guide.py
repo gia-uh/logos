@@ -243,22 +243,80 @@ def test_instructor_interval_counterexamples():
     assert not set(range(invalid[0], invalid[1] + 1))
 
 
-def test_the_reference_renders_and_names_every_public_entry(tmp_path):
+def test_the_reference_renders_witness_lookups(tmp_path):
     result, html = render(tmp_path, REFERENCE)
     assert result.returncode == 0, result.stderr
     assert "Traceback (most recent call last)" not in html
-    assert "Classes" in html and "Functions and methods" in html
-    from tools.generate_api_reference import _entries
+    assert "Tactic witness certified</p>" in html
+    assert "Proof-context witness and existential fact certified</p>" in html
 
-    classes, functions = _entries()
-    for name, _, _ in classes:
-        assert name in html, name
-    for name, _, _ in functions:
-        assert name in html, name
+    ids = re.findall(r'<h[1-6] id="([^"]+)"', html)
+    assert len(ids) == len(set(ids))
+    assert set(re.findall(r'href="#([^"]+)"', html)) <= set(ids)
+    for contract in (
+        "from logos.tactics import witness",
+        "witness(val: Expr)",
+        "witness(value: Expr, evidence: Fact | ProofTerm) -&gt; ProofTerm",
+        "exists(goal: Expr, value: Expr, evidence: Fact) -&gt; Fact",
+        "a*m + b*m == (a+b)*m",
+    ):
+        assert f"<code>{contract}</code>" in html
+    for private in ("_Ring", "_Scope", "_Generator", "_finite"):
+        assert private not in html
+
+
+def test_reference_witness_failures():
+    from logos import LogosProofError, check, exists, lit, prove, theorem, var
+    from logos.goal import Goal
+    from logos.runner import TacticFailed
+
+    statement = exists(Int, lambda x: x > 4)
+    with pytest.raises(TacticFailed, match="witness: expected Exists"):
+        t.witness(lit(5))(Goal({}, lit(5) > 4))
+    with pytest.raises(LogosProofError, match="proposition is False"):
+        check(prove(statement, [t.witness(lit(4)), t.decide()]))
+
+    @theorem
+    def above_four():
+        return statement
+
+    @above_four.proof
+    def wrong_evidence(p):
+        return p.witness(5, p.linear(lit(6) > 4))
+
+    with pytest.raises(LogosProofError) as error:
+        check(above_four)
+    assert error.value.details["kind"] == "witness_mismatch"
+
+    @above_four.proof
+    def escaped_symbol(p):
+        return p.witness(var("outside", Int), p.linear(lit(5) > 4))
+
+    with pytest.raises(LogosProofError) as error:
+        check(above_four)
+    assert error.value.details["kind"] == "witness_escape"
+
+    @above_four.proof
+    def wrong_existential_evidence(p):
+        return p.exists(statement, 5, p.linear(lit(6) > 4))
+
+    with pytest.raises(LogosProofError) as error:
+        check(above_four)
+    assert error.value.details["kind"] == "evidence_mismatch"
+
+    @above_four.proof
+    def wrong_existential_target(p):
+        target = lit(5) > 4
+        return p.exists(target, 5, p.linear(target))
+
+    with pytest.raises(LogosProofError) as error:
+        check(above_four)
+    assert error.value.details["kind"] == "exists_goal"
 
 
 def test_the_reference_matches_a_fresh_render():
-    from tools.generate_api_reference import render as generate
+    from tools.generate_api_reference import INVENTORY, inventory, render as generate
 
     current = (CHAPTERS / REFERENCE).read_text(encoding="utf-8")
     assert current == generate(), "book/chapters/15-api-reference.md is stale"
+    assert INVENTORY.read_text(encoding="utf-8") == inventory()
