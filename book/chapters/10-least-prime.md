@@ -18,10 +18,18 @@ This chapter turns that observation into a theorem: every integer above one has 
 
 ## Primes are defined by what they lack
 
+The code fragments in this chapter are assembled in order into one Python module by Scriptorium.
+
 A prime is an integer greater than one with no divisor strictly between one and itself. The definition does not enumerate divisors; it says that a certain existential has no witness.
 
+```python {export=examples/least_prime_lesson.py}
+import logos
+from logos import Int, exists, forall
+from logos.domains.number_theory import divides, divides_self, divides_trans
+```
+
 <!-- source: prime -->
-```python
+```python {export=examples/least_prime_lesson.py}
 @logos.definition
 def prime(q: Int):
     """A prime is greater than one and has no divisor strictly between 1 and q."""
@@ -46,21 +54,16 @@ The computation says $7$ is the least divisor above one. The proof has to say wh
 
 ## The least member of a nonempty set
 
-The proof uses a core rule: every nonempty set of integers bounded below has a least member. In Logos the rule is `p.least(lower, nonempty)`. It returns an integer $q$ together with two facts:
+Choose the integers above one that divide $m$. For $m=91$, the set is $\{7,13,91\}$. Which value proves that the set is nonempty without factoring $91$?
 
-1. $q$ belongs to the set;
-2. no member of the set is strictly below $q$.
+`p.least(lower, nonempty)` expects an existential with a lower-bound conjunct and a membership predicate. With lower bound $1$, the exact input is
 
-The set here is “divisors of $m$ above one”, written
+$$\exists d\in\mathbb{Z},\ \neg(d<1)\land((1<d)\land d\mid m).$$
 
-$$\{\,d : \neg(d < 1) \ \land\ 1 < d \ \land\ d \mid m\,\}.$$
+Choose $m$ itself. The hypothesis $1<m$ supplies the membership inequality and, by asymmetry of strict order, $\neg(m<1)$. Reflexivity of divisibility supplies $m\mid m$. Pack the inner pair first, then add the lower bound. Would $1$ pass all three checks?
 
-The bound $\neg(d < 1)$ is part of the set description because the least principle is stated for integers bounded below; the real membership condition is the conjunction after it.
-
-The set is not empty: $m$ itself is a divisor of $m$ and $1 < m$. That is the witness the proof offers before calling `p.least`.
-
-<!-- source: least_prime_divisor -->
-```python
+<!-- source: least_prime_input -->
+```python {export=examples/least_prime_lesson.py}
 @logos.theorem
 def least_prime_divisor(m: Int):
     """Every integer above one has a prime divisor."""
@@ -71,14 +74,26 @@ def prove_least_prime_divisor(p, m):
     """Take the least divisor above one; a proper divisor would contradict it."""
     above_one = p.assume(1 < m)
     self_divisor = p.apply(divides_self, m)
-    below_one = p.not_lt_of_lt(1, m, above_one)
+    not_m_below_one = p.not_lt_of_lt(1, m, above_one)
     p.note("m itself is a divisor above one, so the set is not empty.")
-    member = p.and_intro(below_one, p.and_intro(above_one, self_divisor))
+    member = p.and_intro(not_m_below_one, p.and_intro(above_one, self_divisor))
     nonempty = p.exists(
         exists(Int, lambda d: ~(d < 1) & ((1 < d) & divides(d, m))),
         m,
         member,
     )
+```
+
+Open the minimum to obtain $q$ and this grouped proposition. Here $P(x)$ abbreviates $(1<x)\land x\mid m$.
+
+$$\bigl(\neg(q<1)\land P(q)\bigr)
+\land
+\bigl(\forall d\in\mathbb{Z},\ (\neg(d<1)\land d<q)\Rightarrow\neg P(d)\bigr).$$
+
+The left projection is `bounds`, with membership `q_properties` on its right. Project from membership to get $1<q$ and $q\mid m$. The outer right projection is `minimal`. It rules out the predicate $P(d)$ once given the lower bound and the strict comparison with $q$.
+
+<!-- source: least_prime_minimum -->
+```python {export=examples/least_prime_lesson.py}
     least = p.least(1, nonempty)
     q, properties = p.obtain(least)
     bounds = properties.left()
@@ -86,6 +101,12 @@ def prove_least_prime_divisor(p, m):
     q_above_one = q_properties.left()
     q_dvd_m = q_properties.right()
     minimal = properties.right()
+```
+
+We still owe the second conjunct of primality: the negation of a proper divisor’s existence. Assume such a divisor $d$ and unpack its properties. Which one is missing from $P(d)$? We have $d\mid q$, so use transitivity with $q\mid m$ to get $d\mid m$.
+
+<!-- source: least_prime_proper -->
+```python {export=examples/least_prime_lesson.py}
     proper_exists = exists(Int, lambda d:
         (1 < d) & ((d < q) & divides(d, q)))
     with p.negate(~proper_exists) as suppose:
@@ -98,39 +119,32 @@ def prove_least_prime_divisor(p, m):
             divides_trans, d, q, m,
             p.and_intro(d_dvd_q, q_dvd_m),
         )
+```
+
+Apply `minimal` at $d$ with $\neg(d<1)\land d<q$. Its result is $\neg((1<d)\land d\mid m)$. Combine that with the positive membership we just established.
+
+<!-- source: least_prime_clash -->
+```python {export=examples/least_prime_lesson.py}
         not_below_one = p.not_lt_of_lt(1, d, d_above_one)
         smaller = p.and_intro(not_below_one, d_below_q)
         no_proper = p.apply(minimal, d, smaller)
         clash = p.not_elim(no_proper, p.and_intro(d_above_one, d_dvd_m))
         suppose.finish(clash)
+```
+
+The closed negation scope proves that $q$ has no proper divisor. Pair that with $1<q$ to prove primality. The witness for the theorem is $q$, with primality and the original fact $q\mid m$.
+
+<!-- source: least_prime_witness -->
+```python {export=examples/least_prime_lesson.py}
     q_prime = p.and_intro(q_above_one, suppose.result)
     return p.witness(q, p.and_intro(q_prime, q_dvd_m))
 ```
 
-Read the proof in four movements.
+```python {run continue}
+from examples.least_prime_lesson import least_prime_divisor
 
-- **Membership.** `self_divisor` is $m \mid m$ from `divides_self`. `below_one` is $\neg(m < 1)$, which follows from $1 < m$. `member` packs the three conjuncts, and `p.exists` offers $m$ as a witness that the set is nonempty.
-- **The minimum.** `p.least(1, nonempty)` returns $q$ and its two properties. `p.obtain` names them. `q_properties` gives $1 < q$ and $q \mid m$; `minimal` is the statement that nothing smaller belongs.
-- **The contradiction.** Suppose $q$ has a proper divisor $d$, so $1 < d$, $d < q$ and $d \mid q$. Transitivity gives $d \mid m$. Then $d$ is a member of the set, and it is below $q$. The minimality property forbids exactly that.
-- **The witness.** The contradiction proves that no proper divisor exists, so `prime(q)` holds. The final `p.witness` returns $q$ with its primality and its divisibility of $m$.
-
-The minimality application is the delicate line:
-
-```python
-smaller = p.and_intro(not_below_one, d_below_q)
-no_proper = p.apply(minimal, d, smaller)
-```
-
-`minimal` expects the lower bound and the comparison with $q$, in that order. The fact it returns is the negation of membership, which is why the next line can combine it with the membership of $d$ to obtain a contradiction.
-
-Certify the theorem.
-
-```python {run}
-import logos
-from logos.domains import number_theory
-
-number_theory.least_prime_divisor.check()
-print("least_prime_divisor:", number_theory.least_prime_divisor.certified)
+least_prime_divisor.check()
+print("least_prime_divisor:", least_prime_divisor.certified)
 ```
 
 ## When a step fails
@@ -151,16 +165,80 @@ the evidence does not prove the expected statement
 
 The message names both conjunctions. Transitivity is what turns $d \mid q$ and $q \mid m$ into $d \mid m$; without that step, the smaller candidate is not in the set. Restore `d_dvd_m` and the theorem certifies again.
 
-A second mistake is to call `p.least` before proving that the set is nonempty. The rule needs the witness, and the checker will ask for the missing fact rather than choose $m$ for you.
-
 ## Exit exercise
 
-Prove that no integer lies strictly between one and two:
+1. Prove that no integer lies strictly between one and two. Explain which inference needs the integer domain. The rational number $1.5$ satisfies both inequalities.
+2. Given an integer $a\ge2$, consider the positive integers strictly above $a$. Prove that their least member is $a+1$. Use $0$ as the lower bound, choose a membership predicate and find a nonempty witness. Explain how to exclude a smaller minimum and how to use minimality if the returned value exceeds $a+1$.
 
-$$\neg\exists d \in \mathbb{Z},\ 1 < d \land d < 2.$$
+## Instructor solutions
 
-Open the negation with `p.negate()`, obtain the supposed $d$, and use `lt_succ_le` at $1$ and $d$ to turn $1 < d$ into $2 \le d$. Then $d < 2 \le d$ gives $d < d$ by `lt_le_trans`, which contradicts `lt_irrefl`.
+For the first proof, use the integer successor law on $1<d$ to get $2\le d$. Now linear arithmetic can reject $d<2\le d$.
 
-Why not let `p.linear` do it? Linear arithmetic reasons over the rationals, where $1.5$ satisfies both bounds. Integrality comes from the successor law, and this exercise is the smallest place where that difference matters.
+```python {export=examples/least_prime_lesson.py}
+@logos.theorem
+def no_integer_between_one_and_two():
+    return ~exists(Int, lambda d: (1 < d) & (d < 2))
 
-As a second exercise, prove that every integer above one has a divisor that is at least two. Apply `least_prime_divisor` and unpack the prime's first conjunct. The proof is three lines and it checks that you can read a conjunction out of an existential.
+
+@no_integer_between_one_and_two.proof
+def prove_no_integer_between_one_and_two(p):
+    with p.negate() as suppose:
+        d, bounds = p.obtain(suppose.assumption)
+        two_le_d = p.order("lt_succ_le", 1, d, using=[bounds.left()])
+        suppose.finish(p.linear(False, using=[bounds.right(), two_le_d]))
+    return suppose.result
+
+```
+
+```python {run continue}
+from examples.least_prime_lesson import no_integer_between_one_and_two
+
+no_integer_between_one_and_two.check()
+print("integer gap:", no_integer_between_one_and_two.certified)
+```
+
+Choose $P(d)$ to be $a<d$. With $a\ge2$, the witness $a+1$ is above both $a$ and the lower bound $0$. The minimum's membership gives $a<q$, so the integer successor law gives $\neg(q<a+1)$. If $a+1<q$, minimality rules out $P(a+1)$, contradicting the evidence used for nonemptiness.
+
+```python {export=examples/least_prime_lesson.py}
+@logos.theorem
+def least_above(a: Int):
+    return ~(a < 2) >> exists(Int, lambda q:
+        (q == a + 1) & (
+            (~(q < 0) & (a < q)) &
+            forall(Int, lambda smaller:
+                (~(smaller < 0) & (smaller < q)) >> ~(a < smaller))
+        ))
+
+
+@least_above.proof
+def prove_least_above(p, a):
+    at_least_two = p.assume(~(a < 2))
+    two_le_a = p.order("not_lt_le", a, 2, using=[at_least_two])
+    first = a + 1
+    positive = p.linear(0 < first, using=[two_le_a])
+    lower = p.not_lt_of_lt(0, first, positive)
+    member = p.linear(a < first)
+    nonempty = p.exists(
+        exists(Int, lambda d: ~(d < 0) & (a < d)),
+        first, p.and_intro(lower, member),
+    )
+    q, properties = p.obtain(p.least(0, nonempty))
+    first_le_q = p.order("lt_succ_le", a, q,
+                         using=[properties.left().right()])
+    with p.negate(~(q < first)) as below:
+        below.finish(p.linear(False, using=[first_le_q, below.assumption]))
+    with p.negate(~(first < q)) as suppose:
+        smaller = p.and_intro(lower, suppose.assumption)
+        excluded = p.apply(properties.right(), first, smaller)
+        suppose.finish(p.not_elim(excluded, member))
+    equal = p.order("eq_of_not_lt_not_lt", q, first,
+                    using=[below.result, suppose.result])
+    return p.witness(q, p.and_intro(equal, properties))
+```
+
+```python {run continue}
+from examples.least_prime_lesson import least_above
+
+least_above.check()
+print("least above:", least_above.certified)
+```

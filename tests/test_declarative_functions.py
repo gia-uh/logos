@@ -66,6 +66,10 @@ def test_the_small_example_checks_and_replays_strictly(tmp_path):
         "call0.requires.nonempty",
         "main",
     ]
+    assert [clause.name for clause in module.first_or_zero.clauses()] == [
+        "zero_or_first",
+        "exact_first_or_zero",
+    ]
     certificate = tmp_path / "first_or_zero.logos"
     logos.export_proof(module.first_or_zero, certificate)
     result = check_strict(certificate)
@@ -164,7 +168,7 @@ def test_clause_scope_and_sort_are_validated(tmp_path):
 @requires_checker
 def test_the_missing_guard_names_the_call_line_callee_clause_and_need(tmp_path):
     source = CALLS.read_text(encoding="utf-8")
-    broken = source.split("\ndef main()", 1)[0] + (
+    broken = source + (
         "\n\n@logos.function\n"
         "def unguarded(xs: list[int]) -> int:\n"
         "    return first(xs)\n"
@@ -322,6 +326,53 @@ def test_a_literal_true_clause_is_a_real_trivial_precondition(tmp_path):
     module.identity.check()
     assert module.identity.certified
     assert "read0" not in module.identity.program.obligations
+
+
+@requires_checker
+def test_the_binary_search_exercise_has_a_checked_solution(tmp_path):
+    text = (
+        "import logos\n"
+        "\n"
+        "@logos.function\n"
+        "def find(xs: list[int], target: int) -> int:\n"
+        "    i = 0\n"
+        "    answer = -1\n"
+        "    while i < len(xs):\n"
+        "        if xs[i] == target:\n"
+        "            answer = i\n"
+        "            i = len(xs)\n"
+        "        else:\n"
+        "            i = i + 1\n"
+        "    return answer\n"
+        "\n"
+        "@find.invariant\n"
+        "def bounds(xs, *, i):\n"
+        "    return (0 <= i) & (i <= logos.length(xs))\n"
+        "\n"
+        "@find.invariant\n"
+        "def answer_or_searching(xs, target, *, i, answer):\n"
+        "    return (answer == -1) | (\n"
+        "        (0 <= answer) & (answer < i)\n"
+        "        & (logos.nth(xs, answer) == target)\n"
+        "    )\n"
+        "\n"
+        "@find.decreases\n"
+        "def remaining(xs, *, i):\n"
+        "    return logos.length(xs) - i\n"
+        "\n"
+        "@find.ensures\n"
+        "def found_is_an_occurrence(xs, target, *, result):\n"
+        "    return (result == -1) | (\n"
+        "        (0 <= result) & (result < logos.length(xs))\n"
+        "        & (logos.nth(xs, result) == target)\n"
+        "    )\n"
+    )
+    module, _ = write_module(tmp_path, text)
+    module.find.check()
+    assert module.find.certified
+    assert "loop0.preserve.answer_or_searching" in module.find.program.obligations
+    assert module.find([2, 4, 8], 8) == 2
+    assert module.find([2, 4, 8], 6) == -1
 
 
 @requires_checker

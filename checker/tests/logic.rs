@@ -153,7 +153,7 @@ fn checks_dependencies_reached_only_by_the_right_branch() {
     let right_assumption = checked
         .steps
         .iter()
-        .find(|step| step.id == "proof.body.right.assumption")
+        .find(|step| step.id == "proof.body.right_assumption")
         .unwrap();
     assert_eq!(right_assumption.conclusion_text, "Q");
 }

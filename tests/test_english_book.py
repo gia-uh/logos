@@ -6,6 +6,7 @@ the installed wheel, never the repository checkout.
 """
 from __future__ import annotations
 
+from html import unescape
 import os
 import re
 import shutil
@@ -70,16 +71,21 @@ EXPECTED = {
         "factorial_positive: True",
         "factorial_above_one: True",
         "factorial_dvd: True",
+        "factorial exercises: True True",
     ],
-    "10-least-prime.md": ["least_prime_divisor: True", "least: 7"],
-    "11-euclid.md": ["euclid: True", "certificate: euclid.logos"],
+    "10-least-prime.md": [
+        "least_prime_divisor: True", "least: 7", "integer gap: True", "least above: True",
+    ],
+    "11-euclid.md": ["euclid: True", "certificate: euclid.logos", "two more primes: True"],
     "12-binary-search.md": [
-        "binary_search: True",
+        "first: True",
+        "first_or_zero: True",
+        "claims: zero_or_first, exact_first_or_zero",
         "call0.requires.nonempty",
         "certificate: first_or_zero.logos",
+        "binary_search: True",
         "certificate: binary_search.logos",
-        "result: -1",
-        "postcondition holds: False",
+        "-1 True",
     ],
     "13-production-contract.md": [
         "adapt_bias_nonnegative: True",
@@ -171,6 +177,12 @@ def test_the_chapter_states_what_the_reader_needs(name):
         assert "**Outcomes.**" in source
         assert "cargo install" in source
         assert "compose.check()" in source
+    elif name == "12-binary-search.md":
+        # This lesson opens on a concrete search and defers every definition to
+        # the point where the proof needs it, so it has no prerequisites block.
+        assert source.startswith("---\ntheme: book\n")
+        assert "You search for 6 in `[2, 4, 8, 11, 13]`." in source
+        assert "**Prerequisites.**" not in source
     else:
         assert "**Prerequisites.**" in source
         assert "**Outcomes.**" in source
@@ -179,8 +191,13 @@ def test_the_chapter_states_what_the_reader_needs(name):
 @pytest.mark.parametrize("name", LESSONS)
 def test_each_lesson_has_a_diagnostic_and_an_exit_exercise(name):
     source = (CHAPTERS / name).read_text(encoding="utf-8")
-    assert "## When a step fails" in source
-    assert "## Exit exercise" in source
+    if name == "12-binary-search.md":
+        assert "## Tell a broken algorithm from a broken argument" in source
+        assert "logos.contracts.LogosContractError" in source
+        assert "Then write and check the contract for a smaller scan." in source
+    else:
+        assert "## When a step fails" in source
+        assert "## Exit exercise" in source
 
 
 def test_quick_start_reports_a_real_receipt(tmp_path):
@@ -275,47 +292,61 @@ def test_quoted_number_theory_snippets_match_the_module(name):
         )
 
 
+@pytest.mark.parametrize("name", ORDER[9:12])
+def test_number_theory_lesson_modules_match_the_chapters(name):
+    subprocess.run(
+        [SCRIPTORIUM, "tangle", "--test", f"chapters/{name}"],
+        cwd=BOOK,
+        env=environment(),
+        check=True,
+    )
+
+
 def test_euclid_chapter_exports_a_strict_certificate(tmp_path):
     result, html = render(tmp_path, "11-euclid.md")
     assert result.returncode == 0, result.stderr
     assert "euclid: True" in html
-    assert (tmp_path / "euclid.logos").exists()
-    checked = subprocess.run(
-        [CHECKER, "check", "--strict", "euclid.logos"],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    assert "Verified with 0 custom axioms" in checked.stdout
-    assert "euclid" in checked.stdout
+    proof = re.search(r'<section class="proof">(.*?)</section>', html, re.S)
+    assert proof
+    assert "Checked proof" in proof[1]
+    assert "Uses zero custom axioms." in proof[1]
+    assert 'id="what-the-reader-should-be-able-to-check"' in html
+    conclusion = re.search(r"The conclusion follows from \((\d+)\)", proof[1])
+    assert conclusion
+    steps = [int(n) for n in re.findall(r"<strong>\((\d+)\)</strong>", proof[1])]
+    assert steps == list(range(1, int(conclusion[1]) + 1))
+    for filename, statement in [
+        ("euclid.logos", "euclid"),
+        ("two-more-primes.logos", "two_more_primes"),
+    ]:
+        checked = subprocess.run(
+            [CHECKER, "check", "--strict", filename],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert "Verified with 0 custom axioms" in checked.stdout
+        assert statement in checked.stdout
 
 
-def test_euclid_chapter_recovers_from_the_constructed_number(tmp_path):
+@pytest.mark.parametrize("candidate", ["f", "f + 2"])
+def test_euclid_chapter_rejects_a_nonconsecutive_candidate(tmp_path, candidate):
     source = (CHAPTERS / "11-euclid.md").read_text(encoding="utf-8")
     assert source.count("    m = f + 1") == 1
-    broken = source.replace("    m = f + 1", "    m = f", 1)
-
-    broken_dir = tmp_path / "broken"
-    broken_dir.mkdir()
-    _, html = render(broken_dir, "11-euclid.md", broken)
-    assert not (broken_dir / "euclid.logos").exists()
-    assert "needed by common_divisor" in html
-    assert "factorial(n) + 1" in html
-    assert html.count("factorial(n) = q * k") >= 2
-
-    restored_dir = tmp_path / "restored"
-    restored_dir.mkdir()
-    result, html = render(restored_dir, "11-euclid.md", source)
-    assert result.returncode == 0, result.stderr
-    assert (restored_dir / "euclid.logos").exists()
-    subprocess.run(
-        [CHECKER, "check", "--strict", "euclid.logos"],
-        cwd=restored_dir,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    broken = source.replace("    m = f + 1", f"    m = {candidate}", 1)
+    _, html = render(tmp_path, "11-euclid.md", broken)
+    assert not (tmp_path / "euclid.logos").exists()
+    output = re.search(r'<pre class="output error">(.*?)</pre>', html, re.S)
+    assert output
+    diagnostic = unescape(output[1])
+    assert "needed by common_divisor" in diagnostic
+    factorial = "exists k:Int. factorial(n) = q * k"
+    successor = "exists k:Int. factorial(n) + 1 = q * k"
+    other = "exists k:Int. factorial(n) + 2 = q * k" if candidate.endswith("2") else factorial
+    assert f"expected: {factorial} & {successor}" in diagnostic
+    assert f"got: {factorial} & {other}" in diagnostic
+    assert "failing source: divides_one = p.apply(common_divisor, q, f, neighbors)" in diagnostic
 
 
 def test_parity_reports_the_wrong_witness(tmp_path):

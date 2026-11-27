@@ -1122,12 +1122,16 @@ def primes(python, cold, recipient, evidence, env, offline):
 def binary_search_contract(python, cold, recipient, evidence, env, offline):
     application = cold / "binary_search_application"
     application.mkdir()
-    source = (Path(__file__).resolve().parents[1] / "book/examples/binary_search.py").read_text()
+    examples = Path(__file__).resolve().parents[1] / "book/examples"
+    source = (examples / "binary_search.py").read_text()
+    demo = (examples / "demo_binary_search.py").read_text()
     (application / "binary_search.py").write_text(source)
+    (application / "demo_binary_search.py").write_text(demo)
     print("Binary search · author the loop contract with the installed wheel")
-    run(["python", "binary_search.py"], application, env=env)
+    run(["python", "demo_binary_search.py"], application, env=env)
     shutil.move(application / "binary_search.logos", recipient / "binary_search.logos")
     shutil.copy2(application / "binary_search.py", evidence / "binary_search.py")
+    shutil.copy2(application / "demo_binary_search.py", evidence / "demo_binary_search.py")
 
     print(f"Binary search · strict replay and machine inspection, then an offline replay")
     check = replay(recipient, "check", "--strict", "binary_search.logos", offline=offline)
@@ -1138,9 +1142,13 @@ def binary_search_contract(python, cold, recipient, evidence, env, offline):
     assert inspected["status"] == "verified"
     assert inspected["custom_axioms"] == []
 
-    wrong = source.replace("(low + high) // 2", "(low + high + 1) // 2")
-    (application / "wrong_midpoint.py").write_text(wrong)
-    rejected = run(["python", "wrong_midpoint.py"], application, env=env, code=1)
+    wrong = application / "wrong_midpoint"
+    wrong.mkdir()
+    (wrong / "binary_search.py").write_text(
+        source.replace("(low + high) // 2", "(low + high + 1) // 2")
+    )
+    (wrong / "demo_binary_search.py").write_text(demo)
+    rejected = run(["python", "demo_binary_search.py"], wrong, env=env, code=1)
     assert "LogosProofError" in rejected.stderr or "cannot prove" in rejected.stderr
 
     data = json.loads((recipient / "binary_search.logos").read_text())

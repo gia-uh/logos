@@ -133,7 +133,7 @@ def prove_not_dvd_one(p, d):
 # --8<-- [end:not_dvd_one]
 
 
-# --8<-- [start:factorial_positive]
+# --8<-- [start:factorial_positive_setup]
 @logos.theorem
 def factorial_positive(n: Int):
     """The factorial of a nonnegative integer is positive."""
@@ -144,9 +144,13 @@ def prove_factorial_positive(p, n):
     """Induct from 0! = 1 and close the step with a product of positives."""
     nonnegative = p.assume(~(n < 0))
     with p.induction(n, 0, nonnegative=nonnegative) as induction:
+        # --8<-- [end:factorial_positive_setup]
+        # --8<-- [start:factorial_positive_base]
         with induction.base() as base:
             zero = p.recursor_base(factorial)  # 0! = 1
             base.finish(p.linear(0 < factorial(0), using=[zero]))
+        # --8<-- [end:factorial_positive_base]
+        # --8<-- [start:factorial_positive_step]
         with induction.step() as step:
             k = step.variable
             previous = step.hypothesis  # the induction hypothesis: 0 < k!
@@ -157,7 +161,7 @@ def prove_factorial_positive(p, n):
             equation = p.recursor_step(factorial, k, step.nonnegative)
             step.finish(p.subst(product, p.symm(equation)))
     return induction.result
-# --8<-- [end:factorial_positive]
+# --8<-- [end:factorial_positive_step]
 
 
 # --8<-- [start:mul_succ]
@@ -229,6 +233,8 @@ def prove_factorial_above_one(p, n):
             )
             product_positive = p.order("mul_pos", k, factorial(k),
                                        using=[zero_lt_k, positive_factorial])
+            # --8<-- [end:factorial_above_one_step]
+            # --8<-- [start:factorial_above_one_sum]
             equation = p.recursor_step(factorial, k, not_k_below_zero)
             distributed = p.apply(mul_succ, k, factorial(k))
             decomposed = p.trans(equation, distributed)
@@ -236,7 +242,7 @@ def prove_factorial_above_one(p, n):
                              previous, product_positive)
             step.finish(p.subst(larger, p.symm(decomposed)))
     return induction.result
-# --8<-- [end:factorial_above_one_step]
+# --8<-- [end:factorial_above_one_sum]
 
 
 # --8<-- [start:factorial_dvd_base]
@@ -261,7 +267,7 @@ def prove_factorial_dvd(p, n):
                 fixed.finish(p.ex_falso(clash))
             base.finish(fixed.result)
         # --8<-- [end:factorial_dvd_base]
-        # --8<-- [start:factorial_dvd_step]
+        # --8<-- [start:factorial_dvd_split]
         with induction.step() as step:
             k = step.variable
             with p.fix("d") as fixed:
@@ -271,6 +277,8 @@ def prove_factorial_dvd(p, n):
                 p.note("Either d was already a divisor of k!, or d = k + 1.")
                 decision = p.order("lt_decidable", d, k + 1)
                 with p.cases(decision) as cases:
+                    # --8<-- [end:factorial_dvd_split]
+                    # --8<-- [start:factorial_dvd_old]
                     with cases.left() as smaller:
                         ih = p.apply(step.hypothesis, d, above, smaller)
                         multiplied = p.apply(
@@ -280,6 +288,8 @@ def prove_factorial_dvd(p, n):
                             factorial, k, step.nonnegative
                         )
                         cases.finish(p.subst(multiplied, p.symm(equation)))
+                    # --8<-- [end:factorial_dvd_old]
+                    # --8<-- [start:factorial_dvd_new]
                     with cases.right() as not_smaller:
                         forward = p.order("lt_succ_fwd", d, k + 1,
                                           using=[bound])
@@ -295,10 +305,10 @@ def prove_factorial_dvd(p, n):
                 fixed.finish(cases.result)
             step.finish(fixed.result)
     return induction.result
-# --8<-- [end:factorial_dvd_step]
+# --8<-- [end:factorial_dvd_new]
 
 
-# --8<-- [start:least_prime_divisor]
+# --8<-- [start:least_prime_input]
 @logos.theorem
 def least_prime_divisor(m: Int):
     """Every integer above one has a prime divisor."""
@@ -309,14 +319,16 @@ def prove_least_prime_divisor(p, m):
     """Take the least divisor above one; a proper divisor would contradict it."""
     above_one = p.assume(1 < m)
     self_divisor = p.apply(divides_self, m)
-    below_one = p.not_lt_of_lt(1, m, above_one)
+    not_m_below_one = p.not_lt_of_lt(1, m, above_one)
     p.note("m itself is a divisor above one, so the set is not empty.")
-    member = p.and_intro(below_one, p.and_intro(above_one, self_divisor))
+    member = p.and_intro(not_m_below_one, p.and_intro(above_one, self_divisor))
     nonempty = p.exists(
         exists(Int, lambda d: ~(d < 1) & ((1 < d) & divides(d, m))),
         m,
         member,
     )
+    # --8<-- [end:least_prime_input]
+    # --8<-- [start:least_prime_minimum]
     least = p.least(1, nonempty)
     q, properties = p.obtain(least)
     bounds = properties.left()
@@ -324,6 +336,8 @@ def prove_least_prime_divisor(p, m):
     q_above_one = q_properties.left()
     q_dvd_m = q_properties.right()
     minimal = properties.right()
+    # --8<-- [end:least_prime_minimum]
+    # --8<-- [start:least_prime_proper]
     proper_exists = exists(Int, lambda d:
         (1 < d) & ((d < q) & divides(d, q)))
     with p.negate(~proper_exists) as suppose:
@@ -336,17 +350,21 @@ def prove_least_prime_divisor(p, m):
             divides_trans, d, q, m,
             p.and_intro(d_dvd_q, q_dvd_m),
         )
+        # --8<-- [end:least_prime_proper]
+        # --8<-- [start:least_prime_clash]
         not_below_one = p.not_lt_of_lt(1, d, d_above_one)
         smaller = p.and_intro(not_below_one, d_below_q)
         no_proper = p.apply(minimal, d, smaller)
         clash = p.not_elim(no_proper, p.and_intro(d_above_one, d_dvd_m))
         suppose.finish(clash)
+    # --8<-- [end:least_prime_clash]
+    # --8<-- [start:least_prime_witness]
     q_prime = p.and_intro(q_above_one, suppose.result)
     return p.witness(q, p.and_intro(q_prime, q_dvd_m))
-# --8<-- [end:least_prime_divisor]
+# --8<-- [end:least_prime_witness]
 
 
-# --8<-- [start:euclid]
+# --8<-- [start:euclid_candidate]
 @logos.theorem
 def euclid(n: Int):
     """For every n at least two there is a prime greater than n."""
@@ -362,6 +380,8 @@ def prove_euclid(p, n):
     m = f + 1
     above_m = p.linear(1 < m, using=[above_f])
     q, factor = p.obtain(p.apply(least_prime_divisor, m, above_m))
+    # --8<-- [end:euclid_candidate]
+    # --8<-- [start:euclid_contrary]
     q_prime = factor.left()
     q_dvd_m = factor.right()
     q_above_one = q_prime.left()
@@ -369,18 +389,24 @@ def prove_euclid(p, n):
         not_n_lt_q = contrary.hypothesis
         q_lt_succ = p.order("lt_succ_rev", q, n, using=[not_n_lt_q])
         p.note("If q <= n then q divides n!, and by construction it divides n! + 1.")
+        # --8<-- [end:euclid_contrary]
+        # --8<-- [start:euclid_factorial]
         two_le_n = p.order("not_lt_le", n, 2, using=[at_least_two])
         zero_lt_n = p.linear(0 < n, using=[two_le_n])
         not_n_below_zero = p.not_lt_of_lt(0, n, zero_lt_n)
         q_dvd_f = p.apply(
             factorial_dvd, n, not_n_below_zero, q, q_above_one, q_lt_succ
         )
+        # --8<-- [end:euclid_factorial]
+        # --8<-- [start:euclid_clash]
         neighbors = p.and_intro(q_dvd_f, q_dvd_m)
         divides_one = p.apply(common_divisor, q, f, neighbors)
         no_one = p.apply(not_dvd_one, q, q_above_one)
         contrary.finish(p.not_elim(no_one, divides_one))
+    # --8<-- [end:euclid_clash]
+    # --8<-- [start:euclid_witness]
     return p.witness(q, p.and_intro(q_prime, contrary.result))
-# --8<-- [end:euclid]
+# --8<-- [end:euclid_witness]
 
 
 LEMMAS = (

@@ -31,16 +31,8 @@ def zero_or_first(xs, *, result):
     return (result == 0) | (result == logos.nth(xs, 0))
 
 
-def main() -> None:
-    first.check()
-    first_or_zero.check()
-    print("first:", first.certified)
-    print("first obligations:", ", ".join(first.program.obligations))
-    print("first_or_zero:", first_or_zero.certified)
-    print("caller obligations:", ", ".join(first_or_zero.program.obligations))
-    logos.export_proof(first_or_zero, "first_or_zero.logos")
-    print("certificate: first_or_zero.logos")
-
-
-if __name__ == "__main__":
-    main()
+@first_or_zero.ensures
+def exact_first_or_zero(xs, *, result):
+    return ((logos.length(xs) == 0) >> (result == 0)) & (
+        (0 < logos.length(xs)) >> (result == logos.nth(xs, 0))
+    )

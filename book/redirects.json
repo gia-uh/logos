@@ -202,13 +202,13 @@
       "from": "a-finite-graph-you-can-audit.html",
       "to": "binary-search-all-the-way-down.html",
       "anchors": {
-        "before-you-start": "before-you-start",
-        "the-graph-is-a-finite-table": "binary-search",
-        "the-order-is-an-invariant": "the-clauses-one-at-a-time",
-        "consequences-of-the-invariant": "the-clauses-one-at-a-time",
-        "the-invariant-composes-along-a-path": "the-clauses-one-at-a-time",
-        "when-a-step-fails": "when-a-step-fails",
-        "exit-exercise": "exit-exercise"
+        "before-you-start": "who-has-to-prove-that-the-list-is-nonempty",
+        "the-graph-is-a-finite-table": "what-will-justify-returning-1",
+        "the-order-is-an-invariant": "work-backwards-from-the-empty-interval",
+        "consequences-of-the-invariant": "what-happens-to-the-argument-when-we-find-the-target",
+        "the-invariant-composes-along-a-path": "what-happens-to-the-argument-when-we-find-the-target",
+        "when-a-step-fails": "tell-a-broken-algorithm-from-a-broken-argument",
+        "exit-exercise": "tell-a-broken-algorithm-from-a-broken-argument"
       }
     },
     {

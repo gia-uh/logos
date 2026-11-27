@@ -1562,6 +1562,7 @@ impl<'a> Checker<'a> {
                     return Err(format!("{path}: or_elim requires a disjunction"));
                 };
                 let left_path = format!("{path}.left");
+                // A branch implication can have an assumption of its own.
                 let (left_assumption, left_result) = self.infer_under_hypothesis(
                     binder,
                     &a,
@@ -1569,7 +1570,7 @@ impl<'a> Checker<'a> {
                     scope,
                     (
                         &left_path,
-                        format!("{left_path}.assumption"),
+                        format!("{path}.left_assumption"),
                         "Assume the left disjunct for the first case.",
                     ),
                 )?;
@@ -1581,7 +1582,7 @@ impl<'a> Checker<'a> {
                     scope,
                     (
                         &right_path,
-                        format!("{right_path}.assumption"),
+                        format!("{path}.right_assumption"),
                         "Assume the right disjunct for the second case.",
                     ),
                 )?;
