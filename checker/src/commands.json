@@ -20,12 +20,13 @@
       "output": "This versioned command description."
     },
     "example": {
-      "usage": "logos example [dependencies|arithmetic|knights-knaves]",
+      "usage": "logos example [dependencies|arithmetic|knights-knaves|primes]",
       "output": "Writes authorization.logos and authorization.py in the current directory.",
       "dependencies": "Writes dependencies.logos and dependencies.py in the current directory.",
       "python_prerequisites": "Python 3.12+, logos-ai wheel, and the logos executable on PATH.",
       "arithmetic": "Writes a ready-to-replay addition commutativity proof and an authoring script for six integer identities.",
-      "knights-knaves": "Writes solve_knights_knaves.py for automatic solve and guide_knights_knaves.py for English claim descriptions. Run python guide_knights_knaves.py to preview claims or add a .logos output path to guide and export a checked conditional proof for strict replay."
+      "knights-knaves": "Writes solve_knights_knaves.py for automatic solve and guide_knights_knaves.py for English claim descriptions. Run python guide_knights_knaves.py to preview claims or add a .logos output path to guide and export a checked conditional proof for strict replay.",
+      "primes": "Writes primes.logos, a strict certificate that every integer n >= 2 has a prime above it, and primes.py, which rebuilds the certificate from the installed wheel."
     },
     "check": {
       "usage": "logos check [--json] [--strict] <FILE>",

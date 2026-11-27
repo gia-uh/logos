@@ -1264,7 +1264,7 @@ impl<'a> Checker<'a> {
             substitutions: None,
             context: None,
             binder_sort: None,
-            introduced_variable: Some(format!("{path}.variable")),
+            introduced_variable: None,
             introduced_hypothesis: Some(assumption.clone()),
             provenance: None,
             law: None,
@@ -1651,10 +1651,9 @@ impl<'a> Checker<'a> {
                     return Err(format!("{path}: exists_elim requires an integer binder"));
                 }
                 let body_path = format!("{path}.body");
-                let (variable, assumption, result) = self.infer_under_eigenvariable(
+                let (_variable, assumption, result) = self.infer_under_eigenvariable(
                     name, sort, binder, &predicate, body, scope, &body_path,
                 )?;
-                introduced_variable = Some(variable);
                 binder_sort = Some(sort);
                 let conclusion = result
                     .lower_outer()

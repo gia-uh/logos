@@ -18,6 +18,8 @@ const DEPENDENCY_EXAMPLE: &str = include_str!("../examples/dependencies.py");
 const DEPENDENCY_FIXTURE: &str = include_str!("../tests/fixtures/portable/dependencies.logos");
 const GUIDED_KNIGHTS_KNAVES_EXAMPLE: &str = include_str!("../examples/guide_knights_knaves.py");
 const KNIGHTS_KNAVES_EXAMPLE: &str = include_str!("../examples/solve_knights_knaves.py");
+const PRIMES_EXAMPLE: &str = include_str!("../examples/primes.py");
+const PRIMES_FIXTURE: &str = include_str!("../tests/fixtures/portable/primes.logos");
 const FIXTURE: &str = include_str!("../tests/fixtures/portable/authorization.logos");
 
 #[derive(Serialize)]
@@ -94,6 +96,10 @@ fn run(args: &[String]) -> Result<(), Failure> {
         [cmd, selection] if cmd == "example" && selection == "knights-knaves" => emit_example([
             ("solve_knights_knaves.py", KNIGHTS_KNAVES_EXAMPLE),
             ("guide_knights_knaves.py", GUIDED_KNIGHTS_KNAVES_EXAMPLE),
+        ])?,
+        [cmd, selection] if cmd == "example" && selection == "primes" => emit_example([
+            ("primes.logos", PRIMES_FIXTURE),
+            ("primes.py", PRIMES_EXAMPLE),
         ])?,
         [cmd, flag]
             if matches!(cmd.as_str(), "check" | "inspect" | "example" | "commands")

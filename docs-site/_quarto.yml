@@ -56,6 +56,7 @@ website:
           contents:
             - guide/examples/index.qmd
             - guide/examples/number-theory.qmd
+            - guide/examples/infinitely-many-primes.qmd
             - guide/examples/knights-knaves.qmd
             - guide/examples/data-structures.qmd
         - reference/api.qmd
