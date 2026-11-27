@@ -97,12 +97,13 @@ fn renders_authored_commentary_and_notes_in_order() {
     let output = inspect(&["--json"], &proof.to_string());
     assert!(output.status.success());
     let inspected: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(inspected["annotations"]["claim"], proof["annotations"]["claim"]);
-    assert!(inspected["steps"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|step| step["commentary"] == json!(["first note with $x$ and # forged", "second note"])));
+    assert_eq!(
+        inspected["annotations"]["claim"],
+        proof["annotations"]["claim"]
+    );
+    assert!(inspected["steps"].as_array().unwrap().iter().any(
+        |step| step["commentary"] == json!(["first note with $x$ and # forged", "second note"])
+    ));
 }
 
 #[test]
