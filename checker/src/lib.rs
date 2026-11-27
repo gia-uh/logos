@@ -155,7 +155,9 @@ impl Evidence {
             | Self::Congr { proof, .. }
             | Self::ForallElim { proof, .. }
             | Self::ExistsIntro { proof, .. }
-            | Self::Least { nonempty: proof, .. } => [Some(proof), None, None],
+            | Self::Least {
+                nonempty: proof, ..
+            } => [Some(proof), None, None],
             Self::AndIntro { left, right }
             | Self::Trans { left, right }
             | Self::ImpliesElim {
@@ -1448,10 +1450,8 @@ impl<'a> Checker<'a> {
                     left: Box::new(variable.clone()),
                     right: Box::new(Proposition::Int { value: "1".into() }),
                 };
-                let p_variable =
-                    instantiate_bounded(predicate, std::slice::from_ref(&variable))?;
-                let p_successor =
-                    instantiate_bounded(predicate, std::slice::from_ref(&successor))?;
+                let p_variable = instantiate_bounded(predicate, std::slice::from_ref(&variable))?;
+                let p_successor = instantiate_bounded(predicate, std::slice::from_ref(&successor))?;
                 let step_expected = Proposition::Forall {
                     name: name.clone(),
                     sort: Sort::Int,
@@ -1502,8 +1502,7 @@ impl<'a> Checker<'a> {
                 predicate_sort?.expect(Sort::Prop)?;
 
                 let witness = Proposition::Bound { index: 0 };
-                let p_witness =
-                    instantiate_bounded(predicate, std::slice::from_ref(&witness))?;
+                let p_witness = instantiate_bounded(predicate, std::slice::from_ref(&witness))?;
                 let membership = Proposition::And {
                     left: Box::new(self.nonnegative_here(bound, 1)),
                     right: Box::new(p_witness),
@@ -1524,8 +1523,7 @@ impl<'a> Checker<'a> {
 
                 let smallest = Proposition::Bound { index: 0 };
                 let candidate = Proposition::Bound { index: 1 };
-                let p_smallest =
-                    instantiate_bounded(predicate, std::slice::from_ref(&smallest))?;
+                let p_smallest = instantiate_bounded(predicate, std::slice::from_ref(&smallest))?;
                 let minimal = Proposition::Forall {
                     name: name.clone(),
                     sort: Sort::Int,
