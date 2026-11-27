@@ -240,3 +240,40 @@ def test_a_broken_application_fails_the_native_chapter(tmp_path):
     assert result.returncode != 0 or "Traceback (most recent call last)" in html
     assert "expected: Q" in html
     assert "got: P" in html
+
+
+def test_onboarding_scripts_run_from_the_installed_wheel(tmp_path):
+    quick_start = (SOURCE.parent / "01-quick-start.md").read_text(encoding="utf-8")
+    first_proof, identity = re.findall(r"^```python \{run\}\n(.*?)^```$", quick_start, re.M | re.S)
+    _, solution = SOURCE.read_text(encoding="utf-8").split("## Solution\n", 1)
+    transfer = re.search(r"^```python \{run\}\n(.*?)^```$", solution, re.M | re.S).group(1)
+
+    def run(filename, source, env=None):
+        path = tmp_path / filename
+        path.write_text(source, encoding="utf-8")
+        return subprocess.run(
+            [sys.executable, "-P", path.name], cwd=tmp_path, env=_env() if env is None else env,
+            capture_output=True, text=True, check=False,
+        )
+
+    for filename, source, output in [
+        ("first_proof.py", first_proof, "checked: True"),
+        ("identity.py", identity, "identity checked: True"),
+        ("use_implication.py", transfer, "checked: True"),
+    ]:
+        result = run(filename, source)
+        assert result.returncode == 0, result.stderr
+        assert output in result.stdout.splitlines()
+
+    wrong_premise = first_proof.replace("return p.apply(q_to_r, have_q)", "return p.apply(q_to_r, given_p)")
+    result = run("first_proof.py", wrong_premise)
+    assert result.returncode != 0
+    assert "expected: Q" in result.stderr
+    assert "got: P" in result.stderr
+    assert "checked: True" not in result.stdout
+
+    env = dict(_env(), PATH=str(tmp_path))
+    result = run("first_proof.py", first_proof, env)
+    assert result.returncode != 0
+    assert "installed Rust logos checker not found on PATH" in result.stderr
+    assert "checked: True" not in result.stdout
