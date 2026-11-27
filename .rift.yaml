@@ -1,7 +1,5 @@
-# The book covers the library. Every public class is named somewhere in the
-# chapters; every public function and method is named too, as a warning because
-# a short name such as `solve` or `key` also occurs in ordinary prose. The
-# generated reference chapter makes the coverage mechanical.
+# Keep the syntactic source inventory available for maintenance. Chapter 15
+# documents the supported imports separately. The generator checks both files.
 rules:
 
   - name: "every public class is named in the book"
@@ -9,7 +7,7 @@ rules:
       file: "logos/**/*.py"
       regex: '^class ([A-Za-z]\w*)'
     require:
-      in: "book/chapters/*.md"
+      in: "book/**/*.md"
       as: word
 
   - name: "every public function and method is named in the book"
@@ -18,5 +16,5 @@ rules:
       file: "logos/**/*.py"
       regex: '^def ([a-z]\w*)|^    def ([a-z]\w*)\((?:self|cls)\b'
     require:
-      in: "book/chapters/*.md"
+      in: "book/**/*.md"
       as: word
