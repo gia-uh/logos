@@ -2,24 +2,31 @@
 
 Logos lets people and AI agents prove claims about symbolic models in Python and send the proof to someone else to check. A domain can discover a solution, or an author can guide the search with tactics written in Python. The result is a portable `.logos` file. A recipient needs only the Rust executable to verify it offline, inspect its assumptions, or read the derivation as mathematics.
 
-The [English book](book/) is the guided path from the first checked proof through number theory to Euclid's theorem, followed by a Developer Guide for extending the checked language and a generated Public API Reference. Its chapters are executable Scriptorium sources.
+The [English book](https://github.com/gia-uh/logos/tree/main/book) is the guided path from the first checked proof through number theory to Euclid's theorem, followed by a Developer Guide for extending the checked language and a generated Public API Reference. Its chapters are executable Scriptorium sources.
 
-## Install from source
+## Install
 
-Install a Rust toolchain with Cargo and Python 3.12 or newer. From a shell on Linux or macOS:
+Logos has two parts. The Python package is `logos-ai`, imported as `logos`; it authors proofs. The `logos` executable is the Rust checker that verifies them. Python 3.12 or newer is required.
+
+Install the Python package with pip:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install logos-ai
+```
+
+Install the checker from source with Cargo, on Linux or macOS:
 
 ```bash
 git clone https://github.com/gia-uh/logos.git
 cd logos
 cargo install --locked --path checker
 export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install .
 logos --version
 ```
 
-The Python package is `logos-ai`, imported as `logos`. Python authors proofs. The `logos` executable checks them.
+`theorem.check()` runs `logos check --json -` and sends the artifact on standard input. If the executable is not on `PATH`, the Python call fails with `installed Rust logos checker not found on PATH`.
 
 The release wheel also carries the rendered book and its PDF for offline reading. After installing the wheel:
 
@@ -57,7 +64,7 @@ logos check --strict roles.logos
 logos inspect --markdown roles.logos > proof.md
 ```
 
-The same command also writes `guide_knights_knaves.py`, which shows how to supply one strategic choice: split on A’s role. Run it without arguments to preview A’s utterance and the proposed claim in English. Give it an output filename to build the guided proof. [Domain guide](docs/portable-proof-format.md#knights-and-knaves-example)
+The same command also writes `guide_knights_knaves.py`, which shows how to supply one strategic choice: split on A’s role. Run it without arguments to preview A’s utterance and the proposed claim in English. Give it an output filename to build the guided proof. [Domain guide](https://github.com/gia-uh/logos/blob/main/docs/portable-proof-format.md#knights-and-knaves-example)
 
 ## Write a theorem and choose tactics
 
@@ -98,7 +105,7 @@ advances.check()
 logos.export_proof(advances, "advance.logos")
 ```
 
-The checked statement is `∀ mid:int, ∀ result:int, result = advance(mid) → result - mid = 1`, and `advance` is declared to the checker as the transparent function extracted from the source body. Run the [runnable example](examples/function_contract.py) with `python examples/function_contract.py`, then `logos check --strict advance.logos`.
+The checked statement is `∀ mid:int, ∀ result:int, result = advance(mid) → result - mid = 1`, and `advance` is declared to the checker as the transparent function extracted from the source body. Run the [runnable example](https://github.com/gia-uh/logos/blob/main/examples/function_contract.py) with `python examples/function_contract.py`, then `logos check --strict advance.logos`.
 
 An optional `requires=` becomes an explicit antecedent, so a conditional contract is never silently dropped:
 
@@ -167,7 +174,7 @@ def lt_add_transport(x: int, y: int, c: int):
 logos.check(lt_add_transport.proof(t.intro("x", "y", "c", "h"), t.order("lt_add")))
 ```
 
-Run the [branch example](examples/branch_contract.py) with `python examples/branch_contract.py`, then strict-check the three artifacts with `logos check --strict`. Run the [order example](examples/order_contract.py) the same way to write both minimum paths and the two order consequences. Run the [single-return example](examples/function_contract.py) too.
+Run the [branch example](https://github.com/gia-uh/logos/blob/main/examples/branch_contract.py) with `python examples/branch_contract.py`, then strict-check the three artifacts with `logos check --strict`. Run the [order example](https://github.com/gia-uh/logos/blob/main/examples/order_contract.py) the same way to write both minimum paths and the two order consequences. Run the [single-return example](https://github.com/gia-uh/logos/blob/main/examples/function_contract.py) too.
 
 ## Prove a loop program: binary search
 
@@ -210,7 +217,7 @@ def binary_search_correct(xs, target, *, result):
     )
 ```
 
-Run the [full example](examples/binary_search.py) with
+Run the [full example](https://github.com/gia-uh/logos/blob/main/examples/binary_search.py) with
 `python examples/binary_search.py`, then `logos check --strict
 binary_search.logos`. The contract covers the empty sequence, duplicates and an
 absent target. A mutated midpoint or invariant, a changed program body, and a
@@ -275,13 +282,13 @@ The shipped `primes.logos` and the certificate rebuilt from the installed wheel 
 
 ## The book: from divisibility to Euclid
 
-The canonical English book is [`book/`](book/README.md). Chapters 7 to 11 build
+The canonical English book is [`book/`](https://github.com/gia-uh/logos/blob/main/book/README.md). Chapters 7 to 11 build
 number theory in order: parity and witnesses, consecutive divisors, induction
 through the factorial, the least prime divisor, and Euclid's theorem composed
 from named checked lemmas.
 
 The reusable definitions and lemmas live in
-[`logos/domains/number_theory.py`](logos/domains/number_theory.py). This is the
+[`logos/domains/number_theory.py`](https://github.com/gia-uh/logos/blob/main/logos/domains/number_theory.py). This is the
 consecutive-divisor lemma as the book presents it:
 
 ```python
@@ -331,7 +338,7 @@ the `scriptorium tangle` path; they are not part of the book's navigation.
 
 A local hypothesis discharged by a proof can appear in the theorem’s antecedent even when strict checking reports zero custom axioms. To try a proof that depends on an explicit custom axiom, run `logos example dependencies` and inspect the emitted `dependencies.logos`. To explore more integer identities, run `logos example arithmetic`.
 
-The [portable proof reference](docs/portable-proof-format.md) documents the supported logic, exact integer laws, resource limits, and migration status. The [project vision](https://github.com/gia-uh/logos/issues/2) tracks planned domains and agent workflows.
+The [portable proof reference](https://github.com/gia-uh/logos/blob/main/docs/portable-proof-format.md) documents the supported logic, exact integer laws, resource limits, and migration status. The [project vision](https://github.com/gia-uh/logos/issues/2) tracks planned domains and agent workflows.
 
 ## License
 
