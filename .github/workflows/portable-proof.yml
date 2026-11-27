@@ -18,6 +18,11 @@ jobs:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v3
 
+      - name: Install PDF libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 poppler-utils
+
       - name: Test the Rust checker
         run: |
           cargo fmt --manifest-path checker/Cargo.toml --check
@@ -32,7 +37,7 @@ jobs:
           uv venv --python 3.12 "$RUNNER_TEMP/author"
           uv pip install --python "$RUNNER_TEMP/author/bin/python" "$RUNNER_TEMP"/wheels/*.whl pytest
           uv pip install --python "$RUNNER_TEMP/author/bin/python" \
-            "scriptorium @ git+https://github.com/gia-uh/scriptorium@v0.14.0"
+            "scriptorium[pdf] @ git+https://github.com/gia-uh/scriptorium@9325898877e714b4f12f12c4e88650ab65c4fe09"
 
       - name: Exercise the installed artifacts
         run: |

@@ -43,8 +43,13 @@ chapter runs there.
 
 ## What the tests check
 
-`tests/test_first_proof_chapter.py` renders chapter 2 and checks the compact
-verified quote, the failed application and the zero-axiom result.
+`tests/test_first_proof_chapter.py` renders chapter 2 and checks the whole
+`compose.inspect()` reading in one `::: proof` panel: title, theory, both
+docstrings, checked statement, domains, zero custom axioms, steps 1–14 in order,
+the note between steps 7 and 8, and the conclusion. It checks the scoped
+`h3`/`h4` headings, that no proof heading enters the TOC, that the same Markdown
+renders the same standalone and embedded, the failed application, and the PDF
+text when WeasyPrint is installed.
 
 `tests/test_english_book.py` renders every English chapter from the installed
 wheel, requires a traceback-free page, and checks one targeted broken variant per

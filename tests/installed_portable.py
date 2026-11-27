@@ -249,7 +249,7 @@ else:
     md = replay(recipient, "inspect", "--markdown", "--strict", source.name, offline=offline)
     assert r"\exists y \in \mathbb{Z}" in md.stdout
     assert "The checked premise establishes the predicate with this witness. From (" in md.stdout
-    assert "The witness term is $`x + 1`$." in md.stdout
+    assert "The witness term is $x + 1$." in md.stdout
     shutil.copy2(source, evidence / source.name)
     (evidence / "successor.inspect.json").write_text(inspected.stdout)
     (evidence / "successor.md").write_text(md.stdout)

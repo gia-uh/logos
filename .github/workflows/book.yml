@@ -52,7 +52,7 @@ jobs:
           uv venv --python 3.12 "$RUNNER_TEMP/author"
           uv pip install --python "$RUNNER_TEMP/author/bin/python" "$RUNNER_TEMP"/wheels/*.whl pytest
           uv pip install --python "$RUNNER_TEMP/author/bin/python" \
-            "scriptorium[pdf] @ git+https://github.com/gia-uh/scriptorium@v0.14.0"
+            "scriptorium[pdf] @ git+https://github.com/gia-uh/scriptorium@9325898877e714b4f12f12c4e88650ab65c4fe09"
 
       - name: Test the chapters from the installed wheel
         run: |
