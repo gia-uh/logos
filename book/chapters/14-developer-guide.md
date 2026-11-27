@@ -6,9 +6,85 @@ stem: developer-guide
 
 # Extend the Checked Language with a Domain
 
-The User Guide solved one problem per chapter. This chapter is for the developer who wants to add the next problem. The worked extension is a small theory of closed integer intervals for a room-booking system: two intervals overlap when they share a point, an interval contains a point, and disjoint intervals have no common point.
+## Architecture overview
 
-The extension is one Python module, `logos.domains.intervals`. It adds no Rust rule and no proof-format tag. Everything it proves is checked by the existing verifier. The chapter ends with the question a developer must ask before changing the checker: when is a general Rust rule warranted, and what must accompany it?
+Start with `have_q = p.apply(p_to_q, given_p)` from [Writing Your First Proof](writing-your-first-proof.html#write-the-argument). `Q` is a statement. `have_q` is a local fact carrying evidence for that statement. Follow it from the Python call to the checked reading.
+
+### Construct the statement and evidence in Python
+
+`@logos.theorem` runs the statement function with symbolic arguments and universally quantifies over them. In `logos.expr`, `P >> Q` constructs an `Implies` expression. At check time the proof function receives a `ProofContext`, which tracks the current goal and the facts in scope.
+
+```python {run}
+from pathlib import Path
+
+import logos
+from logos import Prop
+
+@logos.theorem
+def compose(P: Prop, Q: Prop, R: Prop):
+    """Two implications compose."""
+    return (P >> Q) >> ((Q >> R) >> (P >> R))
+
+@compose.proof
+def prove_compose(p, P, Q, R):
+    """Use Q as the intermediate proposition."""
+    p_to_q = p.assume(P >> Q)
+    q_to_r = p.assume(Q >> R)
+    given_p = p.assume(P)
+    have_q = p.apply(p_to_q, given_p)
+    p.note("The first implication supplies Q for the second.")
+    return p.apply(q_to_r, have_q)
+```
+
+Each `p.assume` introduces the next implication premise as a local hypothesis. In `logos.authoring`, `p.apply` checks that the argument proves the antecedent and constructs an `ImpliesElim` term from two pieces of evidence. In the first application, both pieces are hypothesis references. The last application reaches `R` inside the proof. The context wraps this evidence in introductions that discharge the three hypotheses and generalize over `P`, `Q` and `R`. Case branches and opened existential witnesses also have local scopes. A branch fact or fresh witness cannot escape its block.
+
+Proof terms live in `logos.proofs`. `logos.kernel.infer` computes a term's statement in a context, and `check` compares it with the expected statement. Local checks give authors feedback before replay. For example, `p.apply(q_to_r, given_p)` reports that the step expected `Q` and got `P`. Authoring errors can include the theorem, source location, goal and local facts. A replay error comes from the verifier's own checks.
+
+### Encode, replay, and read the proof
+
+`logos.portable` encodes declarations, the target, dependencies and proof terms in a JSON certificate with format `logos-proof-v1` and theory `logos-core-v1`. The application becomes an `implies_elim` node.
+
+`checker/src/syntax.rs` defines the Rust statement syntax and its sorts, including propositions, integers and integer sequences. `checker/src/lib.rs` defines evidence and replays it. For `implies_elim`, Rust infers each child's statement in scope, checks that the argument establishes the antecedent, and returns the consequent. It enforces hypothesis scope and quantifier and witness freshness, then compares the inferred conclusion with the target. Induction checks the base and step against the induction schema. A `core_law` step instantiates a checker-owned schema with sorted arguments. Arithmetic evidence is checked, for example by verifying the supplied coefficients of a linear combination with exact arithmetic. Program evidence has its own recomputed obligations.
+
+The verifier reports the custom axioms used by the derivation, including through its dependencies. `logos check --strict` refuses a proof that verifies with a custom axiom. An unused declaration adds no dependency. The local premises of `compose` are discharged by implication introduction, so it uses zero custom axioms.
+
+```python {run continue}
+compose.check()
+certificate = Path("compose.logos")
+receipt = logos.export_proof(compose, certificate)
+assert certificate.read_bytes() == receipt.artifact
+reading = compose.inspect()
+assert "Uses zero custom axioms." in reading
+assert "The first implication supplies Q for the second." in reading
+print("compose: Rust replay verified and the checked reading includes the note")
+```
+
+Python records a `ProofReceipt` after the Rust response matches the target, format, theory and SHA-256 of the submitted bytes. Export writes those exact bytes. The digest identifies the artifact, and successful replay establishes its judgment. `inspect()` requires a current receipt and asks Rust to replay its artifact and render the checked trace. Read the derived `Q` in the scope that contains `given_p`, then read the final universally quantified implication. The theorem and proof docstrings supply the author's claim and strategy. `p.note` annotates the last derived fact. All three travel as author commentary and contribute no inference. The checked conclusion comes from the evidence.
+
+Send `compose.logos` to another reader with a compatible Rust executable. These commands run offline with only that executable and the file. Keep the certificate alongside the Markdown so the recipient can replay it.
+
+```bash
+logos check --strict compose.logos
+logos inspect --markdown --strict compose.logos > compose.md
+```
+
+### Mix manual steps with tactics and domains
+
+A tactic consumes a `Goal` containing a statement and context. It returns a `ProofTerm` or a list of subgoals paired with a function that builds the original proof term from the subgoal proofs. See `logos.goal` and `logos.runner`. An introduction tactic exposes a smaller goal and supplies the builder that wraps its proof in an introduction. `TacticFailed` means the attempt did not produce evidence. The goal may still have a proof.
+
+In `logos.domains.number_theory.common_divisor`, the author opens the two divisibility hypotheses, chooses the witness `j - k`, then calls `p.ring` with the two quotient equations to establish the witness equation. The arithmetic search leaves the witness choice to the author. [What Divides Two Neighbours](what-divides-two-neighbours.html) develops the argument.
+
+A domain packages reusable work. `number_theory` defines `divides` and `prime` with transparent bodies and supplies checked lemmas such as `divides_trans`. `logos.domains.intervals` defines `contains` and `overlaps`, proves lemmas such as `common_point_overlaps`, and supplies `interval`, an evidence-producing tactic. The worked extension below follows its two linear certificates back to the facts in scope.
+
+### Bind a contract to code and replay its obligations
+
+The [binary-search chapter](binary-search-all-the-way-down.html) uses `@logos.theorem(about=...)` and `logos.program_contract`. Python reads and compiles the source and checks that it matches the imported function's code object. It translates supported syntax to a restricted program IR with typed variables, assignments, branches, loops and returns. Python attaches the contract and searches for evidence. `checker/src/program.rs` derives obligations from the serialized IR. Rust checks the supplied proofs against those obligations, including safety, invariant initialization and preservation, termination, and the postcondition as applicable. Independent replay establishes the contract for the IR. Python source binding and translation connect that IR to the Python function.
+
+Shifting the midpoint in the binary-search source makes the preservation obligation fail during Python proof construction. The installed replay test in `tests/installed_portable.py` instead forges the exported bundle by replacing an assignment inside the loop with a constant and leaving the obligation proofs in place. The recipient runs the Rust verifier directly and gets a rejection. The smaller replay tests in `checker/tests/programs.rs` isolate the same check. A valid bundle assigns `y = x + 0` and returns `y`. The rejection test changes the assignment to `x + 1` while retaining the old obligation proof. Rust rejects the evidence offered for the changed program. Another test removes the obligation proof entirely and Rust refuses that bundle too.
+
+[Issue #61](https://github.com/gia-uh/logos/issues/61) tracks the in-progress declarative function and checked-callee design. It proposes checking a callee separately and replaying its dependency when checking the caller. The walkthrough above describes the explicit contract API on main.
+
+The rest of this guide develops the interval extension for closed integer intervals, from transparent definitions to offline replay.
 
 ## Before you start
 
@@ -287,6 +363,17 @@ The first command prints the verified statement and `Verified with 0 custom axio
 
 The extension did not change either ID. A recipient with an older binary can still replay an older certificate, and this certificate replays on a binary that predates the interval module because the module produced only existing evidence tags.
 
+## Where should a change live?
+
+| Change | Edit here |
+|---|---|
+| Explain a step, name a fact, or improve an error about a misplaced hypothesis | Proof docstrings and `p.note`, or contexts and diagnostics in `logos.authoring` |
+| Change Python's representation of a statement or how it constructs and checks an existing inference | `logos.expr`, `logos.proofs` and `logos.kernel`. Check the mapping in `logos.portable`. |
+| Find a witness, choose a lemma, or automate arithmetic | A proof function or a tactic under `logos.tactics` that returns evidence for the existing verifier |
+| Add mathematical vocabulary or a reusable argument | A transparent definition, checked lemma or tactic in the relevant `logos.domains` module |
+| Translate more Python syntax to an existing IR operation | Source binding and translation in `logos.contracts`. Test imported source and replay. |
+| Change program semantics, accepted evidence or checked explanations | The corresponding Rust code in `checker/src/program.rs`, `lib.rs`, `syntax.rs` or `markdown.rs`. Test direct replay and update the wire mapping if it changes. |
+
 ## When is a general Rust rule warranted?
 
 The interval domain did not need a new core law. Its facts are consequences of integer order and the definitions, and `p.linear` already emits a general certificate. That is the default: keep the mathematics in Python and let the existing verifier check it.
@@ -303,15 +390,11 @@ When the answer is yes, the change crosses four published surfaces. Add the sche
 
 The compatibility rule is stricter than the tests. Adding a law ID to `logos-core-v1` is additive: old certificates do not mention it and still replay byte for byte. Changing a law's statement, removing an ID, adding an expression tag or changing conversion semantics requires a new theory or format ID. A recipient must be able to tell which semantics a file was checked under without guessing from the producer's version.
 
-This chapter's only checker change is a trace fix: a `have` binder that the body never uses is still part of the checked derivation, so the Markdown reading can name the discharged assumption. The fixture certificates replay with the same SHA-256 and the same zero custom axioms. No law was added.
-
 ## Limits
 
 The domain models closed integer intervals. It does not model real time, time zones, durations, exclusive endpoints, recurring bookings or the database that stores them. A checked overlap claim is a statement about the model, not a guarantee that the booking service is deployed correctly.
 
 The tactic is a certificate builder, not a decision procedure. It closes overlap goals whose sides follow from order facts by exact linear arithmetic. It does not search for a witness, split on cases, or prove a negated overlap. A failed call leaves the theorem uncertified; it does not prove the negation.
-
-The Python layer is trusted to propose definitions, witnesses and coefficients. The Rust checker recomputes the conclusion, checks every premise and rejects a certificate it cannot replay. The trust boundary is the translation from Python expressions to the bundle, which is the same boundary every other chapter uses.
 
 ## Exit exercise
 
