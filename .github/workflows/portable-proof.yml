@@ -43,6 +43,11 @@ jobs:
           (cd "$RUNNER_TEMP" && "$author" -I -m pytest -q test_portable.py)
           "$author" -m pytest -q -rx
 
+      - name: Exercise the native English chapter from the installed wheel
+        run: |
+          export PATH="$RUNNER_TEMP/portable/bin:$RUNNER_TEMP/author/bin:$PATH"
+          "$RUNNER_TEMP/author/bin/python" -m pytest -q tests/test_first_proof_chapter.py
+
       - name: Upload installed proof transcript
         if: always()
         uses: actions/upload-artifact@v4
