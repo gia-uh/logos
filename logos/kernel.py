@@ -95,6 +95,14 @@ class Have(ProofTerm):
 
 
 @dataclass(frozen=True)
+class Note(ProofTerm):
+    """Authored commentary that travels after its checked evidence."""
+
+    text: str
+    proof: ProofTerm
+
+
+@dataclass(frozen=True)
 class Subst(ProofTerm):
     proof: ProofTerm                  # proves a==b
     func: Callable[[Expr], Expr]      # f(a)==f(b)

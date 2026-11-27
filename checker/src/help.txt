@@ -25,6 +25,7 @@ Writing a proof for a reader:
   State the claim, then introduce the variables and hypotheses in words.
   Group routine rewrites into equations and name mathematical laws when useful.
   Explain the final conversion in ordinary mathematical language.
+  Authored claim, strategy and p.note commentary appear as labelled commentary.
   Distinguish assumptions from results proved by lemmas.
   Omit internal step IDs, binder IDs, artifact names and hashes from the proof.
   Use --json for the complete trace and identifiers when auditing the proof.

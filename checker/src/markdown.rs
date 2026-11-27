@@ -50,6 +50,17 @@ pub fn render(checked: &Verified) -> String {
     };
     writeln!(out, "{verdict}\n").unwrap();
     writeln!(out, "- Theory: `{}`", judgment.theory).unwrap();
+    if checked.annotations.claim.is_some() || checked.annotations.strategy.is_some() {
+        writeln!(out, "\n## Author's commentary (not checked)").unwrap();
+        if let Some(claim) = &checked.annotations.claim {
+            writeln!(out, "\n**Claim.**").unwrap();
+            commentary(&mut out, claim);
+        }
+        if let Some(strategy) = &checked.annotations.strategy {
+            writeln!(out, "\n**Strategy.**").unwrap();
+            commentary(&mut out, strategy);
+        }
+    }
     writeln!(out, "\n## Theorem").unwrap();
     display(&mut out, &math.formula(&judgment.statement, &[]));
 
@@ -306,6 +317,10 @@ pub fn render(checked: &Verified) -> String {
                 );
             }
         }
+        for note in &step.commentary {
+            writeln!(out, "\n> **Author's note (authored, not checked).**").unwrap();
+            commentary(&mut out, note);
+        }
     }
     writeln!(out, "## Conclusion\n").unwrap();
     let condition = if judgment.custom_axioms.is_empty() {
@@ -322,6 +337,39 @@ pub fn render(checked: &Verified) -> String {
     .unwrap();
     display(&mut out, &math.formula(&judgment.statement, &[]));
     out
+}
+
+fn commentary(out: &mut String, text: &str) {
+    for (index, line) in text.lines().enumerate() {
+        if index > 0 {
+            writeln!(out, ">").unwrap();
+        }
+        writeln!(out, "> {}", escape_commentary(line)).unwrap();
+    }
+    writeln!(out).unwrap();
+}
+
+/// Escape authored prose so it stays literal inside the Markdown reading.
+fn escape_commentary(line: &str) -> String {
+    let mut escaped = String::new();
+    let first = line.chars().position(|ch| !ch.is_whitespace());
+    for (index, ch) in line.chars().enumerate() {
+        match ch {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '\\' | '`' | '*' | '_' | '[' | ']' | '$' | '#' | '|' | '!' | '{' | '}' | '~' => {
+                escaped.push('\\');
+                escaped.push(ch);
+            }
+            '-' | '+' if Some(index) == first => {
+                escaped.push('\\');
+                escaped.push(ch);
+            }
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
 }
 
 fn has_power(expr: &Proposition) -> bool {

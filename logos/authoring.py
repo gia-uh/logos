@@ -42,7 +42,7 @@ from logos.kernel import (
     EqSubst, ExFalso, ExistsElim, ExistsIntro, ForallElim, ForallIntro, Have,
     HypRef, ImpliesElim, ImpliesIntro, Induction, Least, Linear, NotElim,
     NotIntro, ProofTerm, RecursorBase, RecursorStep, Refl, Symm, TheoremRef,
-    Trans,
+    Trans, Note,
 )
 from logos.portable import LogosProofError
 from logos.runner import TacticFailed
@@ -712,7 +712,7 @@ class Fact:
                 "left() needs a conjunction",
                 got=self.statement,
             )
-        return Fact(
+        fact = Fact(
             self.context,
             statement.left,
             AndElimL(self.proof),
@@ -721,6 +721,8 @@ class Fact:
             line=self.line,
             source_line=self.source_line,
         )
+        self.context.last_fact = fact
+        return fact
 
     def right(self) -> "Fact":
         statement = unfold(self.statement)
@@ -730,7 +732,7 @@ class Fact:
                 "right() needs a conjunction",
                 got=self.statement,
             )
-        return Fact(
+        fact = Fact(
             self.context,
             statement.right,
             AndElimR(self.proof),
@@ -739,6 +741,8 @@ class Fact:
             line=self.line,
             source_line=self.source_line,
         )
+        self.context.last_fact = fact
+        return fact
 
     def __repr__(self):
         return f"Fact({format_expr(self.statement)!r})"
@@ -781,6 +785,7 @@ class ProofContext:
         self.opened: list[Fact] = []
         self.used_names = {binder.name for binder in binders}
         self.allowed = free_symbol_ids(body) | {id(binder) for binder in binders}
+        self.last_fact: Fact | None = None
 
     # -- diagnostics ---------------------------------------------------------
 
@@ -815,6 +820,21 @@ class ProofContext:
         self.used_names.add(candidate)
         return candidate
 
+    def note(self, text: str) -> None:
+        """Attach authored commentary after the most recently derived fact.
+
+        The note travels inside the checked evidence as an annotation. It does
+        not create a step, change the goal or count as evidence.
+        """
+        if not isinstance(text, str) or not text.strip():
+            raise self.failure("note_text", "p.note needs a nonempty string")
+        if self.last_fact is None:
+            raise self.failure(
+                "note_position",
+                "p.note needs an earlier proof step in this scope",
+            )
+        self.last_fact.proof = Note(text, self.last_fact.proof)
+
     # -- operations ----------------------------------------------------------
 
     def assume(self, proposition: Expr) -> Fact:
@@ -845,6 +865,7 @@ class ProofContext:
             line=line,
             source_line=source_line,
         )
+        self.last_fact = fact
         return fact
 
     def obtain(self, existential: Fact) -> tuple[Var, Fact]:
@@ -886,6 +907,7 @@ class ProofContext:
             source_line=source_line,
         )
         self.opened.append(fact)
+        self.last_fact = fact
         return variable, fact
 
     def _fact(self, statement: Expr, proof: ProofTerm, label: str | None = None) -> Fact:
@@ -893,7 +915,7 @@ class ProofContext:
         if label is None:
             names = _assignment_names(file, line)
             label = names[0] if names else "fact"
-        return Fact(
+        fact = Fact(
             self,
             statement,
             proof,
@@ -902,6 +924,8 @@ class ProofContext:
             line=line,
             source_line=source_line,
         )
+        self.last_fact = fact
+        return fact
 
     def _match_fact(self, expected: Expr, fact: Fact) -> ProofTerm:
         """Use a fact as evidence for ``expected``, flipping equalities once."""
@@ -1476,7 +1500,7 @@ class _Scope:
         context = self.context
         self._saved = (
             context.goal, context.frames, context.hypotheses, context.allowed,
-            context.opened,
+            context.opened, context.last_fact,
         )
         context.goal = self.goal
         context.frames = []
@@ -1485,6 +1509,7 @@ class _Scope:
         context.hypotheses = dict(hypotheses)
         context.allowed = set(context.allowed)
         context.opened = list(context.opened)
+        context.last_fact = None
 
     def _hypothesis(self, proposition: Expr, hint: str, *, frame: bool = True) -> Fact:
         context = self.context
@@ -1513,7 +1538,10 @@ class _Scope:
         context = self.context
         if self._saved is None:
             raise self.context.failure("scope_closed", "the branch was not opened")
-        context.goal, context.frames, context.hypotheses, context.allowed, context.opened = self._saved
+        (
+            context.goal, context.frames, context.hypotheses, context.allowed,
+            context.opened, context.last_fact,
+        ) = self._saved
         self._saved = None
 
 

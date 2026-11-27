@@ -17,7 +17,7 @@ from logos.kernel import (
     ExistsIntro, ForallElim, CaseAnalysis, ExFalso, ForallIntro, HypRef, ImpliesElim,
     ImpliesIntro, Induction, Least, NotElim, NotIntro, OrIntroL, OrIntroR, ProofTerm,
     RecursorBase, RecursorStep, Refl, StepRef, Symm, TheoremRef, Trans,
-    Have, Linear, ProgramRef,
+    Have, Linear, Note, ProgramRef,
 )
 
 FORMAT = "logos-proof-v1"
@@ -115,9 +115,19 @@ def _result_type(expr):
 
 def artifact_bytes(
     name: str, statement: Expr, declarations: tuple[Var, ...], evidence: ProofTerm,
-    *, refresh_lemmas: bool = False,
+    *, refresh_lemmas: bool = False, annotations: dict | None = None,
 ) -> bytes:
     from logos.theorem import Axiom, Theorem
+
+    authored = {}
+    for key in ("claim", "strategy"):
+        if annotations is not None:
+            text = annotations.get(key)
+            if text is not None:
+                if not isinstance(text, str):
+                    raise LogosProofError(f"portable annotation {key!r} must be a string")
+                if text:
+                    authored[key] = text
 
     symbol_ids = {}
     declared = []
@@ -325,6 +335,10 @@ def artifact_bytes(
             case Have(binder, statement, fact, body):
                 return {"tag": "have", "binder": binder, "statement": encode(statement),
                         "proof": derive(fact), "body": derive(body)}
+            case Note(text, child):
+                if not isinstance(text, str) or not text.strip():
+                    raise LogosProofError("proof notes must be nonempty strings")
+                return {"tag": "note", "text": text, "body": derive(child)}
             case ProgramRef(program, _conclusion):
                 key = id(program)
                 if key not in program_ids:
@@ -397,6 +411,7 @@ def artifact_bytes(
                 "declarations": declared, "custom_axioms": axioms, "lemmas": lemmas,
                 **({"functions": functions} if functions else {}),
                 **({"programs": programs} if programs else {}),
+                **({"annotations": authored} if authored else {}),
                 "target": target, "proof": target_proof,
             }, separators=(",", ":")) + "\n"
         ).encode("utf-8")
@@ -404,43 +419,58 @@ def artifact_bytes(
         raise LogosProofError(f"could not encode portable proof: {error}") from error
 
 
-def verify_artifact(artifact: bytes) -> ProofReceipt:
+def _checker_executable() -> str:
     executable = shutil.which("logos")
     if executable is None:
         raise LogosProofError("installed Rust logos checker not found on PATH")
+    return executable
 
-    def invoke(args, data=None):
-        try:
-            return subprocess.run(
-                [executable, *args], input=data, capture_output=True, timeout=10, check=False
-            )
-        except (OSError, subprocess.TimeoutExpired) as error:
-            raise LogosProofError(f"could not run Rust logos checker: {error}") from error
 
-    def response(result, operation):
-        if result.returncode != 0:
-            diagnostic = result.stderr.decode("utf-8", errors="replace").strip()
-            try:
-                details = json.loads(diagnostic)
-            except ValueError:
-                details = None
-            if isinstance(details, dict) and isinstance(details.get("error"), str):
-                diagnostic = details["error"]
-            raise LogosProofError(f"Rust logos {operation} failed ({result.returncode}): {diagnostic}")
-        try:
-            data = json.loads(result.stdout)
-        except (ValueError, UnicodeError) as error:
-            raise LogosProofError(f"invalid Rust logos {operation} response") from error
-        if not isinstance(data, dict) or type(data.get("protocol_version")) is not int:
-            raise LogosProofError(f"invalid Rust logos {operation} response")
-        if data["protocol_version"] != PROTOCOL_VERSION:
-            raise LogosProofError(f"unsupported Rust logos {operation} protocol")
-        return data
+def _checker_invoke(executable: str, args, data=None):
+    try:
+        return subprocess.run(
+            [executable, *args], input=data, capture_output=True, timeout=10, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise LogosProofError(f"could not run Rust logos checker: {error}") from error
 
-    contract = response(invoke(["commands", "--json"]), "commands")
+
+def _checker_error(result, operation: str) -> str:
+    diagnostic = result.stderr.decode("utf-8", errors="replace").strip()
+    try:
+        details = json.loads(diagnostic)
+    except ValueError:
+        details = None
+    if isinstance(details, dict) and isinstance(details.get("error"), str):
+        diagnostic = details["error"]
+    return f"Rust logos {operation} failed ({result.returncode}): {diagnostic}"
+
+
+def _checker_response(result, operation: str):
+    if result.returncode != 0:
+        raise LogosProofError(_checker_error(result, operation))
+    try:
+        data = json.loads(result.stdout)
+    except (ValueError, UnicodeError) as error:
+        raise LogosProofError(f"invalid Rust logos {operation} response") from error
+    if not isinstance(data, dict) or type(data.get("protocol_version")) is not int:
+        raise LogosProofError(f"invalid Rust logos {operation} response")
+    if data["protocol_version"] != PROTOCOL_VERSION:
+        raise LogosProofError(f"unsupported Rust logos {operation} protocol")
+    return data
+
+
+def verify_artifact(artifact: bytes) -> ProofReceipt:
+    executable = _checker_executable()
+
+    contract = _checker_response(
+        _checker_invoke(executable, ["commands", "--json"]), "commands"
+    )
     if contract.get("proof_formats") != [FORMAT] or contract.get("theories") != [THEORY]:
         raise LogosProofError("Rust logos checker does not advertise the required proof format and theory")
-    result = response(invoke(["check", "--json", "-"], artifact), "check")
+    result = _checker_response(
+        _checker_invoke(executable, ["check", "--json", "-"], artifact), "check"
+    )
     digest = sha256(artifact).hexdigest()
     if (
         result.get("status") != "verified"
@@ -452,6 +482,25 @@ def verify_artifact(artifact: bytes) -> ProofReceipt:
     ):
         raise LogosProofError("Rust logos checker returned no matching verification")
     return ProofReceipt(artifact, digest)
+
+
+def inspect_artifact(artifact: bytes) -> str:
+    """Return the Rust checker's Markdown reading of these exact proof bytes."""
+    # Re-check the same bytes first: the Markdown must describe a current
+    # verification, not a certificate that has since changed.
+    verify_artifact(artifact)
+    executable = _checker_executable()
+    result = _checker_invoke(executable, ["inspect", "--markdown", "-"], artifact)
+    if result.returncode != 0:
+        raise LogosProofError(_checker_error(result, "inspect"))
+    try:
+        markdown = result.stdout.decode("utf-8")
+    except UnicodeError as error:
+        raise LogosProofError("invalid Rust logos inspect response") from error
+    if not markdown.startswith("# Checked proof\n") or "## Theorem" not in markdown:
+        raise LogosProofError("Rust logos inspect returned no checked derivation")
+    return markdown
+
 
 
 def export_proof(theorem, path: str | Path) -> ProofReceipt:
