@@ -95,7 +95,7 @@ with TemporaryDirectory() as folder:
     lemmas, _ = primes_example.build_all()
     for lemma in lemmas:
         lemma.check()
-    logos.export_proof(lemmas[3], "consecutive.logos")
+    logos.export_proof(lemmas[3], folder / "consecutive.logos")
     consecutive = subprocess.run(
         ["logos", "check", "--strict", "consecutive.logos"],
         cwd=folder, capture_output=True, text=True, check=True,
