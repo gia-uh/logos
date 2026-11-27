@@ -22,6 +22,9 @@ The project is [`scriptorium.yaml`](scriptorium.yaml). The chapters are under
 | `09-factorial.md` | User Guide | Primitive recursion, induction, factorial divisibility |
 | `10-least-prime.md` | User Guide | A negated definition, `p.least`, the least prime divisor |
 | `11-euclid.md` | User Guide | Euclid's theorem composed from named lemmas |
+| `12-finite-graph.md` | User Guide | A finite graph as a table, an order invariant, paths and cycles |
+| `13-binary-search.md` | User Guide | Total correctness, bounds, variant, duplicates and a precondition counterexample |
+| `14-production-contract.md` | User Guide | A standard-library function, source binding, mutation and strict verification |
 
 ## Build it
 
@@ -62,7 +65,12 @@ lesson for the diagnostic it documents. It also checks that `scriptorium.yaml`
 lists every chapter in order, that every quoted number theory snippet matches
 `logos/domains/number_theory.py`, and that the Euclid certificate verifies with
 `--strict` while the altered `n! + 1` line fails at the consecutive-divisor
-application and writes no certificate.
+application and writes no certificate. The finite graph chapter is checked with
+a descending edge, the binary search chapter with a shifted midpoint, a weakened
+invariant and an unsorted counterexample, and the production chapter with a
+mutated bias expression and a source drift after decoration. The production
+chapter's copied body is compared with the code object of
+`encodings.punycode.adapt` from the interpreter that runs the book.
 
 `tests/test_number_theory.py` checks the domain on its own: every lemma, the
 strict certificate for `euclid`, and the exported artifact.

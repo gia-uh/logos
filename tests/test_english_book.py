@@ -41,6 +41,9 @@ ORDER = [
     "09-factorial.md",
     "10-least-prime.md",
     "11-euclid.md",
+    "12-finite-graph.md",
+    "13-binary-search.md",
+    "14-production-contract.md",
 ]
 
 EXPECTED = {
@@ -69,6 +72,23 @@ EXPECTED = {
     ],
     "10-least-prime.md": ["least_prime_divisor: True", "least: 7"],
     "11-euclid.md": ["euclid: True", "certificate: euclid.logos"],
+    "12-finite-graph.md": [
+        "every_edge_goes_up: True",
+        "no_self_loop: True",
+        "no_two_cycle: True",
+        "every_two_step_path_goes_up: True",
+    ],
+    "13-binary-search.md": [
+        "binary_search_correct: True",
+        "certificate: binary_search.logos",
+        "result: -1",
+        "postcondition holds: False",
+    ],
+    "14-production-contract.md": [
+        "adapt_bias_nonnegative: True",
+        "certificate: adapt.logos",
+        "obligations: loop0.preserve",
+    ],
 }
 
 LESSONS = ORDER[3:]
