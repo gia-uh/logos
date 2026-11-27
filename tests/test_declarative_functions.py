@@ -66,6 +66,10 @@ def test_the_small_example_checks_and_replays_strictly(tmp_path):
         "call0.requires.nonempty",
         "main",
     ]
+    assert [clause.name for clause in module.first_or_zero.clauses()] == [
+        "zero_or_first",
+        "exact_first_or_zero",
+    ]
     certificate = tmp_path / "first_or_zero.logos"
     logos.export_proof(module.first_or_zero, certificate)
     result = check_strict(certificate)
@@ -164,7 +168,7 @@ def test_clause_scope_and_sort_are_validated(tmp_path):
 @requires_checker
 def test_the_missing_guard_names_the_call_line_callee_clause_and_need(tmp_path):
     source = CALLS.read_text(encoding="utf-8")
-    broken = source.split("\ndef main()", 1)[0] + (
+    broken = source + (
         "\n\n@logos.function\n"
         "def unguarded(xs: list[int]) -> int:\n"
         "    return first(xs)\n"

@@ -59,8 +59,9 @@ def test_binary_search_shifted_midpoint_is_refused(tmp_path):
         "mid = (low + high) // 2", "mid = (low + high + 1) // 2", 1
     )
     _, html = render(tmp_path, "12-binary-search.md", broken)
-    assert "loop0.preserve.bounds" in html
+    assert "ProofSearchError: loop0.preserve.below_cut" in html
     assert "cannot prove order atom" in html
+    assert "facts=" in html
     assert not (tmp_path / "binary_search.logos").exists()
 
 
@@ -69,8 +70,9 @@ def test_binary_search_weakened_invariant_is_refused(tmp_path):
     assert source.count("& (low <= high)") == 1
     broken = source.replace("& (low <= high)", "& (low < high)", 1)
     _, html = render(tmp_path, "12-binary-search.md", broken)
-    assert "loop0.preserve.bounds" in html
+    assert "ProofSearchError: loop0.preserve.bounds" in html
     assert "cannot prove order atom high &lt; high" in html
+    assert "facts=" in html
     assert not (tmp_path / "binary_search.logos").exists()
 
 
@@ -82,7 +84,7 @@ def test_binary_search_missing_precondition_needs_a_counterexample(tmp_path):
         1,
     )
     _, html = render(tmp_path, "12-binary-search.md", broken)
-    assert "main: no proof found for sorted(xs)" in html
+    assert "ProofSearchError: main: no proof found for sorted(xs)" in html
     assert not (tmp_path / "binary_search.logos").exists()
 
 
@@ -217,12 +219,26 @@ def test_book_examples_are_imported_normally():
     binary = (CHAPTERS / "12-binary-search.md").read_text(encoding="utf-8")
     punycode = (CHAPTERS / "13-production-contract.md").read_text(encoding="utf-8")
     assert "from examples.binary_search import binary_search" in binary
-    assert "from examples.binary_search import main" in binary
-    assert "from examples.declarative_calls import main" in binary
     assert "from examples.declarative_calls import first" in binary
+    assert "from examples.declarative_calls import first_or_zero" in binary
     assert "from examples.punycode_adapt import adapt" in punycode
+    assert "def main()" not in binary
     for text in (binary, punycode):
         assert "importlib" not in text
         assert "tempfile" not in text
         assert "write_text(" not in text
         assert "= '''" not in text
+
+
+def test_binary_search_chapter_splits_its_exports_and_keeps_a_driver_outside():
+    source = (CHAPTERS / "12-binary-search.md").read_text(encoding="utf-8")
+    blocks = exported_blocks("12-binary-search.md")
+    assert source.count("export=examples/declarative_calls.py") >= 5
+    assert source.count("export=examples/binary_search.py") >= 8
+    assert "def main()" not in blocks["examples/binary_search.py"]
+    assert "def main()" not in blocks["examples/declarative_calls.py"]
+    driver = (CHAPTERS.parent / "examples" / "demo_binary_search.py").read_text(
+        encoding="utf-8"
+    )
+    assert "from binary_search import binary_search" in driver
+    assert "binary_search.check()" in driver

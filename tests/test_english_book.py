@@ -74,12 +74,14 @@ EXPECTED = {
     "10-least-prime.md": ["least_prime_divisor: True", "least: 7"],
     "11-euclid.md": ["euclid: True", "certificate: euclid.logos"],
     "12-binary-search.md": [
-        "binary_search: True",
+        "first: True",
+        "first_or_zero: True",
+        "claims: zero_or_first, exact_first_or_zero",
         "call0.requires.nonempty",
         "certificate: first_or_zero.logos",
+        "binary_search: True",
         "certificate: binary_search.logos",
-        "result: -1",
-        "postcondition holds: False",
+        "-1 True",
     ],
     "13-production-contract.md": [
         "adapt_bias_nonnegative: True",
@@ -171,6 +173,12 @@ def test_the_chapter_states_what_the_reader_needs(name):
         assert "**Outcomes.**" in source
         assert "cargo install" in source
         assert "compose.check()" in source
+    elif name == "12-binary-search.md":
+        # This lesson opens on a concrete search and defers every definition to
+        # the point where the proof needs it, so it has no prerequisites block.
+        assert source.startswith("---\ntheme: book\n")
+        assert "You search for 6 in `[2, 4, 8, 11, 13]`." in source
+        assert "**Prerequisites.**" not in source
     else:
         assert "**Prerequisites.**" in source
         assert "**Outcomes.**" in source
@@ -179,8 +187,13 @@ def test_the_chapter_states_what_the_reader_needs(name):
 @pytest.mark.parametrize("name", LESSONS)
 def test_each_lesson_has_a_diagnostic_and_an_exit_exercise(name):
     source = (CHAPTERS / name).read_text(encoding="utf-8")
-    assert "## When a step fails" in source
-    assert "## Exit exercise" in source
+    if name == "12-binary-search.md":
+        assert "## Tell a broken algorithm from a broken argument" in source
+        assert "logos.contracts.LogosContractError" in source
+        assert "Then write and check the contract for a leftmost variant." in source
+    else:
+        assert "## When a step fails" in source
+        assert "## Exit exercise" in source
 
 
 def test_quick_start_reports_a_real_receipt(tmp_path):

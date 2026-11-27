@@ -22,7 +22,7 @@ The project is [`scriptorium.yaml`](scriptorium.yaml). The chapters are under
 | `09-factorial.md` | User Guide | Primitive recursion, induction, factorial divisibility |
 | `10-least-prime.md` | User Guide | A negated definition, `p.least`, the least prime divisor |
 | `11-euclid.md` | User Guide | Euclid's theorem composed from named lemmas |
-| `12-binary-search.md` | User Guide | Declarative clauses, a checked caller, named invariants, bounds, variant and a precondition counterexample |
+| `12-binary-search.md` | User Guide | Declarative clauses, a checked caller, a weak and a branch-sensitive postcondition, named invariants, bounds, variant and a precondition counterexample |
 | `13-production-contract.md` | User Guide | A standard-library function, source binding, mutation and strict verification |
 | `14-developer-guide.md` | Developer Guide | A checked interval domain, the tactic protocol and the portable encoding |
 | `15-api-reference.md` | Reference | Generated public class, function and method inventory |
