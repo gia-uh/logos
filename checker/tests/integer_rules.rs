@@ -191,11 +191,12 @@ fn accepts_the_new_integer_laws() {
                  "premise": {"tag": "hyp_ref", "binder": "h2"}}}}),
         ),
         (
-            implies(not(not(lt(int(0), int(1)))), lt(int(0), int(1))),
-            json!({"tag": "implies_intro", "binder": "h", "premise": not(not(lt(int(0), int(1)))), "body":
-                {"tag": "implies_elim",
-                 "implication": {"tag": "core_law", "id": "lt_dne", "args": [int(0), int(1)]},
-                 "premise": {"tag": "hyp_ref", "binder": "h"}}}),
+            or(lt(int(0), int(1)), not(lt(int(0), int(1)))),
+            json!({"tag": "or_intro_l",
+                "proof": {"tag": "implies_elim",
+                    "implication": {"tag": "core_law", "id": "lt_succ_rev", "args": [int(0), int(0)]},
+                    "premise": {"tag": "core_law", "id": "lt_irrefl", "args": [int(0)]}},
+                "other": not(lt(int(0), int(1)))}),
         ),
     ];
     for (target, proof) in cases {
@@ -215,4 +216,37 @@ fn rejects_mismatched_successor_law_arguments() {
         error.contains("antecedent does not match") || error.contains("conclusion mismatch"),
         "{error}"
     );
+}
+#[test]
+fn proves_a_least_element_with_an_outer_variable() {
+    let membership = json!({
+        "tag": "and",
+        "left": not(lt(bound(0), bound(1))),
+        "right": eq(bound(0), bound(1))
+    });
+    let minimal = json!({
+        "tag": "forall", "name": "k", "sort": "int", "body":
+        implies(
+            and(not(lt(bound(0), bound(2))), lt(bound(0), bound(1))),
+            not(eq(bound(0), bound(2))))
+    });
+    let target = json!({
+        "tag": "forall", "name": "n", "sort": "int", "body":
+        {"tag": "exists", "name": "m", "sort": "int", "body":
+            and(membership.clone(), minimal)}
+    });
+    let proof = json!({
+        "tag": "forall_intro", "name": "n", "sort": "int", "body":
+        {"tag": "least", "bound": bound(0), "name": "m",
+            "predicate": eq(bound(0), bound(1)),
+            "nonempty": {"tag": "exists_intro",
+                "goal": json!({
+                    "tag": "exists", "name": "m", "sort": "int", "body": membership
+                }),
+                "witness": bound(0),
+                "proof": {"tag": "and_intro",
+                    "left": {"tag": "core_law", "id": "lt_irrefl", "args": [bound(0)]},
+                    "right": {"tag": "refl", "term": bound(0)}}}}
+    });
+    verify(&bundle(target, proof)).unwrap_or_else(|error| panic!("{error}"));
 }

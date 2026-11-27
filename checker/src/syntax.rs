@@ -211,6 +211,31 @@ impl Proposition {
     }
 }
 
+/// Instantiate a one-binder predicate template at a target scope.
+///
+/// `new_binders` counts the binders between the template's outer scope and
+/// the target, including the binder that replaces the template's own binder.
+/// For ordinary universal elimination the template binder is removed, so
+/// `new_binders` is zero. For an induction or least-element conclusion the
+/// replacement binder stays in scope, so it is one or more.
+pub fn instantiate_predicate(
+    body: &Proposition,
+    new_binders: usize,
+    term: &Proposition,
+) -> Proposition {
+    body.map_bound(0, &|index, depth| {
+        if index == depth {
+            term.shift(depth)
+        } else if index > depth {
+            Bound {
+                index: index - 1 + new_binders,
+            }
+        } else {
+            Bound { index }
+        }
+    })
+}
+
 impl Proposition {
     fn children(&self) -> &[Self] {
         match self {
@@ -560,6 +585,6 @@ integer_laws! {
         "lt_succ_fwd"(a, b) => implies(lt(a.clone(), add(b.clone(), int("1"))), not(lt(b.clone(), a.clone())));
         "lt_succ_rev"(a, b) => implies(not(lt(b.clone(), a.clone())), lt(a.clone(), add(b.clone(), int("1"))));
         "eq_of_not_lt_not_lt"(a, b) => implies(not(lt(a.clone(), b.clone())), implies(not(lt(b.clone(), a.clone())), eq(a.clone(), b.clone())));
-        "lt_dne"(a, b) => implies(not(not(lt(a.clone(), b.clone()))), lt(a.clone(), b.clone()));
+        "lt_decidable"(a, b) => or(lt(a.clone(), b.clone()), not(lt(a.clone(), b.clone())));
     ]
 }

@@ -130,8 +130,8 @@ pub fn rule_explanation(rule: &str, reference: Option<&str>) -> &'static str {
             Some("eq_of_not_lt_not_lt") => {
                 "Two integers that are not strictly ordered either way are equal."
             }
-            Some("lt_dne") => {
-                "Strict integer order is stable, so double negation may be eliminated."
+            Some("lt_decidable") => {
+                "Strict integer order is decidable: two integers are ordered one way or not at all."
             }
             _ => unreachable!("checked core law"),
         },

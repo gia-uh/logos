@@ -181,7 +181,7 @@
       "lt_succ_fwd",
       "lt_succ_rev",
       "eq_of_not_lt_not_lt",
-      "lt_dne"
+      "lt_decidable"
     ]
   },
   "json_policy_denied": {

@@ -53,7 +53,7 @@ def test_order_law_schemas_are_explicit():
     assert ORDER_LAWS == (
         "lt_irrefl", "lt_trans", "lt_add", "lt_neq",
         "mul_pos", "mul_eq_one", "lt_succ_fwd", "lt_succ_rev",
-        "eq_of_not_lt_not_lt", "lt_dne",
+        "eq_of_not_lt_not_lt", "lt_decidable",
     )
     assert structural_eq(order_law("lt_irrefl", (a,)), Not(Lt(a, a)))
     assert structural_eq(
@@ -89,8 +89,8 @@ def test_order_law_schemas_are_explicit():
         Implies(Not(Lt(a, b)), Implies(Not(Lt(b, a)), Eq(a, b))),
     )
     assert structural_eq(
-        order_law("lt_dne", (a, b)),
-        Implies(Not(Not(Lt(a, b))), Lt(a, b)),
+        order_law("lt_decidable", (a, b)),
+        Or(Lt(a, b), Not(Lt(a, b))),
     )
     premises, conclusion = split_implications(order_law("lt_trans", (a, b, c)))
     assert len(premises) == 2 and structural_eq(conclusion, Lt(a, c))

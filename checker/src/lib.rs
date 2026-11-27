@@ -11,7 +11,10 @@ mod syntax;
 mod trace;
 
 pub use syntax::{Function, Proposition, Sort};
-use syntax::{Functions, convert, instantiate_bounded, instantiate_law, integer, law_formals};
+use syntax::{
+    Functions, convert, instantiate_bounded, instantiate_law, instantiate_predicate, integer,
+    law_formals,
+};
 pub use trace::Context as TraceContext;
 use trace::{
     Conversion, LawApplication, LocalHypothesis, Provenance, Substitution, Variable,
@@ -1515,7 +1518,7 @@ impl<'a> Checker<'a> {
                 predicate_sort?.expect(Sort::Prop)?;
 
                 let base_path = format!("{path}.base");
-                let base_expected = instantiate_bounded(predicate, std::slice::from_ref(bound))?;
+                let base_expected = instantiate_predicate(predicate, 0, bound);
                 let base_actual = self.infer(base, scope, &base_path)?;
                 self.check_rule_premise(
                     &base_expected,
@@ -1529,8 +1532,8 @@ impl<'a> Checker<'a> {
                     left: Box::new(variable.clone()),
                     right: Box::new(Proposition::Int { value: "1".into() }),
                 };
-                let p_variable = instantiate_bounded(predicate, std::slice::from_ref(&variable))?;
-                let p_successor = instantiate_bounded(predicate, std::slice::from_ref(&successor))?;
+                let p_variable = instantiate_predicate(predicate, 1, &variable);
+                let p_successor = instantiate_predicate(predicate, 1, &successor);
                 let step_expected = Proposition::Forall {
                     name: name.clone(),
                     sort: Sort::Int,
@@ -1581,7 +1584,7 @@ impl<'a> Checker<'a> {
                 predicate_sort?.expect(Sort::Prop)?;
 
                 let witness = Proposition::Bound { index: 0 };
-                let p_witness = instantiate_bounded(predicate, std::slice::from_ref(&witness))?;
+                let p_witness = instantiate_predicate(predicate, 1, &witness);
                 let membership = Proposition::And {
                     left: Box::new(self.nonnegative_here(bound, 1)),
                     right: Box::new(p_witness),
@@ -1602,7 +1605,7 @@ impl<'a> Checker<'a> {
 
                 let smallest = Proposition::Bound { index: 0 };
                 let candidate = Proposition::Bound { index: 1 };
-                let p_smallest = instantiate_bounded(predicate, std::slice::from_ref(&smallest))?;
+                let p_smallest = instantiate_predicate(predicate, 2, &smallest);
                 let minimal = Proposition::Forall {
                     name: name.clone(),
                     sort: Sort::Int,
