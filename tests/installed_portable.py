@@ -1111,7 +1111,8 @@ def binary_search_contract(python, cold, recipient, evidence, env, offline):
         offline=offline, code=1, show_output=False,
     )
     assert "error" in json.loads(forged.stderr)
-    data["programs"][0]["obligations"].pop()
+    data = json.loads((recipient / "binary_search.logos").read_text())
+    data["programs"][0]["obligations"].pop(0)
     (recipient / "missing-binary-search.logos").write_text(json.dumps(data))
     missing = replay(
         recipient, "check", "--json", "missing-binary-search.logos",
