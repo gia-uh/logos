@@ -100,8 +100,9 @@ EXPECTED = {
         "certificate: intervals.logos",
     ],
     "15-api-reference.md": [
-        "Classes",
-        "Functions and methods",
+        "Existential lookup",
+        "Tactic witness certified",
+        "Proof-context witness and existential fact certified",
         "Theorem",
         "export_proof",
     ],
