@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import shutil
 import subprocess
 import sys
@@ -20,12 +21,12 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def tangle(directory: Path, text: str | None = None) -> Path:
-    source = BOOK / "vecinos.md"
-    page = directory / "vecinos.md"
+def tangle(directory: Path, text: str | None = None, name: str = "vecinos") -> Path:
+    source = BOOK / f"{name}.md"
+    page = directory / f"{name}.md"
     page.write_text(source.read_text(encoding="utf-8") if text is None else text, encoding="utf-8")
     subprocess.run(
-        [SCRIPTORIUM, "tangle", "vecinos.md"],
+        [SCRIPTORIUM, "tangle", f"{name}.md"],
         cwd=directory,
         check=True,
         capture_output=True,
@@ -34,7 +35,7 @@ def tangle(directory: Path, text: str | None = None) -> Path:
     # The restored file has the same size as the broken one, so a bytecode
     # cache from this second could otherwise hide the change.
     shutil.rmtree(directory / "__pycache__", ignore_errors=True)
-    return directory / "vecinos.py"
+    return directory / f"{name}.py"
 
 
 def load(path: Path, name: str):
@@ -164,6 +165,107 @@ def prove_escape(p, d, a):
     outside = Var("outside", int)
     return p.witness(outside, one)
 """
+
+
+EUCLID_FAILURE = """\
+import json
+import runpy
+import sys
+
+import logos
+
+try:
+    runpy.run_path(sys.argv[1], run_name="__main__")
+except logos.LogosProofError as error:
+    print(json.dumps(error.details, ensure_ascii=False))
+    raise SystemExit(1)
+else:
+    raise SystemExit(0)
+"""
+
+
+def test_the_euclid_chapter_tangles_proves_and_exports(tmp_path):
+    module_path = tangle(tmp_path, name="euclides")
+    subprocess.run(
+        [SCRIPTORIUM, "tangle", "--test", "euclides.md"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        [sys.executable, module_path.name],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert (tmp_path / "euclides.logos").exists()
+
+    if CHECKER is None:
+        pytest.skip("install the Rust logos checker to certify the lesson")
+
+    result = subprocess.run(
+        [CHECKER, "check", "--strict", "euclides.logos"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "Verified with 0 custom axioms" in result.stdout
+    assert "euclid" in result.stdout
+
+
+def test_the_euclid_mutation_fails_at_the_consecutive_divisor_lemma(tmp_path):
+    source = (BOOK / "euclides.md").read_text(encoding="utf-8")
+    assert source.count("    m = f + 1") == 1
+    broken = source.replace("    m = f + 1", "    m = f", 1)
+    module_path = tangle(tmp_path, broken, name="euclides")
+    failure = subprocess.run(
+        [sys.executable, "-c", EUCLID_FAILURE, module_path.name],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert failure.returncode == 1
+    assert not (tmp_path / "euclides.logos").exists()
+    details = json.loads(failure.stdout.strip().splitlines()[-1])
+    assert details["kind"] == "apply_premise_mismatch"
+    assert details["lemma"] == "common_divisor"
+    assert details["source_line"].startswith("divides_one = p.apply(common_divisor")
+    assert "factorial(n) + 1" in details["expected"]["text"]
+    assert details["got"]["text"].count("factorial(n) = q * k") == 2
+    # The human message carries the same facts as the machine data.
+    human = subprocess.run(
+        [sys.executable, module_path.name],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert human.returncode == 1
+    assert "needed by common_divisor" in human.stderr
+    assert "expected:" in human.stderr and "got:" in human.stderr
+    assert "failing source: divides_one = p.apply(common_divisor" in human.stderr
+
+    # Restoring the line restores the proof and the certificate.
+    restored = tangle(tmp_path, source, name="euclides")
+    subprocess.run(
+        [sys.executable, restored.name],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    if CHECKER is not None:
+        subprocess.run(
+            [CHECKER, "check", "--strict", "euclides.logos"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
 
 
 def test_mismatched_evidence_and_an_escaping_witness_are_rejected(tmp_path):

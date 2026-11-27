@@ -1351,6 +1351,65 @@ def book(python, cold, recipient, evidence, env, offline):
     print("book lesson: tangle, strict certificate, sign failure, recovery, negatives")
 
 
+def book_euclid(python, cold, recipient, evidence, env, offline):
+    """Tangle the Spanish Euclid chapter and replay its complete derivation."""
+    scriptorium = python.parent / "scriptorium"
+    assert scriptorium.exists(), "install Scriptorium in the author environment"
+    page = BOOK / "euclides.md"
+    source = page.read_text(encoding="utf-8")
+
+    room = cold / "euclides"
+    room.mkdir()
+    (room / "euclides.md").write_text(source, encoding="utf-8")
+    run([scriptorium, "tangle", "euclides.md"], room, env=env)
+    run([scriptorium, "tangle", "--test", "euclides.md"], room, env=env)
+    run([python, "euclides.py"], room, env=env)
+    assert (room / "euclides.logos").exists()
+
+    shutil.copy2(room / "euclides.logos", recipient / "euclides.logos")
+    verdict = replay(recipient, "check", "--strict", "euclides.logos", offline=offline)
+    assert "Verified with 0 custom axioms" in verdict.stdout
+    assert "euclid" in verdict.stdout
+    inspected = json.loads(replay(
+        recipient, "inspect", "--json", "--strict", "euclides.logos", offline=offline
+    ).stdout)
+    assert inspected["status"] == "verified"
+    assert inspected["custom_axioms"] == []
+    shutil.copy2(room / "euclides.py", evidence / "euclides.py")
+    shutil.copy2(room / "euclides.logos", evidence / "euclides.logos")
+
+    assert source.count("    m = f + 1") == 1
+    broken = source.replace("    m = f + 1", "    m = f", 1)
+    broken_dir = cold / "euclides-broken"
+    broken_dir.mkdir()
+    (broken_dir / "euclides.md").write_text(broken, encoding="utf-8")
+    run([scriptorium, "tangle", "euclides.md"], broken_dir, env=env)
+    failure = run(
+        [python, "-c", BOOK_FAILURE, "euclides.py"], broken_dir, env=env, code=1
+    )
+    details = json.loads(failure.stdout.strip().splitlines()[-1])
+    assert details["kind"] == "apply_premise_mismatch"
+    assert details["lemma"] == "common_divisor"
+    assert details["source_line"].startswith("divides_one = p.apply(common_divisor")
+    assert "factorial(n) + 1" in details["expected"]["text"]
+    assert details["got"]["text"].count("factorial(n) = q * k") == 2
+    assert not (broken_dir / "euclides.logos").exists()
+    human = run([python, "euclides.py"], broken_dir, env=env, code=1)
+    assert "needed by common_divisor" in human.stderr
+    assert "expected:" in human.stderr and "got:" in human.stderr
+    assert "failing source: divides_one = p.apply(common_divisor" in human.stderr
+    (evidence / "euclides-mutation.txt").write_text(human.stderr, encoding="utf-8")
+    shutil.copy2(broken_dir / "euclides.py", evidence / "euclides-broken.py")
+
+    recovered = cold / "euclides-recovered"
+    recovered.mkdir()
+    (recovered / "euclides.md").write_text(source, encoding="utf-8")
+    run([scriptorium, "tangle", "euclides.md"], recovered, env=env)
+    run([python, "euclides.py"], recovered, env=env)
+    replay(recipient, "check", "--strict", "euclides.logos", offline=offline)
+    print("euclides lesson: tangle, strict certificate, bound mutation, recovery")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
@@ -1546,7 +1605,10 @@ def main():
         print(f"Book lesson · tangle the Spanish page and exercise the authoring layer, then {isolation}")
         book(python, cold, recipient, evidence, env, options.offline)
 
-    print("15 acceptance stages exercised")
+        print(f"Euclid book lesson · tangle the full chapter, then {isolation}")
+        book_euclid(python, cold, recipient, evidence, env, options.offline)
+
+    print("16 acceptance stages exercised")
 
 
 if __name__ == "__main__":
