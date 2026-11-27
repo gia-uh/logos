@@ -36,8 +36,24 @@ scriptorium render book/scriptorium.yaml --only site
 scriptorium render book/scriptorium.yaml --only print
 ```
 
-The site lands in `book/site/` and the PDF in `book/book.pdf`. A single chapter
-can be rendered without the project wrapper:
+The site lands in `book/site/` and the PDF in `book/book.pdf`. Finish the
+published surface with the custom domain, PDF URL, redirects and validation:
+
+```bash
+python tools/publish_book.py
+```
+
+The release wheel also carries the same pages and PDF for offline reading. After
+rendering and publishing:
+
+```bash
+python tools/package_reading.py
+python -m logos book --json
+```
+
+`tools/package_reading.py` copies `book/site/` and `book/book.pdf` into
+`logos/_book/`, which the wheel includes as package data. A single chapter can
+be rendered without the project wrapper:
 
 ```bash
 cd book
@@ -75,18 +91,22 @@ chapter's copied body is compared with the code object of
 `tests/test_number_theory.py` checks the domain on its own: every lemma, the
 strict certificate for `euclid`, and the exported artifact.
 
-The `English book` workflow in `.github/workflows/book.yml` runs those tests and
-renders both outputs on a pull request. It uploads the site as an artifact and
-does not deploy it.
+`tests/test_book_reading.py` checks the offline API and the
+`python -m logos book` entry point. The `English book` workflow in
+`.github/workflows/book.yml` runs those tests, renders both outputs, runs
+`tools/publish_book.py`, packages the reading into a final wheel, installs that
+wheel in a clean environment, and checks the bundled entry. On `main` it
+deploys `book/site/` to GitHub Pages.
 
-## The live site
+## Publication
 
-The Quarto site in `docs-site/` and its GitHub Pages deployment are unchanged.
-They keep publishing while this book is reviewed. The replacement happens in a
-separate change: compare the rendered book with the live guide, move any page
-that still has unique material, and only then point Pages at `book/site/`.
-Until that change lands, `docs-site/` is the public site and this book is the
-candidate.
+`book/` is the canonical source for the public site at
+<https://logos.uhgia.org/> and for the PDF at
+<https://logos.uhgia.org/book.pdf>. The old Quarto pages and their workflow are
+gone. `book/redirects.json` maps every old route, and
+[`PUBLICATION.md`](PUBLICATION.md) records the route and reference inventory.
+The release wheel bundles the same site and PDF under `logos/_book/`, read with
+`python -m logos book` or `import logos.book`.
 
 ## Editorial map for later stages
 
@@ -98,9 +118,9 @@ material becomes useful:
 | Arithmetic and induction | Primitive recursion and the factorial | Chapter 9 teaches the mechanism before contracts and finite structures | Drafted |
 | Number theory | Divisibility, least divisors, Euclid's theorem | Chapters 7 to 11, with the reusable domain in `logos/domains/number_theory.py` | Drafted |
 | Logic puzzles | Finite models, `KnightsKnaves`, guided and automatic search | Shows a domain that searches for a model instead of a proof, and a diagnostic that reports a counterexample | Not drafted |
-| Contracts | Function contracts, branch selection, loop invariants, binary search | The engineering half of the project; assumes quantifiers and definitions | Not drafted |
-| Developer Guide | Kernel terms, portable encoding, the Rust checker, the authoring API | Explains how to extend the checker without weakening it | Not drafted |
-| Embedding | Serve the built book from the CLI and the API; search over its sections | Needs the site and the PDF to be stable first | Not drafted |
+| Contracts | Function contracts, branch selection, loop invariants, binary search | The engineering half of the project; assumes quantifiers and definitions | Drafted |
+| Developer Guide | Kernel terms, portable encoding, the Rust checker, the authoring API | Explains how to extend the checker without weakening it | Drafted |
+| Embedding | Serve the built book from the CLI and the API; search over its sections | Needs the site and the PDF to be stable first | Shipped |
 
 The number theory domain (`logos/domains/number_theory.py`) earned its place:
 chapters 8 to 11 use its lemmas by name, and the chapter 11 composition matches
@@ -110,10 +130,8 @@ drift apart.
 
 Open editorial decisions:
 
-- When the Developer Guide starts: after contracts, or in parallel with the
-  remaining User Guide material.
-- Which pages of the Quarto guide have no replacement and must be migrated
-  before the site switches.
+- When logic puzzles join the linear guide instead of the Developer Guide.
+- Whether the PDF should carry a generated index in addition to the site search.
 
 ## Spanish regression fixtures
 

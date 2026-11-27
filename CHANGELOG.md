@@ -30,6 +30,7 @@
 - A checked interval domain, `logos.domains.intervals`, with transparent definitions, four lemmas and a goal-level linear tactic
 - The English Developer Guide and a generated Public API Reference, with a rift gate over every public class, function and method
 - Markdown readings keep a discharged `have` binder even when the body never uses it
+- The English Scriptorium book now owns the public site, PDF, old Quarto redirects and the offline reading bundled in the wheel, exposed by `python -m logos book` and `logos.book`
 
 ## [0.1.0] - 2026-06-17
 

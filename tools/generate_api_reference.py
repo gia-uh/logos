@@ -54,8 +54,8 @@ MIDDLE = """
 TAIL = """
 ## Where to read next
 
-The [Developer Guide](15-developer-guide.md) shows how these pieces fit when
-you extend the checked language. The [proof format](../docs/portable-proof-format.md)
+The [Developer Guide](extend-the-checked-language-with-a-domain.html) shows how these
+pieces fit when you extend the checked language. The [proof format](https://github.com/gia-uh/logos/blob/main/docs/portable-proof-format.md)
 states the bytes an independent recipient verifies. For a use-case path through
 the same API, start at the introduction and follow the chapters in order.
 """

@@ -9,6 +9,7 @@ on:
       - 'tests/test_english_book.py'
       - 'tests/test_first_proof_chapter.py'
       - 'tests/test_developer_guide.py'
+      - 'tests/test_book_reading.py'
       - '.github/workflows/book.yml'
       - '.rift.yaml'
       - 'tools/**'
@@ -22,6 +23,7 @@ on:
       - 'tests/test_english_book.py'
       - 'tests/test_first_proof_chapter.py'
       - 'tests/test_developer_guide.py'
+      - 'tests/test_book_reading.py'
       - '.github/workflows/book.yml'
       - '.rift.yaml'
       - 'tools/**'
@@ -68,7 +70,8 @@ jobs:
       - name: Test the chapters from the installed wheel
         run: |
           export PATH="$RUNNER_TEMP/portable/bin:$RUNNER_TEMP/author/bin:$PATH"
-          python -m pytest -q tests/test_english_book.py tests/test_first_proof_chapter.py tests/test_developer_guide.py
+          python -m pytest -q tests/test_english_book.py tests/test_first_proof_chapter.py \
+            tests/test_developer_guide.py tests/test_book_reading.py
 
       - name: Render the site and the PDF
         run: |
@@ -77,6 +80,27 @@ jobs:
           scriptorium render book/scriptorium.yaml --only print
           ! grep -rl 'Traceback (most recent call last)' book/site/*.html
 
+      - name: Publish and validate the site surface
+        run: |
+          python tools/publish_book.py
+          test -s book/site/book.pdf
+          test -s book/site/CNAME
+          test -f book/site/.nojekyll
+          test -f book/site/guide/expressions.html
+
+      - name: Build the wheel that carries the offline reading
+        run: |
+          python tools/package_reading.py
+          uv build --wheel --out-dir "$RUNNER_TEMP/final-wheels"
+          uv venv --python 3.12 "$RUNNER_TEMP/reader"
+          uv pip install --python "$RUNNER_TEMP/reader/bin/python" "$RUNNER_TEMP"/final-wheels/*.whl
+
+      - name: Check the offline entry from the installed wheel
+        working-directory: ${{ runner.temp }}
+        run: |
+          "$RUNNER_TEMP/reader/bin/python" -m logos book --json
+          "$RUNNER_TEMP/reader/bin/python" "$GITHUB_WORKSPACE/tools/check_installed_reading.py"
+
       - name: Upload the site
         uses: actions/upload-artifact@v4
         with:
@@ -84,3 +108,23 @@ jobs:
           path: book/site
           if-no-files-found: error
           include-hidden-files: true
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: book
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the rendered site
+        uses: actions/download-artifact@v4
+        with:
+          name: english-book-site
+          path: book/site
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: book/site
+          publish_branch: gh-pages
+          force_orphan: true

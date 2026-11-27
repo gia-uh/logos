@@ -23,6 +23,7 @@ underscore are implementation details, even when another module imports them.
 | `AuthoringFailure` | `logos.authoring` | A failed authoring step with a human message and machine data. |
 | `Fact` | `logos.authoring` | A proposition and checked evidence for it, plus where it was written. |
 | `ProofContext` | `logos.authoring` | The ``p`` argument of a book-style proof function. |
+| `BookNotInstalled` | `logos.book` | The distribution has no offline book and no rendered checkout. |
 | `LogosContractError` | `logos.contracts` | A contract, or the source binding behind it, could not be established. |
 | `Contract` | `logos.contracts` | The two halves of a function contract, written with signature names. |
 | `ProgramTheorem` | `logos.contracts` | A contract theorem whose executable body is a checked loop program. |
@@ -130,6 +131,7 @@ underscore are implementation details, even when another module imports them.
 | `forall` | `logos` | logos.forall(int, int, lambda x, y: x + y == y + x) — lambda form. |
 | `chain` | `logos` | Right-associative implication chain: chain(A, B, C) = A >> (B >> C). |
 | `exists` | `logos` | — |
+| `main` | `logos.__main__` | — |
 | `format_expr` | `logos.authoring` | Render an expression the way a reader writes it in the book. |
 | `as_dict` | `logos.authoring.AuthoringFailure` | — |
 | `unfold` | `logos.authoring` | Unfold transparent definitions throughout a proposition. |
@@ -173,6 +175,13 @@ underscore are implementation details, even when another module imports them.
 | `binders_and_body` | `logos.authoring` | — |
 | `authoring_signature_matches` | `logos.authoring` | — |
 | `authoring_tactic` | `logos.authoring` | Wrap a book-style proof function as a tactic for the existing runner. |
+| `root` | `logos.book` | The directory holding ``site/`` and ``book.pdf``. |
+| `site` | `logos.book` | The directory that holds ``index.html`` and the offline pages. |
+| `pdf` | `logos.book` | The downloadable, self-contained PDF. |
+| `index` | `logos.book` | The book's home page. |
+| `manifest` | `logos.book` | The packaged book's metadata, or an empty mapping for a checkout render. |
+| `serve` | `logos.book` | Serve the offline pages on localhost until interrupted. |
+| `main` | `logos.book` | — |
 | `contract` | `logos.contracts` | Describe a postcondition and an optional explicit precondition. |
 | `selected` | `logos.contracts._Fragment` | — |
 | `theorem_about` | `logos.contracts` | Build the contract theorem for an ordinary function. |
@@ -355,7 +364,7 @@ underscore are implementation details, even when another module imports them.
 
 ## Where to read next
 
-The [Developer Guide](15-developer-guide.md) shows how these pieces fit when
-you extend the checked language. The [proof format](../docs/portable-proof-format.md)
+The [Developer Guide](extend-the-checked-language-with-a-domain.html) shows how these
+pieces fit when you extend the checked language. The [proof format](https://github.com/gia-uh/logos/blob/main/docs/portable-proof-format.md)
 states the bytes an independent recipient verifies. For a use-case path through
 the same API, start at the introduction and follow the chapters in order.

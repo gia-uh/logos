@@ -1,0 +1,221 @@
+{
+  "site": "https://logos.uhgia.org/",
+  "routes": [
+    {
+      "from": "guide/expressions.html",
+      "to": "introduction.html#conventions",
+      "anchors": {
+        "variables-and-literals": "conventions",
+        "arithmetic-operators": "conventions",
+        "comparison-operators": "conventions",
+        "logical-connectives": "conventions",
+        "the-bool-guard": "conventions",
+        "the-__bool__-guard": "conventions",
+        "expression-trees-are-identity-based": "conventions",
+        "substitution": "conventions"
+      }
+    },
+    {
+      "from": "guide/propositions.html",
+      "to": "writing-your-first-proof.html#state-what-you-intend-to-prove",
+      "anchors": {
+        "universal-quantification": "state-what-you-intend-to-prove",
+        "existential-quantification": "write-the-argument",
+        "implications": "write-the-argument",
+        "conjunctions-and-disjunctions": "write-the-argument",
+        "composing-propositions": "read-what-you-proved",
+        "propositions-as-first-class-values": "read-what-you-proved"
+      }
+    },
+    {
+      "from": "guide/defining.html",
+      "to": "definitions-that-unfold-lemmas-you-can-name.html",
+      "anchors": {
+        "basic-usage": "a-definition-is-a-body-the-checker-can-unfold",
+        "dual-mode": "a-definition-is-a-body-the-checker-can-unfold",
+        "proving-about-defined-functions": "three-lemmas-worth-keeping",
+        "composing-definitions": "compose-two-lemmas",
+        "case-expressions": "a-definition-is-a-body-the-checker-can-unfold",
+        "external-black-box-functions": "when-a-step-fails",
+        "multiple-parameters": "a-definition-is-a-body-the-checker-can-unfold"
+      }
+    },
+    {
+      "from": "guide/theorems.html",
+      "to": "writing-your-first-proof.html#check-the-proof",
+      "anchors": {
+        "logos-theorem--declare-a-theorem": "state-what-you-intend-to-prove",
+        "logos-theorem-declare-a-theorem": "state-what-you-intend-to-prove",
+        "proof--attach-a-proof": "write-the-argument",
+        "proof-attach-a-proof": "write-the-argument",
+        "logoscheck--the-compute-boundary": "check-the-proof",
+        "logoscheck-the-compute-boundary": "check-the-proof",
+        "the-proof-list": "write-the-argument",
+        "what-happens-when-a-proof-fails": "read-a-failed-step",
+        "logosprove--one-shot-anonymous-proof": "check-the-proof",
+        "logosprove-one-shot-anonymous-proof": "check-the-proof",
+        "logosprovethm--automatic-proof-search": "check-the-proof",
+        "logosprovethm-automatic-proof-search": "check-the-proof",
+        "building-on-proved-theorems": "read-what-you-proved",
+        "module-level-theorem-files": "read-what-you-proved"
+      }
+    },
+    {
+      "from": "guide/tactics/index.html",
+      "to": "extend-the-checked-language-with-a-domain.html#a-tactic-returns-evidence-not-trust",
+      "anchors": {
+        "the-goal": "before-you-start",
+        "tactic-protocol": "a-tactic-returns-evidence-not-trust",
+        "the-tactic-runner": "a-tactic-returns-evidence-not-trust",
+        "nested-lists-for-subgoals": "a-tactic-returns-evidence-not-trust",
+        "tactic-categories": "a-tactic-returns-evidence-not-trust",
+        "writing-your-own-tactic": "a-tactic-returns-evidence-not-trust"
+      }
+    },
+    {
+      "from": "guide/tactics/structural.html",
+      "to": "facts-that-hold-together.html",
+      "anchors": {
+        "intronames": "a-conjunction-carries-two-facts",
+        "intro-names": "a-conjunction-carries-two-facts",
+        "assumption": "check-both-proofs",
+        "exactterm": "check-both-proofs",
+        "exact-term": "check-both-proofs",
+        "split": "a-conjunction-carries-two-facts",
+        "leftright_type--rightleft_type": "when-a-step-fails",
+        "leftright-type--rightleft-type": "when-a-step-fails",
+        "witnessval": "check-both-proofs",
+        "witness-val": "check-both-proofs",
+        "contradiction": "when-a-step-fails",
+        "applyref": "name-the-fact-you-will-reuse",
+        "apply-ref": "name-the-fact-you-will-reuse"
+      }
+    },
+    {
+      "from": "guide/tactics/arithmetic.html",
+      "to": "even-odd-and-what-divides-means.html#a-divisor-is-a-quotient-you-can-name",
+      "anchors": {
+        "ring": "a-divisor-is-a-quotient-you-can-name",
+        "order": "even-means-divisible-by-two",
+        "linarith": "when-a-step-fails",
+        "decide": "when-a-step-fails",
+        "combining-arithmetic-tactics": "three-lemmas-worth-keeping"
+      }
+    },
+    {
+      "from": "guide/tactics/rewrite.html",
+      "to": "definitions-that-unfold-lemmas-you-can-name.html#a-definition-is-a-body-the-checker-can-unfold",
+      "anchors": {
+        "refl": "a-definition-is-a-body-the-checker-can-unfold",
+        "unfoldrefs": "a-definition-is-a-body-the-checker-can-unfold",
+        "unfold-refs": "a-definition-is-a-body-the-checker-can-unfold",
+        "rewriteref--rewrite_revref": "three-lemmas-worth-keeping",
+        "rewriteref--rewrite-revref": "three-lemmas-worth-keeping",
+        "eval_": "check-and-inspect-the-result",
+        "norm_num": "check-and-inspect-the-result",
+        "chaining-rewrites": "compose-two-lemmas"
+      }
+    },
+    {
+      "from": "guide/tactics/combinators.html",
+      "to": "extend-the-checked-language-with-a-domain.html#a-tactic-returns-evidence-not-trust",
+      "anchors": {
+        "thentactics": "a-tactic-returns-evidence-not-trust",
+        "then-tactics": "a-tactic-returns-evidence-not-trust",
+        "firsttactics": "a-tactic-returns-evidence-not-trust",
+        "first-tactics": "a-tactic-returns-evidence-not-trust",
+        "try_tactic": "a-tactic-returns-evidence-not-trust",
+        "repeattactic": "a-tactic-returns-evidence-not-trust",
+        "repeat-tactic": "a-tactic-returns-evidence-not-trust",
+        "all_goalstactic": "a-tactic-returns-evidence-not-trust",
+        "all-goals-tactic": "a-tactic-returns-evidence-not-trust",
+        "building-a-mini-automation": "a-tactic-returns-evidence-not-trust"
+      }
+    },
+    {
+      "from": "guide/tactics/custom.html",
+      "to": "extend-the-checked-language-with-a-domain.html#a-tactic-returns-evidence-not-trust",
+      "anchors": {
+        "the-protocol": "a-tactic-returns-evidence-not-trust",
+        "a-closing-tactic-my_refl": "a-tactic-returns-evidence-not-trust",
+        "a-splitting-tactic-my_split": "a-tactic-returns-evidence-not-trust",
+        "a-parameterized-tactic": "a-tactic-returns-evidence-not-trust",
+        "a-transforming-tactic-normalize_goal": "a-tactic-returns-evidence-not-trust",
+        "debugging-tactics-trace": "when-a-step-fails",
+        "combining-custom-tactics-with-builtins": "a-tactic-returns-evidence-not-trust",
+        "introspecting-the-context": "a-tactic-returns-evidence-not-trust"
+      }
+    },
+    {
+      "from": "guide/examples/index.html",
+      "to": "index.html"
+    },
+    {
+      "from": "guide/examples/number-theory.html",
+      "to": "even-odd-and-what-divides-means.html",
+      "anchors": {
+        "basic-identities": "three-lemmas-worth-keeping",
+        "parity": "even-means-divisible-by-two",
+        "difference-of-squares": "three-lemmas-worth-keeping",
+        "linear-inequalities": "when-a-step-fails",
+        "arithmetic-progressions": "three-lemmas-worth-keeping",
+        "modular-arithmetic": "when-a-step-fails",
+        "automatic-proof-search": "three-lemmas-worth-keeping"
+      }
+    },
+    {
+      "from": "guide/examples/infinitely-many-primes.html",
+      "to": "one-more-prime-always.html",
+      "anchors": {
+        "the-statement": "a-concrete-case-first",
+        "the-argument": "compose-the-lemmas",
+        "run-the-installed-example": "certify-and-export",
+        "what-is-checked": "what-the-reader-should-be-able-to-check",
+        "a-numerical-illustration": "a-concrete-case-first",
+        "limits": "what-the-reader-should-be-able-to-check"
+      }
+    },
+    {
+      "from": "guide/examples/knights-knaves.html",
+      "to": "extend-the-checked-language-with-a-domain.html",
+      "anchors": {
+        "puzzle-1--we-are-both-knaves": "vocabulary-is-a-definition-not-an-axiom",
+        "guiding-the-proof": "check-the-lemmas-once-reuse-them-everywhere",
+        "puzzle-2--at-least-one-of-us-is-a-knave": "vocabulary-is-a-definition-not-an-axiom",
+        "puzzle-3--three-people": "vocabulary-is-a-definition-not-an-axiom"
+      }
+    },
+    {
+      "from": "guide/examples/data-structures.html",
+      "to": "a-contract-on-code-that-ships.html",
+      "anchors": {
+        "reasoning-about-external-functions": "the-component-and-its-provenance",
+        "pure-accumulator-functions": "the-assumptions-and-the-contract",
+        "polynomial-functions": "the-floor-division-laws",
+        "function-composition-properties": "the-component-and-its-provenance",
+        "composing-function-properties": "the-component-and-its-provenance",
+        "api-contracts-as-theorems": "the-assumptions-and-the-contract",
+        "ground-computation-verification": "check-the-contract"
+      }
+    },
+    {
+      "from": "reference/api.html",
+      "to": "public-api-reference.html",
+      "anchors": {
+        "top-level-logos": "functions-and-methods",
+        "domains-logosdomains": "classes",
+        "expressions-logosexpr": "classes",
+        "tactics-logostactics": "functions-and-methods",
+        "structural": "functions-and-methods",
+        "arithmetic": "functions-and-methods",
+        "rewriting": "functions-and-methods",
+        "combinators": "functions-and-methods",
+        "kernel-logoskernel": "classes",
+        "proof-terms": "classes",
+        "kernel-functions": "functions-and-methods",
+        "helpers-logoshelpers": "functions-and-methods",
+        "exceptions": "classes"
+      }
+    }
+  ]
+}
