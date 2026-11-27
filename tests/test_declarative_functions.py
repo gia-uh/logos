@@ -261,6 +261,37 @@ def test_source_and_callee_binding_changes_are_refused(tmp_path):
 
 
 @requires_checker
+def test_a_clause_change_after_check_is_refused(tmp_path):
+    source = CALLS.read_text(encoding="utf-8")
+    module, path = write_module(tmp_path, source)
+    module.first_or_zero.check()
+    path.write_text(
+        source.replace("return 0 < logos.length(xs)", "return 1 < logos.length(xs)"),
+        encoding="utf-8",
+    )
+    with pytest.raises(LogosProofError) as caught:
+        module.first_or_zero.inspect()
+    assert "changed" in str(caught.value) or "no current" in str(caught.value)
+
+
+def test_calls_to_undeclared_functions_are_refused(tmp_path):
+    text = (
+        "import logos\n"
+        "\n"
+        "def helper(x: int) -> int:\n"
+        "    return x\n"
+        "\n"
+        "@logos.function\n"
+        "def uses(x: int) -> int:\n"
+        "    return helper(x)\n"
+    )
+    with pytest.raises(LogosContractError) as caught:
+        write_module(tmp_path, text)
+    assert "helper" in str(caught.value)
+    assert "not declared with @logos.function" in str(caught.value)
+
+
+@requires_checker
 def test_rebinding_the_callee_is_refused(tmp_path):
     module, _ = write_module(tmp_path, CALLS.read_text(encoding="utf-8"))
     module.first_or_zero.check()
