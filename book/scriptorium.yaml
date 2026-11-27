@@ -1,6 +1,6 @@
 # The English book. Every code block runs from this directory when the book is
 # built; the installed `logos` executable must be on PATH. The Spanish pages in
-# book/ are legacy material until the editorial map says otherwise.
+# book/ are regression fixtures and are not part of this project.
 theme: book
 execute: {timeout: 120, freeze: file}
 
@@ -16,6 +16,11 @@ files:
   - chapters/04-cases.md
   - chapters/05-witnesses.md
   - chapters/06-definitions.md
+  - chapters/07-parity.md
+  - chapters/08-neighbours.md
+  - chapters/09-factorial.md
+  - chapters/10-least-prime.md
+  - chapters/11-euclid.md
 
 outputs:
   site:
