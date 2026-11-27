@@ -18,10 +18,18 @@ This chapter defines the factorial by its two equations, proves that it is posit
 
 ## Two equations define the factorial
 
+The code fragments in this chapter are assembled in order into one Python module by Scriptorium.
+
 A recursive function is not a loop in the checker. It is a name together with two equations that the checker accepts as defining laws: one at zero, and one that moves from $k$ to $k + 1$.
 
+```python {export=examples/factorial_lesson.py}
+import logos
+from logos import Int, forall, lit
+from logos.domains.number_theory import divides, divides_mul
+```
+
 <!-- source: factorial -->
-```python
+```python {export=examples/factorial_lesson.py}
 factorial = logos.recursor("factorial", 1, lambda n, previous: (n + 1) * previous)
 ```
 
@@ -29,14 +37,16 @@ In ordinary notation the equations are
 
 $$0! = 1, \qquad (k + 1)! = (k + 1) \cdot k!.$$
 
-The second equation is only claimed for nonnegative $k$, which is why every use of it carries a proof of $\neg(k < 0)$. The function is opaque to conversion: the checker will not evaluate `factorial(5)` by itself. A proof that needs a value must cite one of the two equations.
+The successor equation requires $\neg(k < 0)$. Logos treats `factorial(k)` as a symbolic term, so a proof that needs its value cites one of the equations.
 
 ## Positive at every nonnegative argument
 
-The base case is the first equation. The step multiplies two positive integers: $k + 1$ is positive because $k \ge 0$, and $k!$ is positive by the induction hypothesis. The product is $(k + 1)!$ by the second equation.
+Use induction because the successor equation reduces the desired inequality at $k+1$ to one at $k$. Give `p.induction` the variable in the goal, the first argument of the induction range, and evidence that the variable lies in that range. Here the second argument is $0$, so `nonnegative` must prove $\neg(n < 0)$. The keyword still names the lower-bound evidence when induction starts at another integer.
 
-<!-- source: factorial_positive -->
-```python
+The first scope will owe $0 < 0!$. The second will owe $0 < (k+1)!$ for an arbitrary $k$, with `step.nonnegative` proving $\neg(k < 0)$ and `step.hypothesis` proving $0 < k!$.
+
+<!-- source: factorial_positive_setup -->
+```python {export=examples/factorial_lesson.py}
 @logos.theorem
 def factorial_positive(n: Int):
     """The factorial of a nonnegative integer is positive."""
@@ -47,9 +57,21 @@ def prove_factorial_positive(p, n):
     """Induct from 0! = 1 and close the step with a product of positives."""
     nonnegative = p.assume(~(n < 0))
     with p.induction(n, 0, nonnegative=nonnegative) as induction:
+```
+
+In the base scope, cite $0! = 1$ so linear arithmetic can prove the inequality.
+
+<!-- source: factorial_positive_base -->
+```python {export=examples/factorial_lesson.py}
         with induction.base() as base:
             zero = p.recursor_base(factorial)  # 0! = 1
             base.finish(p.linear(0 < factorial(0), using=[zero]))
+```
+
+In the step scope, derive $0 < k+1$ from the lower bound. The induction hypothesis gives the other positive factor, so `mul_pos` proves $0 < (k + 1)k!$. Which direction takes this fact to the goal? The recursor equation has the factorial on its left. Flip it so `p.subst` replaces the product with the factorial.
+
+<!-- source: factorial_positive_step -->
+```python {export=examples/factorial_lesson.py}
         with induction.step() as step:
             k = step.variable
             previous = step.hypothesis  # the induction hypothesis: 0 < k!
@@ -62,17 +84,11 @@ def prove_factorial_positive(p, n):
     return induction.result
 ```
 
-Three pieces are visible. `induction.base()` is the scope for $n = 0$; `p.recursor_base(factorial)` cites $0! = 1$, and linear arithmetic turns it into $0 < 0!$. `induction.step()` gives an arbitrary $k$, the hypothesis $\neg(k < 0)$, and the induction hypothesis `previous`, which is $0 < k!$. `p.order("mul_pos", ...)` multiplies the two positive facts, and `p.subst(product, p.symm(equation))` rewrites the product into $0 < (k + 1)!$ using the step equation read right to left.
-
-The direction of the rewrite matters. The equation is $(k + 1)! = (k + 1)k!$; the fact is about $(k + 1)k!$. `p.symm` flips the equation so that the product on the left is replaced by the factorial on the right.
-
 ```python {run}
-import logos
-from logos import Int, lit
-from logos.domains import number_theory
+from examples.factorial_lesson import factorial_positive, factorial_above_one, factorial_dvd
 
-number_theory.factorial_positive.check()
-print("factorial_positive:", number_theory.factorial_positive.certified)
+factorial_positive.check()
+print("factorial_positive:", factorial_positive.certified)
 ```
 
 ## Two identities for the next bound
@@ -82,7 +98,7 @@ The next theorem needs to see $(k + 1)!$ as a sum. Two small lemmas make the alg
 The first distributes a successor over a product. The second says that adding a positive integer to the right side of a strict inequality preserves it.
 
 <!-- source: mul_succ -->
-```python
+```python {export=examples/factorial_lesson.py}
 @logos.theorem
 def mul_succ(k: Int, f: Int):
     """Multiplying by a successor distributes the successor."""
@@ -95,7 +111,7 @@ def prove_mul_succ(p, k, f):
 ```
 
 <!-- source: lt_add_pos -->
-```python
+```python {export=examples/factorial_lesson.py}
 @logos.theorem
 def lt_add_pos(a: Int, b: Int, c: Int):
     """Adding a positive integer keeps a strict inequality."""
@@ -115,10 +131,10 @@ Neither lemma is deep. They are named because the next proof uses them by name, 
 
 From $2$ onward, $n! > 1$. The base case computes $2! = 2$ from the two recursor equations. The step writes $(k + 1)!$ as $k! + k \cdot k!$: the first term is above one by the induction hypothesis, and the second is positive because $k \ge 2$.
 
-The proof of the lemma is one function. The page shows its base half first.
+Start induction at $2$. The base calculation follows $2! = 2\cdot1! = 2\cdot(1\cdot0!) = 2$. Cite `base_eq` for $0!=1$ and `step0` and `step1` for the two successor equations. Their factorial arguments are written as $0+1$ and $1+1$. Normalize those to $1$ and $2$ with `p.subst` so the factorial terms match across equations. Then `p.ring` combines the three equations into `two_eq`, and the base goal follows by linear arithmetic.
 
 <!-- source: factorial_above_one_base -->
-```python
+```python {export=examples/factorial_lesson.py}
 @logos.theorem
 def factorial_above_one(n: Int):
     """From 2 onward the factorial is greater than one."""
@@ -146,12 +162,10 @@ def prove_factorial_above_one(p, n):
             base.finish(p.linear(lit(1) < factorial(2), using=[two_eq]))
 ```
 
-The base case is longer than it looks because the checker does not evaluate `factorial(2)` for us. We cite $0! = 1$, the step at $0$, and the step at $1$, and combine them with `p.ring` into $2! = 2$. The last line turns that equation into $1 < 2!$ by linear arithmetic. This is what “the checker only knows the equations” means in practice.
-
-The step half follows.
+In the step, $2 \le k$ gives $0 < k$, and the positivity theorem gives $0 < k!$. Together they make the extra term $k\cdot k!$ positive.
 
 <!-- source: factorial_above_one_step -->
-```python
+```python {export=examples/factorial_lesson.py}
         with induction.step() as step:
             k = step.variable
             previous = step.hypothesis
@@ -165,6 +179,12 @@ The step half follows.
             )
             product_positive = p.order("mul_pos", k, factorial(k),
                                        using=[zero_lt_k, positive_factorial])
+```
+
+The induction hypothesis already places $k!$ above one. Use `lt_add_pos` to add the extra term, then chain the recursor and distributive equations so the sum can be rewritten as $(k+1)!$.
+
+<!-- source: factorial_above_one_sum -->
+```python {export=examples/factorial_lesson.py}
             equation = p.recursor_step(factorial, k, not_k_below_zero)
             distributed = p.apply(mul_succ, k, factorial(k))
             decomposed = p.trans(equation, distributed)
@@ -174,25 +194,21 @@ The step half follows.
     return induction.result
 ```
 
-Read the step from the bottom up. `larger` says $1 < k! + k \cdot k!$: the induction hypothesis puts $k!$ above one, and `mul_pos` puts $k \cdot k!$ above zero. `decomposed` is the equation $(k + 1)! = k! + k \cdot k!$, obtained by chaining the recursor equation with `mul_succ`. The final `p.subst` carries the inequality across that equation.
-
 Certify the lemma.
 
 ```python {run continue}
-number_theory.factorial_above_one.check()
-print("factorial_above_one:", number_theory.factorial_above_one.certified)
+factorial_above_one.check()
+print("factorial_above_one:", factorial_above_one.certified)
 ```
 
-The bound $1 < n!$ is stronger than positivity, and the difference will matter in the final chapter. When the constructed number is $n! + 1$, the bound $1 < n!$ still proves $1 < n! + 1$ after the construction is altered. That is what makes the negative control fail later rather than earlier.
+The bound $1 < n!$ will let us apply the next chapter’s prime-divisor theorem to a number built from $n!$.
 
 ## Every small divisor divides the factorial
 
-Now the divisibility statement. For every nonnegative $n$, every integer $d$ with $1 < d < n + 1$ divides $n!$. The induction is on $n$, and the step splits on whether $d$ was already below $k + 1$.
-
-The base case has no divisor to find: $1 < d < 1$ is impossible.
+For every nonnegative $n$, every integer $d$ with $1 < d < n + 1$ divides $n!$. Induct on $n$, since the product gains one factor when $n$ advances. In the base scope, fix an arbitrary $d$ and assume its two bounds. At $n=0$ these imply $1 < d < 1$. Use the contradiction to finish the divisibility goal with `p.ex_falso`.
 
 <!-- source: factorial_dvd_base -->
-```python
+```python {export=examples/factorial_lesson.py}
 @logos.theorem
 def factorial_dvd(n: Int):
     """Every integer above one and at most n divides n!."""
@@ -215,12 +231,10 @@ def prove_factorial_dvd(p, n):
             base.finish(fixed.result)
 ```
 
-The proof fixes an arbitrary $d$ with `p.fix("d")`, assumes the two bounds, and derives a contradiction with `p.linear`. `p.ex_falso` turns the contradiction into the divisibility goal, which is the standard way to prove anything from a false premise.
+In the step, compare the induction hypothesis’s bound $d < k+1$ with the new bound $d < (k+1)+1$. What integer is admitted only by the new bound? For $k=4$, the old values are $2,3,4$ and the new value is $5$. Test the old bound to decide whether the induction hypothesis applies.
 
-The step half is the interesting one.
-
-<!-- source: factorial_dvd_step -->
-```python
+<!-- source: factorial_dvd_split -->
+```python {export=examples/factorial_lesson.py}
         with induction.step() as step:
             k = step.variable
             with p.fix("d") as fixed:
@@ -230,6 +244,12 @@ The step half is the interesting one.
                 p.note("Either d was already a divisor of k!, or d = k + 1.")
                 decision = p.order("lt_decidable", d, k + 1)
                 with p.cases(decision) as cases:
+```
+
+For $d < k+1$, the hypothesis gives $d\mid k!$. Multiply the dividend by $k+1$ with `divides_mul`, then rewrite it as $(k+1)!$.
+
+<!-- source: factorial_dvd_old -->
+```python {export=examples/factorial_lesson.py}
                     with cases.left() as smaller:
                         ih = p.apply(step.hypothesis, d, above, smaller)
                         multiplied = p.apply(
@@ -239,6 +259,12 @@ The step half is the interesting one.
                             factorial, k, step.nonnegative
                         )
                         cases.finish(p.subst(multiplied, p.symm(equation)))
+```
+
+For $\neg(d < k+1)$, the new bound gives $\neg((k+1)<d)$ by the integer successor law. These comparisons force $d=k+1$. To find the witness, write $(k+1)!=(k+1)k!=d\cdot k!$. In the example the witness for $5\mid5!$ is $4!$. The code uses substitution to turn reflexivity of $d\cdot k!$ into the second equality in that chain.
+
+<!-- source: factorial_dvd_new -->
+```python {export=examples/factorial_lesson.py}
                     with cases.right() as not_smaller:
                         forward = p.order("lt_succ_fwd", d, k + 1,
                                           using=[bound])
@@ -256,18 +282,11 @@ The step half is the interesting one.
     return induction.result
 ```
 
-After `p.fix("d")` and the two assumptions, the proof splits on `p.order("lt_decidable", d, k + 1)`, a checked instance of $d < k + 1 \lor \neg(d < k + 1)$.
-
-- In the left branch, $d < k + 1$. The induction hypothesis applies at $d$, giving $d \mid k!$. `divides_mul` scales the dividend by $k + 1$, giving $d \mid (k + 1)k!$, and the recursor equation rewrites that into $d \mid (k + 1)!$.
-- In the right branch, $\neg(d < k + 1)$, while the assumed bound is $d < (k + 1) + 1$. The two together give $d = k + 1$: `lt_succ_fwd` gives $\neg((k + 1) < d)$, and `eq_of_not_lt_not_lt` turns the two non-strict comparisons into equality. The witness for $d \mid (k + 1)!$ is then $k!$, because $(k + 1)! = (k + 1)k! = d \cdot k!$.
-
-The branch that looks harder is the one where $d$ is exactly the new factor. The witness is already in the equation; the work is naming the equality.
-
 Certify the divisibility lemma.
 
 ```python {run continue}
-number_theory.factorial_dvd.check()
-print("factorial_dvd:", number_theory.factorial_dvd.certified)
+factorial_dvd.check()
+print("factorial_dvd:", factorial_dvd.certified)
 ```
 
 Together with the previous lemmas, this is enough to say: if a prime $q$ is at most $n$, then $q$ divides $n!$. The final chapter uses exactly that sentence.
@@ -295,10 +314,52 @@ A second mistake is to forget the hypothesis `~(k < 0)` when citing `p.recursor_
 
 ## Exit exercise
 
-Prove that two divides $n!$ for every $n \ge 2$:
+1. Prove $2\mid n!$ for every $n\ge2$. Use `factorial_dvd` and match its three premises to facts about $n$ and $2$.
+2. For any integers $n$ and $d$ with $2\le d\le n$, prove $d\mid(n+1)!$. Decide whether to apply the existing theorem or start a new induction. Explain how the bounds in your proof support that choice.
 
-$$\neg(n < 2) \Rightarrow 2 \mid n!.$$
+## Instructor solutions
 
-Apply `factorial_dvd` at $n$, with $d = 2$. You need three facts: $\neg(n < 0)$, $1 < 2$, and $2 < n + 1$. The last one follows from $\neg(n < 2)$ by `lt_succ_rev`. The first follows from `not_lt_le` and linear arithmetic. Write the five arguments of the application in the order the lemma expects, then check the theorem.
+For the first claim, use the successor law on the assumed lower bound to get $2<n+1$. For the second, the given bounds already imply $n+1\ge0$, $1<d$, and $d<(n+1)+1$. Instantiate the same theorem at $n+1$.
 
-As a second exercise, prove that $3$ divides $n!$ for every $n \ge 3$. The same lemma applies at $d = 3$; the only new work is the bound $3 < n + 1$. Compare the proof with the one for $2$ and notice that nothing in `factorial_dvd` had to change.
+```python {export=examples/factorial_lesson.py}
+@logos.theorem
+def two_divides_factorial(n: Int):
+    return ~(n < 2) >> divides(2, factorial(n))
+
+
+@two_divides_factorial.proof
+def prove_two_divides_factorial(p, n):
+    bound = p.assume(~(n < 2))
+    two_le_n = p.order("not_lt_le", n, 2, using=[bound])
+    positive = p.linear(0 < n, using=[two_le_n])
+    nonnegative = p.not_lt_of_lt(0, n, positive)
+    below = p.order("lt_succ_rev", 2, n, using=[bound])
+    return p.apply(factorial_dvd, n, nonnegative, 2,
+                   p.linear(lit(1) < lit(2)), below)
+
+
+@logos.theorem
+def divisor_of_next_factorial(n: Int, d: Int):
+    return (2 <= d) >> ((d <= n) >> divides(d, factorial(n + 1)))
+
+
+@divisor_of_next_factorial.proof
+def prove_divisor_of_next_factorial(p, n, d):
+    lower = p.assume(2 <= d)
+    upper = p.assume(d <= n)
+    positive = p.linear(0 < n + 1, using=[lower, upper])
+    nonnegative = p.not_lt_of_lt(0, n + 1, positive)
+    above_one = p.linear(1 < d, using=[lower])
+    below = p.linear(d < (n + 1) + 1, using=[upper])
+    return p.apply(factorial_dvd, n + 1, nonnegative, d, above_one, below)
+
+```
+
+```python {run continue}
+from examples.factorial_lesson import two_divides_factorial, divisor_of_next_factorial
+
+two_divides_factorial.check()
+divisor_of_next_factorial.check()
+print("factorial exercises:", two_divides_factorial.certified,
+      divisor_of_next_factorial.certified)
+```

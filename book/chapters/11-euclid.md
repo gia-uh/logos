@@ -6,21 +6,21 @@ stem: euclid
 
 # One More Prime, Always
 
-Someone hands you a list of primes and says it is complete. You could search for the next one, but the list might be longer than your patience. Euclid's argument does something better: it uses the list itself to build a number that cannot be divided by any prime on the list.
+Given an arbitrary integer $n\ge2$, construct a witness for
 
-The number is $n! + 1$, where $n$ is the largest number in the list. Every prime at most $n$ divides $n!$. If one of them also divides $n! + 1$, it divides their difference, which is $1$. No prime does that. So a prime outside the list exists.
+$$\exists q\in\mathbb{Z},\ \operatorname{prime}(q)\land n<q.$$
 
-By the end of this chapter you will have a checked theorem, a portable certificate, and a one-line change that breaks the proof at the exact place where the construction matters.
+The least-divisor theorem gives a prime divisor of any integer above one. What remainder should that integer leave modulo each of $2,\ldots,n$ so none can divide it? First find a number divisible by all those integers. Then choose a remainder that also lets you use the consecutive-divisor lemma.
 
 ## Before you start
 
 **Prerequisites.** Chapters 7 to 10. You need `divides_self`, `divides_mul`, `common_divisor`, `not_dvd_one`, `factorial_above_one`, `factorial_dvd` and `least_prime_divisor`, and you should be comfortable applying a lemma whose premise is a conjunction.
 
-**Outcomes.** You will compose six named lemmas into one proof, choose a constructed number whose lower bound survives a deliberate mutation, read the failure the checker reports when the construction changes, and verify the exported certificate with the Rust checker.
+**Outcomes.** You will choose a candidate, obtain its prime divisor, justify why it exceeds the bound, read the failure the checker reports when the construction changes, and verify the exported certificate with the Rust checker.
 
 ## A concrete case first
 
-Take the list $1, 2, 3, 4, 5$, so $n = 5$. The product of the list is $5! = 120$, and one more is $121$. The number is not prime, but that does not matter: it has a prime factor, and $11$ is greater than $5$.
+The factorial $n!$ is divisible by each of $2,\ldots,n$. Adding one leaves remainder $1$ in every case. For $n=5$, this gives $121=11\times11$. The number is composite, and its prime divisor $11$ already meets our goal.
 
 ```python {run}
 from math import factorial
@@ -30,17 +30,13 @@ print(number, "=", 11, "×", 11)
 print("11 > 5:", 11 > 5)
 ```
 
-The example shows why the proof does not need $n! + 1$ to be prime. It needs one prime divisor, and the least-divisor theorem supplies one. The rest of the argument shows that this divisor cannot be small.
-
 ## Compose the lemmas
 
-The theorem is stated for an arbitrary integer $n \ge 2$:
+Scriptorium assembles the fragments below in order into one Python module. The number theory module provides the same composition as `number_theory.euclid`.
 
-$$\neg(n < 2) \Rightarrow \exists q,\ \operatorname{prime}(q) \land n < q.$$
+First match the candidate $m$ to `least_prime_divisor`. Its premise is $1<m$. We have $n\ge2$, so `factorial_above_one` gives $1<n!$ and linear arithmetic gives $1<n!+1$. Open the resulting existential to get a prime divisor $q$, whose value the proof leaves symbolic.
 
-The proof imports the checked lemmas and writes the composition in the page, so you can take the construction apart. The code is the same proof that the number theory module packages as `number_theory.euclid`.
-
-```python {run}
+```python {export=examples/euclid_lesson.py}
 import logos
 from logos import Int, exists
 from logos.domains.number_theory import (
@@ -55,8 +51,8 @@ from logos.domains.number_theory import (
 )
 ```
 
-<!-- source: euclid -->
-```python {run continue}
+<!-- source: euclid_candidate -->
+```python {export=examples/euclid_lesson.py}
 @logos.theorem
 def euclid(n: Int):
     """For every n at least two there is a prime greater than n."""
@@ -72,6 +68,12 @@ def prove_euclid(p, n):
     m = f + 1
     above_m = p.linear(1 < m, using=[above_f])
     q, factor = p.obtain(p.apply(least_prime_divisor, m, above_m))
+```
+
+The pair `factor` gives $\operatorname{prime}(q)$ and $q\mid m$. To finish with this witness we still need $n<q$. Why prove it indirectly? The opposite comparison tells us that $q$ is small enough to divide the factorial. Over the integers, $\neg(n<q)$ says $q\le n$, which the successor law converts to $q<n+1$.
+
+<!-- source: euclid_contrary -->
+```python {export=examples/euclid_lesson.py}
     q_prime = factor.left()
     q_dvd_m = factor.right()
     q_above_one = q_prime.left()
@@ -79,36 +81,44 @@ def prove_euclid(p, n):
         not_n_lt_q = contrary.hypothesis
         q_lt_succ = p.order("lt_succ_rev", q, n, using=[not_n_lt_q])
         p.note("If q <= n then q divides n!, and by construction it divides n! + 1.")
+```
+
+`factorial_dvd` needs $\neg(n<0)$, $1<q$ and $q<n+1$ after its two integer arguments are instantiated. Which facts supply them? The original assumption gives $2\le n$, hence $0<n$ and then $\neg(n<0)$. Primality gives $1<q$. The contrary hypothesis supplies the last bound.
+
+<!-- source: euclid_factorial -->
+```python {export=examples/euclid_lesson.py}
         two_le_n = p.order("not_lt_le", n, 2, using=[at_least_two])
         zero_lt_n = p.linear(0 < n, using=[two_le_n])
         not_n_below_zero = p.not_lt_of_lt(0, n, zero_lt_n)
         q_dvd_f = p.apply(
             factorial_dvd, n, not_n_below_zero, q, q_above_one, q_lt_succ
         )
+```
+
+We now have $q\mid n!$ and $q\mid n!+1$. Pair them in that order for `common_divisor`. Its result $q\mid1$ conflicts with `not_dvd_one`, which uses the same $1<q$ we took from primality.
+
+<!-- source: euclid_clash -->
+```python {export=examples/euclid_lesson.py}
         neighbors = p.and_intro(q_dvd_f, q_dvd_m)
         divides_one = p.apply(common_divisor, q, f, neighbors)
         no_one = p.apply(not_dvd_one, q, q_above_one)
         contrary.finish(p.not_elim(no_one, divides_one))
-    return p.witness(q, p.and_intro(q_prime, contrary.result))
 ```
 
-Read the proof in the order the facts are produced.
+Closing the contradiction gives $n<q$. Return $q$ with that inequality and the primality fact. The constructed number $m$ served as the input to the prime-divisor theorem.
 
-- `above_f` is $1 < n!$, from `factorial_above_one` and the hypothesis $2 \le n$. This is deliberately stronger than positivity: it is the bound that will survive when the constructed number changes.
-- `m = f + 1` is the constructed number. `above_m` turns $1 < n!$ into $1 < n! + 1$ by linear arithmetic.
-- `least_prime_divisor` applies to $m$ because $m > 1$. It returns a prime $q$ that divides $m$.
-- The `p.contradict(n < q)` scope assumes the opposite, $q \le n$. From that, `q_lt_succ` gives $q < n + 1$, and `factorial_dvd` gives $q \mid n!$ because $q > 1$.
-- `neighbors` packs $q \mid n!$ and $q \mid n! + 1$. `common_divisor` turns the pair into $q \mid 1$.
-- `not_dvd_one` needs $1 < q$, which comes from the primality of $q$. The two facts contradict each other, and the contradiction proves $n < q$.
-- The final witness is $q$ with its primality and the strict bound.
-
-No step is a new axiom. Each line is either an application of a checked lemma or a core law, and the checker rechecks the dependencies in the certificate.
+<!-- source: euclid_witness -->
+```python {export=examples/euclid_lesson.py}
+    return p.witness(q, p.and_intro(q_prime, contrary.result))
+```
 
 ## Certify and export
 
 Check every lemma in the module, check the theorem, and write the portable certificate.
 
-```python {run continue}
+```python {run}
+from examples.euclid_lesson import check_all, euclid, logos
+
 check_all()
 euclid.check()
 print("euclid:", euclid.certified)
@@ -145,29 +155,55 @@ The message names the lemma, shows both conjunctions and points at the authored 
 
 The placement of the failure is the lesson. With only the weaker bound $0 < n!$, the altered construction $m = f$ would fail earlier, at `above_m`, and the message would be about linear arithmetic. The bound $1 < n!$ was chosen so that the construction, not the arithmetic, is what the checker catches.
 
-## What the reader should be able to check
-
-The page is the proof. The number theory module is the reusable copy, and the certificate is the artifact that leaves Python behind.
-
-- Can you point to the line where the least prime divisor is chosen?
-- Can you say why $q \le n$ implies $q \mid n!$?
-- Can you say why $q \mid n!$ and $q \mid n! + 1$ contradict the primality of $q$?
-- Can you run the two commands below and read the same statement back?
-
-```bash
-logos check --strict euclid.logos
-logos inspect --strict euclid.logos
-```
-
-If the answers are yes, the chapter has done its job: a table of primes is never complete, and the argument that says so is checked by a program that does not know what a prime is beyond its definition.
-
 ## Exit exercise
 
-Apply `euclid` twice. From $n \ge 2$ obtain a prime $p > n$; then apply the theorem at $p$ to obtain a prime $q > p$. State the result as
+1. Apply `euclid` twice to prove that for every $n\ge2$ there are two primes $r,s$ with $n<r<s$. State the nested existential, check your theorem and export its certificate. Identify where the first witness becomes an argument to the second application.
+2. Try the construction $n!+2$. Predict the first lemma application that fails and state its required and supplied premises. Find a prime divisor of $4!+2$ and decide whether it exceeds the bound. Which property of the original construction is missing?
 
-$$\neg(n < 2) \Rightarrow \exists p,\ \operatorname{prime}(p) \land n < p \land \exists q,\ \operatorname{prime}(q) \land p < q.$$
+## Instructor solutions
 
-The proof is two `p.obtain` calls and one `p.witness` each time; `lt_trans` supplies $n < q$ if you also want to record it. Check the theorem and export its certificate. The interesting part is not the code but the reading: the second application of `euclid` is a checked lemma applied to a term that the first application produced.
+To apply `euclid` at $r$, derive $\neg(r<2)$ from $2\le n<r$. The inner existential uses $s$ and the result of the second application. The outer existential packages $r$, its two original properties and the inner existential.
 
-As a second exercise, explain why the construction does not prove that $n! + 1$ is prime. The number $6! + 1 = 721 = 7 \cdot 103$ is a counterexample, and the theorem only needs a prime divisor of the constructed number, not the number itself.
+```python {export=examples/euclid_lesson.py}
+@logos.theorem
+def two_more_primes(n: Int):
+    return ~(n < 2) >> exists(Int, lambda r:
+        prime(r) & ((n < r) & exists(Int, lambda s:
+            prime(s) & (r < s))))
 
+
+@two_more_primes.proof
+def prove_two_more_primes(p, n):
+    bound = p.assume(~(n < 2))
+    r, first = p.obtain(p.apply(euclid, n, bound))
+    two_le_n = p.order("not_lt_le", n, 2, using=[bound])
+    r_above_two = p.linear(2 < r, using=[two_le_n, first.right()])
+    r_bound = p.not_lt_of_lt(2, r, r_above_two)
+    next_prime, second = p.obtain(p.apply(euclid, r, r_bound))
+    later = p.exists(
+        exists(Int, lambda s: prime(s) & (r < s)), next_prime, second
+    )
+    return p.witness(r, p.and_intro(first.left(),
+                                   p.and_intro(first.right(), later)))
+
+```
+
+```python {run continue}
+from examples.euclid_lesson import two_more_primes
+
+two_more_primes.check()
+logos.export_proof(two_more_primes, "two-more-primes.logos")
+print("two more primes:", two_more_primes.certified)
+```
+
+With $m=n!+2$, `common_divisor` is the first broken application. It requires $q\mid n!\land q\mid n!+1$, while the proof supplies $q\mid n!\land q\mid n!+2$. A common divisor of the altered pair can divide their difference $2$. At $n=4$ the candidate is $26=2\cdot13$, and its least prime divisor is $2\le4$.
+
+## Read the portable proof
+
+Find where the checker opens the prime-divisor existential, and follow the two divisibility facts into the contradiction. The complete reading comes from the checker that accepted the certificate.
+
+::: proof
+```python {run continue echo=false}
+print(euclid.inspect())
+```
+:::
