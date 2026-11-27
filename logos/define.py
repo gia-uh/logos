@@ -97,6 +97,11 @@ def extern(name: str, arg_types: list[type], ret_type: type) -> Callable:
     return caller
 
 
+def definition(fn: Callable) -> Function:
+    """The book spelling of :func:`define` for transparent propositions."""
+    return define(fn)
+
+
 def cases(*branches) -> Expr:
     from logos.expr import CaseExpr
     return CaseExpr(list(branches))

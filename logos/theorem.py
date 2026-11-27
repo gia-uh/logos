@@ -118,6 +118,12 @@ class Theorem(_Proof):
                 result = fn()
                 self._proof_spec = result if isinstance(result, list) else [result]
                 return fn
+            # The book style takes `p` first, then one parameter for each
+            # forall binder.  Anything else keeps the original tactic path.
+            from logos.authoring import authoring_signature_matches, authoring_tactic
+            if authoring_signature_matches(self, fn):
+                self._proof_spec = [authoring_tactic(self, fn)]
+                return fn
             # Otherwise treat as a single tactic in varargs
             self._proof_spec = [fn]
             return self

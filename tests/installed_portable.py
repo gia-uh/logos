@@ -1171,6 +1171,186 @@ def binary_search_contract(python, cold, recipient, evidence, env, offline):
         shutil.copy2(recipient / artifact, evidence / artifact)
 
 
+BOOK = Path(__file__).resolve().parents[1] / "book"
+
+BOOK_FAILURE = """\
+import json
+import runpy
+import sys
+
+import logos
+
+try:
+    runpy.run_path(sys.argv[1], run_name="__main__")
+except logos.LogosProofError as error:
+    print(json.dumps(error.details, ensure_ascii=False))
+    raise SystemExit(1)
+else:
+    raise SystemExit(0)
+"""
+
+BOOK_NEGATIVES = """\
+import json
+import logos
+from logos import Int, Prop, exists
+from logos.expr import Var
+
+
+@logos.theorem
+def first_fact(P: Prop, Q: Prop):
+    return (P & Q) >> P
+
+
+@first_fact.proof
+def prove_first(p, P, Q):
+    both = p.assume(P & Q)
+    return both.right()
+
+
+@logos.definition
+def zdivides(d: Int, a: Int):
+    return exists(Int, lambda k: a == d * k)
+
+
+@logos.theorem
+def wrong_witness(d: Int, a: Int):
+    return (zdivides(d, a) & zdivides(d, a + 1)) >> zdivides(d, 1)
+
+
+@wrong_witness.proof
+def prove_wrong(p, d, a):
+    h = p.assume(zdivides(d, a) & zdivides(d, a + 1))
+    k, left = p.obtain(h.left())
+    j, right = p.obtain(h.right())
+    quotient = j - k
+    one = p.ring(1 == d * quotient, using=[left, right])
+    return p.witness(k - j, one)
+
+
+@logos.theorem
+def escaped_witness(d: Int, a: Int):
+    return (zdivides(d, a) & zdivides(d, a + 1)) >> zdivides(d, 1)
+
+
+@escaped_witness.proof
+def prove_escape(p, d, a):
+    h = p.assume(zdivides(d, a) & zdivides(d, a + 1))
+    k, left = p.obtain(h.left())
+    j, right = p.obtain(h.right())
+    quotient = j - k
+    one = p.ring(1 == d * quotient, using=[left, right])
+    outside = Var("outside", int)
+    return p.witness(outside, one)
+
+
+kinds = {}
+for theorem in (first_fact, wrong_witness, escaped_witness):
+    try:
+        theorem._run_proof(theorem.statement)
+    except logos.LogosProofError as error:
+        kinds[theorem.name] = error.details
+    else:
+        raise AssertionError(f"{theorem.name} was accepted")
+print(json.dumps(kinds, ensure_ascii=False))
+"""
+
+
+def book(python, cold, recipient, evidence, env, offline):
+    """Tangle the Spanish page and run it from the installed wheel."""
+    scriptorium = python.parent / "scriptorium"
+    assert scriptorium.exists(), "install Scriptorium in the author environment"
+    page = BOOK / "vecinos.md"
+    source = page.read_text(encoding="utf-8")
+
+    room = cold / "book"
+    room.mkdir()
+    (room / "vecinos.md").write_text(source, encoding="utf-8")
+    run([scriptorium, "tangle", "vecinos.md"], room, env=env)
+    run([scriptorium, "tangle", "--test", "vecinos.md"], room, env=env)
+    run([python, "vecinos.py"], room, env=env)
+    assert (room / "vecinos.logos").exists()
+
+    shutil.copy2(room / "vecinos.logos", recipient / "vecinos.logos")
+    verdict = replay(recipient, "check", "--strict", "vecinos.logos", offline=offline)
+    assert "Verified with 0 custom axioms" in verdict.stdout
+    assert "common_divisor" in verdict.stdout
+    inspected = json.loads(replay(
+        recipient, "inspect", "--json", "--strict", "vecinos.logos", offline=offline
+    ).stdout)
+    assert inspected["status"] == "verified"
+    assert inspected["custom_axioms"] == []
+    shutil.copy2(room / "vecinos.py", evidence / "vecinos.py")
+    shutil.copy2(room / "vecinos.logos", evidence / "vecinos.logos")
+
+    assert source.count("    quotient = j - k") == 1
+    broken = source.replace("    quotient = j - k", "    quotient = k - j", 1)
+    broken_dir = cold / "book-broken"
+    broken_dir.mkdir()
+    (broken_dir / "vecinos.md").write_text(broken, encoding="utf-8")
+    run([scriptorium, "tangle", "vecinos.md"], broken_dir, env=env)
+    failure = run(
+        [python, "-c", BOOK_FAILURE, "vecinos.py"], broken_dir, env=env, code=1
+    )
+    details = json.loads(failure.stdout.strip().splitlines()[-1])
+    generated = (broken_dir / "vecinos.py").read_text(encoding="utf-8").splitlines()
+    inverted = next(
+        number for number, line in enumerate(generated, 1)
+        if line.strip() == "quotient = k - j"
+    )
+    markdown = broken.splitlines()
+    markdown_line = next(
+        number for number, line in enumerate(markdown, 1)
+        if line.strip() == "quotient = k - j"
+    )
+    assert details["kind"] == "ring_goal_unreachable"
+    assert details["goal"]["text"] == "1 = d * (k - j)"
+    assert [item["label"] for item in details["opened"]] == ["left", "right"]
+    assert details["opened"][0]["statement"]["text"] == "a = d * k"
+    assert details["opened"][1]["statement"]["text"] == "a + 1 = d * j"
+    assert any(item["line"] == inverted for item in details["related"])
+    human = run([python, "vecinos.py"], broken_dir, env=env, code=1)
+    assert "expected goal: 1 = d * (k - j)" in human.stderr
+    assert "left: a = d * k" in human.stderr
+    assert "right: a + 1 = d * j" in human.stderr
+    report = {
+        "markdown_file": "vecinos.md",
+        "markdown_line": markdown_line,
+        "generated_file": "vecinos.py",
+        "failed_step_line": details["line"],
+        "inverted_assignment_line": inverted,
+        "details": details,
+    }
+    (evidence / "book-sign-failure.txt").write_text(human.stderr, encoding="utf-8")
+    (evidence / "book-failure-report.json").write_text(
+        json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    shutil.copy2(broken_dir / "vecinos.py", evidence / "vecinos-broken.py")
+
+    # Recover by restoring the sign and running the same three commands.
+    recovered = cold / "book-recovered"
+    recovered.mkdir()
+    (recovered / "vecinos.md").write_text(source, encoding="utf-8")
+    run([scriptorium, "tangle", "vecinos.md"], recovered, env=env)
+    run([python, "vecinos.py"], recovered, env=env)
+    replay(recipient, "check", "--strict", "vecinos.logos", offline=offline)
+
+    negatives = cold / "book-negatives.py"
+    negatives.write_text(BOOK_NEGATIVES, encoding="utf-8")
+    result = run([python, str(negatives)], cold, env=env)
+    kinds = json.loads(result.stdout)
+    assert kinds["first_fact"]["kind"] == "proof_mismatch"
+    assert kinds["first_fact"]["source_line"] == "return both.right()"
+    assert kinds["wrong_witness"]["kind"] == "witness_mismatch"
+    assert kinds["wrong_witness"]["expected"]["text"] == "1 = d * (k - j)"
+    assert kinds["wrong_witness"]["got"]["text"] == "1 = d * (j - k)"
+    assert kinds["escaped_witness"]["kind"] == "witness_escape"
+    assert kinds["escaped_witness"]["unbound"] == ["outside"]
+    (evidence / "book-authoring-negatives.json").write_text(
+        json.dumps(kinds, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    print("book lesson: tangle, strict certificate, sign failure, recovery, negatives")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
@@ -1363,7 +1543,10 @@ def main():
         print(f"Primes · check Euclid's theorem and rebuild it, then {isolation}")
         primes(python, cold, recipient, evidence, env, options.offline)
 
-    print("14 acceptance stages exercised")
+        print(f"Book lesson · tangle the Spanish page and exercise the authoring layer, then {isolation}")
+        book(python, cold, recipient, evidence, env, options.offline)
+
+    print("15 acceptance stages exercised")
 
 
 if __name__ == "__main__":

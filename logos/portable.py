@@ -26,7 +26,15 @@ PROTOCOL_VERSION = 1
 
 
 class LogosProofError(Exception):
-    pass
+    """A rejected proof.
+
+    ``details`` is machine-readable context for failures raised by the
+    authoring layer; most errors leave it as ``None``.
+    """
+
+    def __init__(self, message="", *, details=None):
+        super().__init__(message)
+        self.details = details
 
 
 @dataclass(frozen=True, slots=True)

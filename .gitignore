@@ -40,3 +40,7 @@ htmlcov/
 # Standalone checker and local acceptance artifacts
 /checker/target/
 /.acceptance/
+
+# Files produced by `scriptorium tangle` and the lesson's certificate
+/book/vecinos.py
+/book/vecinos.logos
