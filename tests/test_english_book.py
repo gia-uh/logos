@@ -137,8 +137,16 @@ def render(tmp_path: Path, name: str, text: str | None = None):
 @pytest.mark.parametrize("name", ORDER)
 def test_each_chapter_renders_without_a_traceback(tmp_path, name):
     source = (CHAPTERS / name).read_text(encoding="utf-8")
-    assert "export=" not in source, f"{name} still uses a tangle block"
     assert "from subprocess import" not in source, f"{name} runs a shell instead of the package"
+    for workaround in (
+        "BINARY_SEARCH =",
+        "PUNYCODE_ADAPT =",
+        "importlib.util",
+        "tempfile",
+        "spec_from_file_location",
+        "write_text(",
+    ):
+        assert workaround not in source, f"{name} hides the executable source behind {workaround!r}"
 
     result, html = render(tmp_path, name)
     assert result.returncode == 0, result.stderr

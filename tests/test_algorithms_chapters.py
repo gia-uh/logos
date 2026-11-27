@@ -22,11 +22,20 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+EXPORT = re.compile(r"```python \{export=([\w./-]+)\}\n(.*?)\n```", re.S)
+
+
+def exported_blocks(name: str) -> dict[str, str]:
+    """The files a chapter tangles, joined the way Scriptorium joins blocks."""
+    text = (CHAPTERS / name).read_text(encoding="utf-8")
+    files: dict[str, list[str]] = {}
+    for path, body in EXPORT.findall(text):
+        files.setdefault(path, []).append(body)
+    return {path: "\n".join(blocks).rstrip("\n") + "\n" for path, blocks in files.items()}
+
+
 def production_source() -> str:
-    text = (CHAPTERS / "14-production-contract.md").read_text(encoding="utf-8")
-    match = re.search(r"PUNYCODE_ADAPT = '''\\\n(.*?)\n'''", text, re.S)
-    assert match is not None
-    return match.group(1)
+    return exported_blocks("14-production-contract.md")["examples/punycode_adapt.py"]
 
 
 def test_finite_graph_reports_a_descending_edge(tmp_path):
@@ -84,7 +93,7 @@ def test_binary_search_missing_precondition_needs_a_counterexample(tmp_path):
 
 
 def test_binary_search_executable_counterexample():
-    path = CHAPTERS.parent.parent / "examples" / "binary_search.py"
+    path = CHAPTERS.parent / "examples" / "binary_search.py"
     spec = importlib.util.spec_from_file_location("book_binary_search", path)
     module = importlib.util.module_from_spec(spec)
     sys.modules["book_binary_search"] = module
@@ -150,25 +159,20 @@ def test_production_mutation_is_refused(tmp_path):
 
 
 def test_production_source_drift_is_refused(tmp_path):
-    path = tmp_path / "punycode_adapt.py"
-    path.write_text(production_source())
+    (tmp_path / "examples").mkdir()
+    (tmp_path / "examples" / "__init__.py").write_text("", encoding="utf-8")
+    (tmp_path / "examples" / "punycode_adapt.py").write_text(production_source())
     script = tmp_path / "drift.py"
     script.write_text(
         textwrap.dedent(
             """\
-            import importlib.util
-            import sys
             from pathlib import Path
+
             import logos
             from logos.expr import Lit, Var
+            from examples.punycode_adapt import adapt
 
-            path = Path(__file__).with_name("punycode_adapt.py")
-            spec = importlib.util.spec_from_file_location("drift_adapt", path)
-            module = importlib.util.module_from_spec(spec)
-            sys.modules["drift_adapt"] = module
-            spec.loader.exec_module(module)
-
-            @logos.theorem(about=module.adapt)
+            @logos.theorem(about=adapt)
             def drift(delta, first, numchars, *, result):
                 divisions = Var("divisions", int)
                 return logos.program_contract(
@@ -179,6 +183,7 @@ def test_production_source_drift_is_refused(tmp_path):
                 )
 
             drift.check()
+            path = Path("examples/punycode_adapt.py")
             path.write_text(path.read_text().replace("455", "456"))
             try:
                 drift.check()
@@ -199,3 +204,28 @@ def test_production_source_drift_is_refused(tmp_path):
     assert result.returncode == 0, result.stderr
     assert "refused:" in result.stdout
     assert "does not match the imported code object" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "name,path",
+    [
+        ("13-binary-search.md", "examples/binary_search.py"),
+        ("14-production-contract.md", "examples/punycode_adapt.py"),
+    ],
+)
+def test_book_examples_are_the_generated_modules(name, path):
+    committed = (CHAPTERS.parent / path).read_text(encoding="utf-8")
+    assert exported_blocks(name)[path] == committed
+
+
+def test_book_examples_are_imported_normally():
+    binary = (CHAPTERS / "13-binary-search.md").read_text(encoding="utf-8")
+    punycode = (CHAPTERS / "14-production-contract.md").read_text(encoding="utf-8")
+    assert "from examples.binary_search import binary_search" in binary
+    assert "from examples.binary_search import main" in binary
+    assert "from examples.punycode_adapt import adapt" in punycode
+    for text in (binary, punycode):
+        assert "importlib" not in text
+        assert "tempfile" not in text
+        assert "write_text(" not in text
+        assert "= '''" not in text

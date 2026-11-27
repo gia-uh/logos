@@ -18,18 +18,13 @@ The function is ordinary Python. The contract is written in Logos, and the proof
 
 ## The function
 
-The source is written to a module file first, because a contract is bound to the file that defines the function. The file is temporary; the certificate is the artifact that remains.
+The function lives in `examples/binary_search.py`. The block below is the part of that file that defines it: the page writes the block to the file and imports the result, because a contract is bound to the module that defines the function. What you read is exactly what the checker binds.
 
-```python {run}
-import importlib.util
-import sys
-import tempfile
-from pathlib import Path
-
+```python {export=examples/binary_search.py}
 import logos
-from logos.expr import ForallNode, Lit, Var
+from logos.expr import Lit, Var
 
-BINARY_SEARCH = '''\
+
 def binary_search(xs: list[int], target: int) -> int:
     low = 0
     high = len(xs)
@@ -44,17 +39,8 @@ def binary_search(xs: list[int], target: int) -> int:
         else:
             high = mid
     return answer
-'''
 
-directory = Path(tempfile.mkdtemp(prefix="logos-binary-search-"))
-module_path = directory / "binary_search_case.py"
-module_path.write_text(BINARY_SEARCH)
-spec = importlib.util.spec_from_file_location("binary_search_case", module_path)
-binary_search_module = importlib.util.module_from_spec(spec)
-sys.modules["binary_search_case"] = binary_search_module
-spec.loader.exec_module(binary_search_module)
-binary_search = binary_search_module.binary_search
-print("bound source:", module_path.name)
+
 ```
 
 The bounds are half-open: `low` is included and `high` is excluded. The loop stops when the interval is empty. `answer` starts at $-1$ and is overwritten only when `xs[mid]` equals the target. The equality branch also sets `low = high`, which exits the loop without a second condition.
@@ -63,22 +49,19 @@ The bounds are half-open: `low` is included and `high` is excluded. The loop sto
 
 `logos.sorted(xs)` is a checker-owned predicate: for every $0 \le i \le j < \operatorname{len}(xs)$, the element at $i$ is at most the element at $j$. It is not a test over one array; it is a hypothesis over every pair of in-range indices. The contract asks for it explicitly:
 
-```python {run continue}
+```python {export=examples/binary_search.py}
 @logos.theorem(about=binary_search)
 def binary_search_correct(xs, target, *, result):
     low = Var("low", int)
     high = Var("high", int)
     answer = Var("answer", int)
-    i = Var("i", int)
     n = logos.length(xs)
 
-    lower_cut = ForallNode(
-        i,
-        (Lit(0) <= i) >> ((i < low) >> (logos.nth(xs, i) < target)),
+    lower_cut = logos.forall(
+        int, lambda i: (Lit(0) <= i) >> ((i < low) >> (logos.nth(xs, i) < target))
     )
-    upper_cut = ForallNode(
-        i,
-        (high <= i) >> ((i < n) >> (target < logos.nth(xs, i))),
+    upper_cut = logos.forall(
+        int, lambda i: (high <= i) >> ((i < n) >> (target < logos.nth(xs, i)))
     )
     found = (
         (Lit(0) <= answer)
@@ -106,6 +89,8 @@ def binary_search_correct(xs, target, *, result):
         invariant=invariant,
         variant=high - low,
     )
+
+
 ```
 
 The postcondition has two arms. The first says that $-1$ is returned exactly when every in-range element differs from the target. The second says that a non-negative result is an in-range index holding the target. The two arms overlap only in impossible cases, and the proof does not need to choose between them until the loop exits.
@@ -132,9 +117,9 @@ The checker turns the loop into verification conditions. The `preserve` obligati
 
 **Equality: `xs[mid] == target`.** The branch sets `answer = mid` and `low = high`. `mid` is in `[low, high)` by the bounds conjunct and the half-interval laws, so `found` holds. The cuts are irrelevant because the disjunction is already true. The new interval is empty, so the variant is zero.
 
-**Less: `xs[mid] < target`.** The branch sets `low = mid + 1`. Every index below the new `low` is either below the old `low`, where `lower_cut` already applies, or equal to `mid`, where the comparison gives the strict bound. Sortedness is what makes the old lower cut and the new comparison meet. The upper cut is unchanged.
+**Less: `xs[mid] < target`.** The branch sets `low = mid + 1`, so every index below the new `low` is at most `mid`. Indices below the old `low` are covered by `lower_cut`. The newly discarded interior indices, `low <= i < mid`, are covered by sortedness together with the branch comparison: `xs[i] <= xs[mid] < target`. The upper cut is unchanged.
 
-**Greater: `target < xs[mid]`.** The branch sets `high = mid`. Every index at or above the new `high` is either at `mid`, where the comparison gives the strict bound, or above the old `high`, where `upper_cut` already applies. The lower cut is unchanged.
+**Greater: `target < xs[mid]`.** The branch sets `high = mid`, so every index at or above the new `high` is at least `mid`. Index `mid` itself is the branch comparison, the newly discarded interior indices `mid < i < high` satisfy `target < xs[mid] <= xs[i]` by sortedness, and indices at or above the old `high` are covered by `upper_cut`. The lower cut is unchanged.
 
 The three branches are not three separate proofs in the certificate. They are one checked `preserve` condition whose proof splits on the same guards the source uses. The Rust checker recomputes that condition from the exported statements; the Python side only proposes the invariant and the proof terms.
 
@@ -154,12 +139,27 @@ An absent target ends with `low >= high` and `answer = -1`. The lower cut says e
 
 ## Check, inspect and export
 
-```python {run continue}
-binary_search_correct.check()
-print("binary_search_correct:", binary_search_correct.certified)
-print("obligations:", ", ".join(binary_search_correct.program.obligations))
-logos.export_proof(binary_search_correct, "binary_search.logos")
-print("certificate: binary_search.logos")
+The module ends with the entry point the file runs when you call it directly:
+
+```python {export=examples/binary_search.py}
+def main() -> None:
+    binary_search_correct.check()
+    print("binary_search_correct:", binary_search_correct.certified)
+    print("obligations:", ", ".join(binary_search_correct.program.obligations))
+    logos.export_proof(binary_search_correct, "binary_search.logos")
+    print("certificate: binary_search.logos")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+The page imports the module and runs the same function, so the output below is the file's own:
+
+```python {run}
+from examples.binary_search import main
+
+main()
 ```
 
 The checker reports seven obligations: `loop0.preserve`, `loop0.exit`, `loop0.variant_nonnegative`, `loop0.variant_decreases`, `read0`, `read1` and `main`. The two read obligations cover the two occurrences of `xs[mid]` in the source. Each one has a proof term in the certificate. The `main` obligation connects the precondition to the initial invariant and the postcondition; it is where `sorted(xs)` is used for the first time.
@@ -186,7 +186,9 @@ $$xs = [2, 0, 1], \qquad target = 2.$$
 
 The array is not sorted. The function examines index 1, sees 0, moves right, examines index 2, sees 1, moves right, and returns $-1$. The target is present at index 0.
 
-```python {run continue}
+```python {run}
+from examples.binary_search import binary_search
+
 example = [2, 0, 1]
 result = binary_search(example, 2)
 print("result:", result)

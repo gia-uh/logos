@@ -61,9 +61,13 @@ scriptorium render chapters/03-conjunction.md --html
 ```
 
 The chapters are native Scriptorium pages: they use `{run}` and `{run continue}`
-blocks and need no `scriptorium tangle` step. `freeze: file` caches a chapter's
-results while its text is unchanged; CI starts from a clean checkout, so every
-chapter runs there.
+blocks, and the two contract lessons use `{export=...}` blocks that write the
+real module before the chapter imports it. The generated file is not a copy of
+the page: it is the page's own block, written out by the render, so the reader
+reads exactly the module the checker binds. `book/examples/` holds those
+generated modules; `scriptorium tangle --test` fails if they drift from the
+chapters. `freeze: file` caches a chapter's results while its text is unchanged;
+CI starts from a clean checkout, so every chapter runs there.
 
 ## What the tests check
 
