@@ -315,7 +315,7 @@ main: no proof found for sorted(xs)
 
 As a quick diagnostic, change the promise in a different direction: require the *first* occurrence. Give a sorted input on which the present code returns a later occurrence, and name the branch that would have to keep searching even after seeing the target.
 
-Then write and check the contract for a smaller scan. It uses the same `-1` sentinel and the same result shape as `binary_search`, but it visits every index in order:
+Then write and check the contract for a smaller scan. It uses the same `-1` sentinel and result shape as `binary_search`. It visits successive indices starting at zero until it finds a match or exhausts the list:
 
 ```python
 @logos.function
@@ -334,4 +334,4 @@ def find(xs: list[int], target: int) -> int:
 
 Write its postcondition, two invariants and variant, then check it. The postcondition should say that a nonnegative result is an occurrence; it need not say that `-1` means absence. Which invariant keeps the read `xs[i]` in range, and what does the other one say about `answer` when the scan continues?
 
-A lower-bound variant would return `n` instead of `-1`, and its right side would be `target <= xs[i]`; this scan returns `-1`, so its contract has the `binary_search` shape. The full insertion-point suffix is a further exercise.
+For an optional design comparison, consider a lower-bound contract for a sorted list of length `n`. It returns the first index whose value is at least `target`, or `n` if there is no such index. To the right of the cut, including the returned index when it is in range, the contract would require `target <= xs[i]`. Current proof search does not establish the full insertion-point suffix with the tactics shown here. The linear scan is the final checked exercise.
