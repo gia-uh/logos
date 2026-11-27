@@ -1,6 +1,13 @@
 from logos.expr import Var, Lit, Forall, Exists, Expr, Implies
-from logos.define import define, extern, recursor, cases, if_
+from logos.define import define, definition, extern, recursor, cases, if_
 from logos.theorem import theorem, axiom, check, prove, LogosProofError, Axiom, Theorem
+from logos.authoring import format_expr
+
+# The book spells the two portable sorts as types.  ``Prop`` is ``bool`` so
+# that the existing declaration encoder maps theorem parameters to the
+# portable ``prop`` sort; ``Int`` is the integer sort.
+Prop = bool
+Int = int
 from logos.contracts import contract, Contract, LogosContractError
 from logos.programs import program_contract, ProgramContract
 from logos.sequence import Seq, absent, length, nth, occurrence, seq_var, sorted

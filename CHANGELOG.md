@@ -14,6 +14,9 @@
 - Primitive-recursive integer definitions (`recursor`, `recursor_base`, `recursor_step`) with a predecessor-only recursive-call check
 - Integer order and positivity laws: `mul_pos`, `mul_eq_one`, `lt_succ_fwd`, `lt_succ_rev`, `eq_of_not_lt_not_lt` and `lt_decidable`
 - `logos example primes`: a strict certificate that every integer `n >= 2` has a prime above it, plus the script that rebuilds it
+- Book-style proofs: `@logos.definition`, `Prop`, `Int`, and an authoring context with `assume`, `obtain`, `ring(using=...)` and `witness`
+- Structured authoring failures with the failing source line, expected goal, opened equalities and machine-readable `details`
+- The first Spanish book lesson, `book/vecinos.md`, tangled with Scriptorium and checked from the installed wheel
 - The Python kernel now infers congruence terms
 
 ## [0.1.0] - 2026-06-17

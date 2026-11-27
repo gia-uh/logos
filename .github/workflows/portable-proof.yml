@@ -31,10 +31,12 @@ jobs:
           uv build --wheel --out-dir "$RUNNER_TEMP/wheels"
           uv venv --python 3.12 "$RUNNER_TEMP/author"
           uv pip install --python "$RUNNER_TEMP/author/bin/python" "$RUNNER_TEMP"/wheels/*.whl pytest
+          uv pip install --python "$RUNNER_TEMP/author/bin/python" \
+            "scriptorium @ git+https://github.com/gia-uh/scriptorium@v0.14.0"
 
       - name: Exercise the installed artifacts
         run: |
-          export PATH="$RUNNER_TEMP/portable/bin:$PATH"
+          export PATH="$RUNNER_TEMP/portable/bin:$RUNNER_TEMP/author/bin:$PATH"
           author="$RUNNER_TEMP/author/bin/python"
           python tests/installed_portable.py "$RUNNER_TEMP/portable/bin/logos" "$author" "$RUNNER_TEMP/evidence" > "$RUNNER_TEMP/installed-proof-transcript.txt"
           cp tests/test_portable.py "$RUNNER_TEMP/test_portable.py"

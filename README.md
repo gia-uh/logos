@@ -261,6 +261,45 @@ logos check --strict authored-primes.logos
 
 The shipped `primes.logos` and the certificate rebuilt from the installed wheel are byte-for-byte identical. Both verify with zero custom axioms.
 
+## Book lesson: consecutive divisors
+
+`book/vecinos.md` is the first runnable chapter of the Spanish Logos book. It uses
+`@logos.definition`, `Prop`, `Int`, and a proof function whose first parameter is
+a context `p`:
+
+```python
+@logos.theorem
+def common_divisor(d: Int, a: Int):
+    return (divides(d, a) & divides(d, a+1)) >> divides(d, 1)
+
+@common_divisor.proof
+def prove_difference(p, d, a):
+    h = p.assume(divides(d, a) & divides(d, a+1))
+    k, left = p.obtain(h.left())
+    j, right = p.obtain(h.right())
+    quotient = j - k
+    one = p.ring(1 == d * quotient, using=[left, right])
+    return p.witness(quotient, one)
+```
+
+`p.assume` enters an implication, `p.obtain` opens a checked existential,
+`p.ring(using=...)` proves an integer identity from the opened equalities, and
+`p.witness` closes an existential goal. The original `.proof(tactic, ...)` form
+continues to work. The chapter is Spanish because it is written for that reader;
+this note and the rest of the public documentation are English.
+
+```bash
+cd book
+scriptorium tangle vecinos.md
+python vecinos.py
+logos check --strict vecinos.logos
+```
+
+The acceptance test also flips `quotient = j - k` to `quotient = k - j`. The
+proof fails at the authored source line and reports the expected goal plus both
+opened equalities, as text and on `LogosProofError.details`. See
+[`book/README.md`](book/README.md) for the replay and evidence paths.
+
 ## Read a proof or build on it
 
 | Command | What it gives you |
