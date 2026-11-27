@@ -33,8 +33,8 @@ from functools import lru_cache
 from pathlib import Path
 
 from logos.expr import (
-    Add, And, App, Eq, ExistsNode, Expr, ForallNode, Implies, Le, Lit, Lt,
-    Mul, Neg, Not, Or, Sub, Var,
+    Add, And, App, Div, Eq, ExistsNode, Expr, ForallNode, Implies, Le, Len, Lit,
+    Lt, Mod, Mul, Neg, Not, Nth, Or, Pow, Sorted, Sub, Var,
 )
 from logos.helpers import free_symbol_ids, normalize_order, structural_eq, substitute_symbols
 from logos.kernel import (
@@ -88,6 +88,21 @@ def _render(expr: Expr, parent: int = 0) -> str:
         case Mul(left, right):
             text = f"{_render(left, _PREC['mul'])} * {_render(right, _PREC['mul'] + 1)}"
             return f"({text})" if _PREC["mul"] < parent else text
+        case Div(left, right):
+            text = f"{_render(left, _PREC['mul'])} // {_render(right, _PREC['mul'] + 1)}"
+            return f"({text})" if _PREC["mul"] < parent else text
+        case Mod(left, right):
+            text = f"{_render(left, _PREC['mul'])} % {_render(right, _PREC['mul'] + 1)}"
+            return f"({text})" if _PREC["mul"] < parent else text
+        case Pow(base, exponent):
+            text = f"{_render(base, _PREC['unary'])} ** {_render(exponent, _PREC['unary'])}"
+            return f"({text})" if _PREC["unary"] < parent else text
+        case Len(seq):
+            return f"len({_render(seq)})"
+        case Nth(seq, index):
+            return f"{_render(seq, _PREC['atom'])}[{_render(index)}]"
+        case Sorted(seq):
+            return f"sorted({_render(seq)})"
         case Neg(operand):
             text = f"-{_render(operand, _PREC['unary'])}"
             return f"({text})" if _PREC["unary"] < parent else text

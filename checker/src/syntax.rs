@@ -690,7 +690,7 @@ pub fn law_formals(id: &str) -> Option<&'static [&'static str]> {
             &["a", "b", "c"]
         }
         "lt_succ_le" | "lt_add_one_le" => &["a", "b"],
-        "half_lower" | "half_upper" => &["a", "b"],
+        "half_lower" | "half_upper" | "mul_nonneg" | "div_nonneg" | "div_lt" => &["a", "b"],
         "length_nonneg" => &["xs"],
         "sorted_elim" => &["xs", "i", "j"],
         "sorted_lower" | "sorted_upper" | "sorted_gap" => &["xs", "a", "b", "t"],
@@ -818,6 +818,18 @@ pub fn instantiate_law(id: &str, args: &[Proposition]) -> Option<Proposition> {
         "half_upper" => implies(
             le(int("0"), a.clone()?),
             implies(lt(a.clone()?, b.clone()?), lt(half(a?, b.clone()?), b?)),
+        ),
+        "mul_nonneg" => implies(
+            le(int("0"), a.clone()?),
+            implies(le(int("0"), b.clone()?), le(int("0"), mul(a?, b?))),
+        ),
+        "div_nonneg" => implies(
+            le(int("0"), a.clone()?),
+            implies(lt(int("0"), b.clone()?), le(int("0"), div(a?, b?))),
+        ),
+        "div_lt" => implies(
+            lt(int("0"), a.clone()?),
+            implies(lt(int("1"), b.clone()?), lt(div(a.clone()?, b?), a?)),
         ),
         "length_nonneg" => le(int("0"), len(a?)),
         "sorted_elim" => {

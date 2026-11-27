@@ -7,7 +7,7 @@ same expressions and lets tests state them explicitly.
 from __future__ import annotations
 
 from logos.expr import (
-    Add, And, Div, Eq, Expr, ForallNode, Implies, Le, Len, Lit, Lt, Neg, Not,
+    Add, And, Div, Eq, Expr, ForallNode, Implies, Le, Len, Lit, Lt, Mul, Neg, Not,
     Nth, Or, Sorted, Var,
 )
 
@@ -159,6 +159,9 @@ LAWS = {
     "eq_symm": ((_INT, _INT), lambda a, b: _imp(_eq(a, b), _eq(b, a))),
     "half_lower": ((_INT, _INT), lambda a, b: _imp(_le(_int(0), a), _imp(_lt(a, b), _le(a, _half(a, b))))),
     "half_upper": ((_INT, _INT), lambda a, b: _imp(_le(_int(0), a), _imp(_lt(a, b), _lt(_half(a, b), b)))),
+    "mul_nonneg": ((_INT, _INT), lambda a, b: _imp(_le(_int(0), a), _imp(_le(_int(0), b), _le(_int(0), _mul(a, b))))),
+    "div_nonneg": ((_INT, _INT), lambda a, b: _imp(_le(_int(0), a), _imp(_lt(_int(0), b), _le(_int(0), _div(a, b))))),
+    "div_lt": ((_INT, _INT), lambda a, b: _imp(_lt(_int(0), a), _imp(_lt(_int(1), b), _lt(_div(a, b), a)))),
     "length_nonneg": ((_SEQ,), lambda xs: _le(_int(0), _len(xs))),
     "sorted_elim": ((_SEQ, _INT, _INT), _sorted_elim),
     "sorted_lower": ((_SEQ, _INT, _INT, _INT), _sorted_lower),

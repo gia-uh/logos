@@ -15,7 +15,7 @@ from logos.expr import (
 )
 from logos.helpers import structural_eq, substitute_symbols
 from logos.kernel import (
-    AndElimL, AndElimR, AndIntro, CaseAnalysis, CoreLaw, ExFalso, ForallElim,
+    AndElimL, AndElimR, AndIntro, CaseAnalysis, CoreLaw, EqSubst, ExFalso, ForallElim,
     ForallIntro, Have, HypRef, ImpliesElim, ImpliesIntro, Linear, NotElim,
     NotIntro, OrIntroL, OrIntroR, Refl, Symm,
 )
@@ -25,6 +25,12 @@ from logos.sequence import length, nth
 
 class ProofSearchError(Exception):
     pass
+
+
+def _show(expr: Expr) -> str:
+    """Render a condition the way the book writes it, not as a dataclass repr."""
+    from logos.authoring import format_expr
+    return format_expr(expr)
 
 
 # ── Verification conditions ─────────────────────────────────────────────────
@@ -460,6 +466,9 @@ class _Search:
                     inner = Have(name, expression, derivation, inner)
                 return inner
 
+        nonneg = self._derive_nonneg_fact(goal, facts, depth)
+        if nonneg is not None:
+            return nonneg
         half = self._derive_half_fact(goal, facts, depth)
         if half is not None:
             return half
@@ -502,7 +511,7 @@ class _Search:
             split = self._split_or_hypothesis(goal, facts, depth)
             if split is not None:
                 return split
-            raise ProofSearchError(f"cannot prove disjunction {goal!r}")
+            raise ProofSearchError(f"cannot prove disjunction {_show(goal)}")
 
         if isinstance(goal, Not):
             law = self._law(goal, facts, depth)
@@ -534,7 +543,7 @@ class _Search:
                     pass
             if self._antisymmetry(goal, facts, depth) is not None:
                 return self._antisymmetry(goal, facts, depth)
-            raise ProofSearchError(f"cannot prove equality {goal!r}")
+            raise ProofSearchError(f"cannot prove equality {_show(goal)}")
 
         if isinstance(goal, (Le, Lt)):
             law = self._law(goal, facts, depth)
@@ -547,8 +556,8 @@ class _Search:
             if falsehood is not None:
                 return ExFalso(falsehood, goal)
             raise ProofSearchError(
-                f"cannot prove order atom {goal!r}; facts="
-                + "; ".join(f"{fact.name}:{fact.expr!r}" for fact in facts[-12:])
+                f"cannot prove order atom {_show(goal)}; facts="
+                + "; ".join(f"{fact.name}: {_show(fact.expr)}" for fact in facts[-12:])
             )
 
         # Consume a disjunctive fact by cases.
@@ -580,7 +589,44 @@ class _Search:
                     except ProofSearchError:
                         continue
                     return Have(name, instantiated, derived, inner)
-        raise ProofSearchError(f"no proof found for {goal!r}")
+        raise ProofSearchError(f"no proof found for {_show(goal)}")
+
+    def _derive_nonneg_fact(self, goal, facts, depth):
+        """Add 0 <= t for division and product subterms that the goal mentions."""
+        if not isinstance(goal, (Le, Lt)):
+            return None
+        terms = []
+        def visit(expr):
+            if not isinstance(expr, Expr):
+                return
+            if isinstance(expr, (Div, Mul)) and not any(structural_eq(expr, item) for item in terms):
+                terms.append(expr)
+            for field in getattr(expr, "__dataclass_fields__", ()):
+                value = getattr(expr, field)
+                if isinstance(value, Expr):
+                    visit(value)
+                elif isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, tuple):
+                            for part in item:
+                                visit(part)
+                        else:
+                            visit(item)
+        visit(goal)
+        for term in terms:
+            statement = Le(Lit(0), term)
+            if _has_fact(facts, statement):
+                continue
+            try:
+                proof = self._law(statement, facts, depth + 1)
+            except ProofSearchError:
+                proof = None
+            if proof is None:
+                continue
+            name = self.fresh("nonneg")
+            inner = self.prove(goal, facts + [_Fact(name, statement, HypRef(name))], depth + 1)
+            return Have(name, statement, proof, inner)
+        return None
 
     def _derive_half_fact(self, goal, facts, depth):
         for term in _half_terms(goal):
@@ -818,6 +864,62 @@ class _Search:
                         proofs = None
                     if proofs is not None:
                         return _apply_law("half_upper", (a, b), premises, proofs, goal)
+        if (
+            isinstance(goal, Le)
+            and isinstance(goal.left, Lit)
+            and goal.left.value == 0
+            and isinstance(goal.right, Mul)
+        ):
+            a, b = goal.right.left, goal.right.right
+            premises = [Le(Lit(0), a), Le(Lit(0), b)]
+            try:
+                proofs = [self.prove(item, facts, depth + 1) for item in premises]
+            except ProofSearchError:
+                proofs = None
+            if proofs is not None:
+                return _apply_law("mul_nonneg", (a, b), premises, proofs, goal)
+        if (
+            isinstance(goal, Le)
+            and isinstance(goal.left, Lit)
+            and goal.left.value == 0
+            and isinstance(goal.right, Div)
+        ):
+            a, b = goal.right.left, goal.right.right
+            premises = [Le(Lit(0), a), Lt(Lit(0), b)]
+            try:
+                proofs = [self.prove(item, facts, depth + 1) for item in premises]
+            except ProofSearchError:
+                proofs = None
+            if proofs is not None:
+                return _apply_law("div_nonneg", (a, b), premises, proofs, goal)
+        if (
+            isinstance(goal, Lt)
+            and isinstance(goal.left, Div)
+        ):
+            a, b = goal.left.left, goal.left.right
+            premises = [Lt(Lit(0), a), Lt(Lit(1), b)]
+            try:
+                proofs = [self.prove(item, facts, depth + 1) for item in premises]
+            except ProofSearchError:
+                proofs = None
+            if proofs is not None:
+                base = Lt(Div(a, b), a)
+                base_proof = _apply_law("div_lt", (a, b), premises, proofs, base)
+                if structural_eq(goal.right, a):
+                    return base_proof
+                for fact in facts:
+                    if not isinstance(fact.expr, Eq):
+                        continue
+                    equality = None
+                    if structural_eq(fact.expr.left, goal.right) and structural_eq(fact.expr.right, a):
+                        equality = Symm(fact.proof)
+                    elif structural_eq(fact.expr.left, a) and structural_eq(fact.expr.right, goal.right):
+                        equality = fact.proof
+                    if equality is None:
+                        continue
+                    target = Var("__div_target", int)
+                    template = Lt(Div(a, b), target)
+                    return EqSubst(equality, target, template, base_proof)
         if isinstance(goal, Lt) and isinstance(goal.left, Nth):
             xs, i, t = goal.left.seq, goal.left.index, goal.right
             for fact in facts:
