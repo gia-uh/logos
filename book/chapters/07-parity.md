@@ -6,7 +6,7 @@ stem: parity
 
 # Even, Odd, and What Divides Means
 
-Is $2^{10} + 1$ even? You can compute it. A proof has to answer the same question for a letter $a$, without knowing which integer it names. Number theory begins when we stop computing examples and start describing the shape of a number: one quotient, one remainder, one product. This chapter builds the first two shapes, *divides* and *even*, and the three lemmas the rest of the sequence reuses.
+Is $2^{10} + 1$ even? You can compute it. A proof has to answer the same question for a letter $a$, without knowing which integer it names. Number theory begins when we stop computing examples and start describing the shape of a number: one quotient, one remainder, one product. This chapter uses the divisibility lemmas from Chapter 6 to reason about even and odd integers.
 
 ## Before you start
 
@@ -40,7 +40,7 @@ Three small cases fix the reading.
 
 The quotient is an integer, so it may be negative. The statement $3 \mid -21$ is true with witness $-7$. Do not read “divides” as “is smaller than”: $-21$ is a multiple of $3$ even though it is smaller than $3$.
 
-The definition lives in a small module that the number theory chapters share:
+The definition lives in the shared number theory module. What does Logos retain when an argument is symbolic, and what does it unfold when both arguments are concrete? Compare the two formatted propositions.
 
 ```python {run}
 import logos
@@ -121,9 +121,9 @@ for theorem in (even_sum, odd_successor):
     print(f"{theorem.name}: {theorem.certified}")
 ```
 
-## Three lemmas worth keeping
+## Find the checked lemmas in the package {#three-lemmas-worth-keeping}
 
-The next chapter needs the same divisibility facts that Chapter 6 proved for its own example. Instead of copying them, the number theory module keeps them under names. The first says that every integer divides itself, with quotient one.
+The shared number theory module provides the same three lemmas we constructed in Chapter 6. Import them when you need their checked evidence. The first says that every integer divides itself, with quotient one.
 
 <!-- source: divides_self -->
 ```python
@@ -190,7 +190,25 @@ for lemma in (
     print(f"{lemma.name}: {lemma.certified}")
 ```
 
-`certified` is `True` only after the Rust checker accepted the exported evidence. The next chapters call these lemmas by name, and the checker rechecks each dependency rather than trusting the caller.
+`certified` is `True` only after the Rust checker accepted the exported evidence. A caller can now use the checked evidence by name.
+
+## Apply scaling to an even integer
+
+Suppose `even(n)` and aim for `even(3 * n)`. Unfold the goal to `divides(2, 3 * n)` and match it to the scaling conclusion `divides(x, z * y)`. With `x = 2`, `y = n`, and `z = 3`, the premise is `divides(2, n)`. The assumption `even(n)` supplies it by conversion. The final argument to `p.apply` discharges that premise, so the returned fact proves `divides(2, 3 * n)`, which also matches the evenness goal by conversion.
+
+```python {run continue}
+@logos.theorem
+def even_triple(n: Int):
+    return even(n) >> even(3 * n)
+
+@even_triple.proof
+def prove_even_triple(p, n):
+    even_n = p.assume(even(n))
+    return p.apply(number_theory.divides_mul, 2, n, 3, even_n)
+
+even_triple.check()
+print(f"{even_triple.name}: {even_triple.certified}")
+```
 
 ## When a step fails
 
@@ -204,23 +222,53 @@ The equation `total` is still true, and `i` is still an integer. What fails is t
 
 ```text
 the evidence does not prove the instantiated existential predicate
-  expected: a + b = 2 * i
-  got: a + b = 2 * (i + j)
-  opened hypotheses:
-    a_eq: a = 2 * i
-    b_eq: b = 2 * j
+  expected: a + b = 2 * k
+  got: a + b = 2 * (k + k1)
 ```
 
-The message repeats the two equalities the proof opened. They show why $i$ is too small: it accounts for $a$ alone. Restore `i + j` and the theorem certifies again.
+The checker calls the opened witnesses `k` and `k1` in this message. They correspond to `i` and `j` in the Python proof. The opened hypotheses show which summand each witness belongs to. The witness $i$ accounts for $a$ alone. With $a = 4$ and $b = 6$, the opened equations give $i = 2$ and $j = 3$. The witness $i$ would require $10 = 4$, while $i + j = 5$ gives $10 = 2 \cdot 5$. Restore `i + j` and the theorem certifies again.
 
 A second mistake is to stop after `total` and return it. `total` proves an equation, not the existential. The `p.witness` call is what packages the equation with its witness.
 
 ## Exit exercise
 
-Prove that the product of an even integer and any integer is even:
+1. Prove `even(a) >> even(a * b)` using a named divisibility lemma. Write its instantiated premise and conclusion and explain how you reach the goal.
+2. Prove `(even(a) & odd(b)) >> odd(a + b)`. Before writing Python, choose the witness and write the equation that `p.ring` must prove for it.
 
-$$\operatorname{even}(a) \Rightarrow \operatorname{even}(a \cdot b).$$
+## Instructor solutions
 
-Apply `number_theory.divides_mul` with $a = 2$, $b = a$ and $c = b$. The lemma returns $\operatorname{divides}(2, b \cdot a)$, so the product arrives commuted. Prove $b \cdot a = a \cdot b$ with `p.ring` and rewrite the fact with `p.subst`, or state the exercise with $b \cdot a$ and explain why the two statements are the same. Check the theorem and confirm that the reading reports zero custom axioms.
+For the product, scaling $a$ by $b$ gives $2 \mid ba$. Use commutativity with $ba$ on the left so `p.subst` replaces $ba$ by $ab$.
 
-As a second exercise, prove that the sum of an even integer and an odd integer is odd. Open both existentials, add the halves, and choose the witness for `odd`. Write the equation before you write the code.
+```python {run continue}
+@logos.theorem
+def even_times_integer(a: Int, b: Int):
+    return even(a) >> even(a * b)
+
+@even_times_integer.proof
+def prove_even_times_integer(p, a, b):
+    even_a = p.assume(even(a))
+    scaled = p.apply(number_theory.divides_mul, 2, a, b, even_a)
+    return p.subst(scaled, p.ring(b * a == a * b))
+
+even_times_integer.check()
+print(f"{even_times_integer.name}: {even_times_integer.certified}")
+```
+
+For the sum, $a = 2i$ and $b = 2j + 1$ give $a + b = 2(i + j) + 1$. For instance, $4 + 7 = 2(2 + 3) + 1$. The witness is $i + j$.
+
+```python {run continue}
+@logos.theorem
+def even_plus_odd(a: Int, b: Int):
+    return (even(a) & odd(b)) >> odd(a + b)
+
+@even_plus_odd.proof
+def prove_even_plus_odd(p, a, b):
+    both = p.assume(even(a) & odd(b))
+    i, a_eq = p.obtain(both.left())
+    j, b_eq = p.obtain(both.right())
+    odd_eq = p.ring(a + b == 2 * (i + j) + 1, using=[a_eq, b_eq])
+    return p.witness(i + j, odd_eq)
+
+even_plus_odd.check()
+print(f"{even_plus_odd.name}: {even_plus_odd.certified}")
+```
