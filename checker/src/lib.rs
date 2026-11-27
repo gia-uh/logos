@@ -163,7 +163,9 @@ impl Evidence {
             | Self::Congr { proof, .. }
             | Self::ForallElim { proof, .. }
             | Self::ExistsIntro { proof, .. }
-            | Self::Least { nonempty: proof, .. }
+            | Self::Least {
+                nonempty: proof, ..
+            }
             | Self::RecursorStep { proof, .. } => [Some(proof), None, None],
             Self::AndIntro { left, right }
             | Self::Trans { left, right }
@@ -479,9 +481,7 @@ pub fn verify(bytes: &[u8]) -> Result<Verified, String> {
                 ));
             }
             checker.functions.insert(function.id.as_str(), function);
-            checker
-                .sort(&recursor.base, &[])?
-                .expect(Sort::Int)?;
+            checker.sort(&recursor.base, &[])?.expect(Sort::Int)?;
             checker
                 .sort(&recursor.step, &[Sort::Int, Sort::Int])?
                 .expect(Sort::Int)?;
@@ -1529,10 +1529,8 @@ impl<'a> Checker<'a> {
                     left: Box::new(variable.clone()),
                     right: Box::new(Proposition::Int { value: "1".into() }),
                 };
-                let p_variable =
-                    instantiate_bounded(predicate, std::slice::from_ref(&variable))?;
-                let p_successor =
-                    instantiate_bounded(predicate, std::slice::from_ref(&successor))?;
+                let p_variable = instantiate_bounded(predicate, std::slice::from_ref(&variable))?;
+                let p_successor = instantiate_bounded(predicate, std::slice::from_ref(&successor))?;
                 let step_expected = Proposition::Forall {
                     name: name.clone(),
                     sort: Sort::Int,
@@ -1583,8 +1581,7 @@ impl<'a> Checker<'a> {
                 predicate_sort?.expect(Sort::Prop)?;
 
                 let witness = Proposition::Bound { index: 0 };
-                let p_witness =
-                    instantiate_bounded(predicate, std::slice::from_ref(&witness))?;
+                let p_witness = instantiate_bounded(predicate, std::slice::from_ref(&witness))?;
                 let membership = Proposition::And {
                     left: Box::new(self.nonnegative_here(bound, 1)),
                     right: Box::new(p_witness),
@@ -1605,8 +1602,7 @@ impl<'a> Checker<'a> {
 
                 let smallest = Proposition::Bound { index: 0 };
                 let candidate = Proposition::Bound { index: 1 };
-                let p_smallest =
-                    instantiate_bounded(predicate, std::slice::from_ref(&smallest))?;
+                let p_smallest = instantiate_bounded(predicate, std::slice::from_ref(&smallest))?;
                 let minimal = Proposition::Forall {
                     name: name.clone(),
                     sort: Sort::Int,
@@ -1693,8 +1689,7 @@ impl<'a> Checker<'a> {
                     id: id.clone(),
                     args: vec![argument.clone()],
                 };
-                let step_term =
-                    instantiate_bounded(&step_expression, &[value, argument.clone()])?;
+                let step_term = instantiate_bounded(&step_expression, &[value, argument.clone()])?;
                 let successor = Proposition::Add {
                     left: Box::new(argument.clone()),
                     right: Box::new(Proposition::Int { value: "1".into() }),
@@ -1707,13 +1702,7 @@ impl<'a> Checker<'a> {
                     right: Box::new(step_term),
                 };
                 reference_id = Some(id.clone());
-                (
-                    "recursor_step",
-                    vec![proof_path],
-                    conclusion,
-                    None,
-                    None,
-                )
+                ("recursor_step", vec![proof_path], conclusion, None, None)
             }
             Evidence::Refl { term } => {
                 self.sort(term, &scope.binders)?;
