@@ -43,12 +43,16 @@ jobs:
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/checker/target
         run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libharfbuzz-subset0 \
+            libfontconfig1 fonts-dejavu-core poppler-utils
           cargo install --locked --path checker --root "$RUNNER_TEMP/portable"
           uv build --wheel --out-dir "$RUNNER_TEMP/wheels"
           uv venv --python 3.12 "$RUNNER_TEMP/author"
           uv pip install --python "$RUNNER_TEMP/author/bin/python" "$RUNNER_TEMP"/wheels/*.whl pytest
           uv pip install --python "$RUNNER_TEMP/author/bin/python" \
-            "scriptorium @ git+https://github.com/gia-uh/scriptorium@v0.14.0"
+            "scriptorium[pdf] @ git+https://github.com/gia-uh/scriptorium@v0.14.0"
 
       - name: Test the chapters from the installed wheel
         run: |
