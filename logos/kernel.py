@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 from logos.expr import (
-    Expr, Lit, Var, Eq, And, Or, Not, Implies,
+    Expr, Lit, Var, Eq, And, Or, Not, Implies, Lt,
     ForallNode, ExistsNode,
 )
 from logos.helpers import free_vars, structural_eq, substitute, substitute_symbols
@@ -202,6 +202,32 @@ class EqSubst(ProofTerm):
     template: Expr            # P with var free
     proof: ProofTerm          # proves P[a]
 
+@dataclass(frozen=True)
+class Induction(ProofTerm):
+    """Ordinary induction on integers at or above ``lower``.
+
+    ``base`` proves P[lower]. ``step`` proves, for an arbitrary k with
+    lower <= k, that P[k] implies P[k + 1]. The conclusion is that P holds
+    for every integer at or above ``lower``.
+    """
+    lower: Expr
+    var: Var                  # induction variable, free in predicate
+    predicate: Expr           # P
+    base: ProofTerm
+    step: ProofTerm
+
+@dataclass(frozen=True)
+class Least(ProofTerm):
+    """Least element of a nonempty integer predicate at or above ``lower``.
+
+    ``nonempty`` proves Exists(m, lower <= m & P[m]). The conclusion adds
+    minimality: no smaller admissible integer satisfies P.
+    """
+    lower: Expr
+    var: Var
+    predicate: Expr
+    nonempty: ProofTerm
+
 
 # ── Kernel Inference ──────────────────────────────────────────────────────────
 
@@ -356,6 +382,38 @@ def infer(term: ProofTerm, ctx: Context) -> Expr:
                     check(proof, expected, ctx)
                     return substitute_symbols(template, {id(var): right})
             raise KernelError(f"EqSubst: expected an equality, got {stmt!r}")
+
+        case Induction(lower, var, predicate, base, step):
+            if not isinstance(var, Var):
+                raise KernelError("Induction: induction variable must be a Var")
+            at_lower = substitute_symbols(predicate, {id(var): lower})
+            check(base, at_lower, ctx)
+            k = Var(var.name, var.type)
+            here = substitute_symbols(predicate, {id(var): k})
+            next_ = substitute_symbols(predicate, {id(var): k + 1})
+            step_expected = ForallNode(
+                k, Implies(Not(Lt(k, lower)), Implies(here, next_))
+            )
+            check(step, step_expected, ctx)
+            return ForallNode(
+                k, Implies(Not(Lt(k, lower)), substitute_symbols(predicate, {id(var): k}))
+            )
+
+        case Least(lower, var, predicate, nonempty):
+            if not isinstance(var, Var):
+                raise KernelError("Least: witness variable must be a Var")
+            m = Var(var.name, var.type)
+            k = Var(var.name + "_smaller", var.type)
+            membership = And(Not(Lt(m, lower)), substitute_symbols(predicate, {id(var): m}))
+            check(nonempty, ExistsNode(m, membership), ctx)
+            minimal = ForallNode(
+                k,
+                Implies(
+                    And(Not(Lt(k, lower)), Lt(k, m)),
+                    Not(substitute_symbols(predicate, {id(var): k})),
+                ),
+            )
+            return ExistsNode(m, And(membership, minimal))
 
         case _:
             raise KernelError(f"Unknown proof term: {term!r}")

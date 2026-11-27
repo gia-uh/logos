@@ -84,6 +84,12 @@ pub fn rule_explanation(rule: &str, reference: Option<&str>) -> &'static str {
         "eq_subst" => {
             "Substitute the right side of the checked equality for its left side inside the proposition template."
         }
+        "induction" => {
+            "The base and step establish the predicate for every integer at or above the bound."
+        }
+        "least" => {
+            "A witnessed predicate has a least integer witness at or above the bound."
+        }
         "refl" => "An expression equals itself.",
         "symm" => "Reverse the two sides of the premise equality.",
         "trans" => "Compose two equalities whose middle expressions are definitionally equal.",
@@ -113,6 +119,12 @@ pub fn rule_explanation(rule: &str, reference: Option<&str>) -> &'static str {
                 "Adding the same integer to both sides preserves a strict integer inequality."
             }
             Some("lt_neq") => "A strict integer inequality rules out equality of its two sides.",
+            Some("mul_pos") => "The product of two positive integers is positive.",
+            Some("mul_eq_one") => "An integer product equal to one has a factor equal to one or minus one.",
+            Some("lt_succ_fwd") => "An integer below b + 1 is not greater than b.",
+            Some("lt_succ_rev") => "An integer at least b is strictly below b + 1.",
+            Some("eq_of_not_lt_not_lt") => "Two integers that are not strictly ordered either way are equal.",
+            Some("lt_dne") => "Strict integer order is stable, so double negation may be eliminated.",
             _ => unreachable!("checked core law"),
         },
         "block" => "Take the selected conclusion from the block of shared steps.",

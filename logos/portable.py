@@ -12,8 +12,8 @@ from logos.expr import Add, And, App, Eq, Expr, ExistsNode, ForallNode, Implies,
 from logos.kernel import (
     AndElimL, AndElimR, AndIntro, AxiomRef, Block, Congr, CoreLaw, EqSubst, ExistsElim,
     ExistsIntro, ForallElim, CaseAnalysis, ExFalso, ForallIntro, HypRef, ImpliesElim,
-    ImpliesIntro, NotElim, NotIntro, OrIntroL, OrIntroR, ProofTerm, Refl, StepRef, Symm,
-    TheoremRef, Trans,
+    ImpliesIntro, Induction, Least, NotElim, NotIntro, OrIntroL, OrIntroR, ProofTerm, Refl,
+    StepRef, Symm, TheoremRef, Trans,
 )
 
 FORMAT = "logos-proof-v1"
@@ -220,6 +220,14 @@ def artifact_bytes(
                 return {"tag": "eq_subst", "equality": derive(child),
                         "context": proposition(template, scope, (*bound, var)),
                         "proof": derive(body)}
+            case Induction(lower, var, predicate, base, step):
+                return {"tag": "induction", "bound": encode(lower), "name": var.name,
+                        "predicate": proposition(predicate, scope, (*bound, var)),
+                        "base": derive(base), "step": derive(step)}
+            case Least(lower, var, predicate, nonempty):
+                return {"tag": "least", "bound": encode(lower), "name": var.name,
+                        "predicate": proposition(predicate, scope, (*bound, var)),
+                        "nonempty": derive(nonempty)}
             case Refl(expr):
                 return {"tag": "refl", "term": encode(expr)}
             case Symm(child):

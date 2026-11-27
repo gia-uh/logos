@@ -53,6 +53,8 @@ Omitting a body declares an opaque function.
 | `exists_intro` | Existential `goal`, same-sort `witness`, and `proof` of the predicate after capture-avoiding substitution. The witness and proof use the surrounding scope. |
 | `exists_elim` | Proof of an existential, display `name`, hypothesis `binder`, and `body`. The body runs under a fresh variable and the assumption that the predicate holds for it. The conclusion must not mention the eigenvariable. |
 | `eq_subst` | Proof of an equality, a proposition `context` with one extra innermost integer binder, and `proof` of the instance at the equality’s left side. Derives the instance at its right side. |
+| `induction` | Integer `bound`, display `name`, a proposition `predicate` with one extra innermost integer binder, a `base` proof of the predicate at the bound, and a `step` proof of `forall k, k >= bound -> P(k) -> P(k + 1)`. Derives `forall n, n >= bound -> P(n)`. |
+| `least` | Integer `bound`, display `name`, a proposition `predicate` with one extra innermost integer binder, and a `nonempty` proof of `exists m, m >= bound and P(m)`. Derives a least such `m` with its minimality clause. |
 | `refl` | A well-sorted `term`. Derives equality of that term with itself. |
 | `symm` | Equality `proof`. |
 | `trans` | Equality proofs `left` and `right` with convertible middle expressions. |
@@ -93,7 +95,7 @@ distribution require checked evidence.
 | `mul_one` | `a · 1 = a` |
 | `distrib` | `a · (b + c) = a · b + a · c` |
 
-Four further core laws are checker-owned propositions over integers. They
+Ten further core laws are checker-owned propositions over integers. They
 use the same `core_law` evidence tag and the same ordered integer
 substitution; only the conclusion is a proposition rather than an equality.
 
@@ -103,6 +105,12 @@ substitution; only the conclusion is a proposition rather than an equality.
 | `lt_trans` | `a < b → (b < c → a < c)` |
 | `lt_add` | `a < b → a + c < b + c` |
 | `lt_neq` | `a < b → ¬(a = b)` |
+| `mul_pos` | `0 < a → (0 < b → 0 < a · b)` |
+| `mul_eq_one` | `a · b = 1 → (a = 1 ∨ a = −1)` |
+| `lt_succ_fwd` | `a < b + 1 → ¬(b < a)` |
+| `lt_succ_rev` | `¬(b < a) → a < b + 1` |
+| `eq_of_not_lt_not_lt` | `¬(a < b) → (¬(b < a) → a = b)` |
+| `lt_dne` | `¬¬(a < b) → a < b` |
 
 ### Soundness of existential elimination and equality substitution
 
@@ -119,6 +127,24 @@ the supplied premise with `P(a)` under the ordinary conversion and
 instantiates the template at the equality’s two sides. No rewriting
 direction is assumed: the premise must establish the left instance.
 
+### Soundness of induction and least elements
+
+`induction` is ordinary induction on the integers at or above `bound`.
+The checker verifies the base instance `P(bound)` and the step
+`∀k. k ≥ bound → P(k) → P(k + 1)`, then builds
+`∀n. n ≥ bound → P(n)`. This is the standard induction principle for the
+well-ordered set `{bound, bound + 1, …}`. It is an arithmetic principle,
+not a schematic shortcut: the predicate is an explicit proposition template,
+the two premises are checked evidence, and the conclusion is built from the
+same template.
+
+`least` is the well-ordering principle for the same set. From a checked
+witness of `∃m. m ≥ bound ∧ P(m)`, it builds the least such `m` together
+with `∀k. k ≥ bound → k < m → ¬P(k)`. If a smaller admissible witness
+existed, it would contradict minimality; the conclusion follows from the
+order of the integers. Both rules are general over the predicate and the
+bound. Neither introduces a custom axiom into a judgment.
+
 ### Soundness of the order laws
 
 `lt` is interpreted as the usual strict order on the mathematical integers.
@@ -130,6 +156,18 @@ law instance is sound without any decision procedure:
 - `lt_add` adds the same term to both sides; the converse also holds in the
   integers, but the fragment exposes only the direction a proof needs.
 - `lt_neq` follows because `a < b` and `a = b` cannot both hold.
+- `mul_pos` says the product of two positive integers is positive.
+- `mul_eq_one` lists the units of the integers: a product equal to one has
+  a first factor equal to one or minus one.
+- `lt_succ_fwd` and `lt_succ_rev` are the two directions of
+  `a < b + 1 ↔ ¬(b < a)`, the successor characterization of the integer
+  order.
+- `eq_of_not_lt_not_lt` is trichotomy in the form needed for case analysis:
+  two integers that are not strictly ordered either way are equal.
+- `lt_dne` is double-negation elimination for a strict integer comparison.
+  It is constructively justified because `a < b` is decidable: either it
+  holds or it does not, so stability follows by case analysis. The checker
+  owns the case analysis rather than a general classical axiom.
 
 The checker verifies the law ID, the arity and that every argument has sort
 `int`, then builds exactly the proposition above. It never trusts a tactic.

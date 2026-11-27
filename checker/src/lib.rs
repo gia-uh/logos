@@ -113,6 +113,19 @@ enum Evidence {
         context: Proposition,
         proof: Box<Self>,
     },
+    Induction {
+        bound: Proposition,
+        name: String,
+        predicate: Proposition,
+        base: Box<Self>,
+        step: Box<Self>,
+    },
+    Least {
+        bound: Proposition,
+        name: String,
+        predicate: Proposition,
+        nonempty: Box<Self>,
+    },
     CoreLaw {
         id: String,
         args: Vec<Proposition>,
@@ -141,7 +154,8 @@ impl Evidence {
             | Self::Symm { proof }
             | Self::Congr { proof, .. }
             | Self::ForallElim { proof, .. }
-            | Self::ExistsIntro { proof, .. } => [Some(proof), None, None],
+            | Self::ExistsIntro { proof, .. }
+            | Self::Least { nonempty: proof, .. } => [Some(proof), None, None],
             Self::AndIntro { left, right }
             | Self::Trans { left, right }
             | Self::ImpliesElim {
@@ -160,6 +174,11 @@ impl Evidence {
             | Self::EqSubst {
                 equality: left,
                 proof: right,
+                ..
+            }
+            | Self::Induction {
+                base: left,
+                step: right,
                 ..
             } => [Some(left), Some(right), None],
             Self::OrElim {
@@ -887,6 +906,33 @@ impl<'a> Checker<'a> {
         Ok((assumption, result?))
     }
 
+    fn nonnegative_here(&self, bound: &Proposition, shift: usize) -> Proposition {
+        Proposition::Not {
+            operand: Box::new(Proposition::Lt {
+                left: Box::new(Proposition::Bound { index: 0 }),
+                right: Box::new(bound.shift(shift)),
+            }),
+        }
+    }
+
+    fn check_rule_premise(
+        &mut self,
+        expected: &Proposition,
+        actual: &Proposition,
+        path: &str,
+        message: &str,
+    ) -> Result<Option<Conversion>, String> {
+        let conversion = self
+            .compare(expected, actual)?
+            .ok_or_else(|| format!("{path}: {message}"))?;
+        if let Some(item) = &conversion {
+            self.charge(&item.left)?;
+            self.charge(&item.right)?;
+            self.charge(&item.common_normal_form)?;
+        }
+        Ok(conversion)
+    }
+
     /// Open an existential: bind a fresh eigenvariable and assume its predicate.
     ///
     /// `premise` is the existential body, which already mentions the new
@@ -1371,6 +1417,145 @@ impl<'a> Checker<'a> {
                     vec![equality_path, proof_path],
                     conclusion,
                     None,
+                    None,
+                )
+            }
+            Evidence::Induction {
+                bound,
+                name,
+                predicate,
+                base,
+                step,
+            } => {
+                self.sort(bound, &scope.binders)?.expect(Sort::Int)?;
+                scope.binders.push(Sort::Int);
+                let predicate_sort = self.sort(predicate, &scope.binders);
+                scope.binders.pop();
+                predicate_sort?.expect(Sort::Prop)?;
+
+                let base_path = format!("{path}.base");
+                let base_expected = instantiate_bounded(predicate, std::slice::from_ref(bound))?;
+                let base_actual = self.infer(base, scope, &base_path)?;
+                self.check_rule_premise(
+                    &base_expected,
+                    &base_actual,
+                    &base_path,
+                    "induction base does not establish P(bound)",
+                )?;
+
+                let variable = Proposition::Bound { index: 0 };
+                let successor = Proposition::Add {
+                    left: Box::new(variable.clone()),
+                    right: Box::new(Proposition::Int { value: "1".into() }),
+                };
+                let p_variable =
+                    instantiate_bounded(predicate, std::slice::from_ref(&variable))?;
+                let p_successor =
+                    instantiate_bounded(predicate, std::slice::from_ref(&successor))?;
+                let step_expected = Proposition::Forall {
+                    name: name.clone(),
+                    sort: Sort::Int,
+                    body: Box::new(Proposition::Implies {
+                        left: Box::new(self.nonnegative_here(bound, 1)),
+                        right: Box::new(Proposition::Implies {
+                            left: Box::new(p_variable.clone()),
+                            right: Box::new(p_successor),
+                        }),
+                    }),
+                };
+                let step_path = format!("{path}.step");
+                let step_actual = self.infer(step, scope, &step_path)?;
+                premise_conversion = self.check_rule_premise(
+                    &step_expected,
+                    &step_actual,
+                    &step_path,
+                    "induction step does not establish P(k) -> P(k + 1)",
+                )?;
+
+                binder_sort = Some(Sort::Int);
+                let conclusion = Proposition::Forall {
+                    name: name.clone(),
+                    sort: Sort::Int,
+                    body: Box::new(Proposition::Implies {
+                        left: Box::new(self.nonnegative_here(bound, 1)),
+                        right: Box::new(p_variable),
+                    }),
+                };
+                (
+                    "induction",
+                    vec![base_path, step_path],
+                    conclusion,
+                    Some(name.clone()),
+                    None,
+                )
+            }
+            Evidence::Least {
+                bound,
+                name,
+                predicate,
+                nonempty,
+            } => {
+                self.sort(bound, &scope.binders)?.expect(Sort::Int)?;
+                scope.binders.push(Sort::Int);
+                let predicate_sort = self.sort(predicate, &scope.binders);
+                scope.binders.pop();
+                predicate_sort?.expect(Sort::Prop)?;
+
+                let witness = Proposition::Bound { index: 0 };
+                let p_witness =
+                    instantiate_bounded(predicate, std::slice::from_ref(&witness))?;
+                let membership = Proposition::And {
+                    left: Box::new(self.nonnegative_here(bound, 1)),
+                    right: Box::new(p_witness),
+                };
+                let nonempty_expected = Proposition::Exists {
+                    name: name.clone(),
+                    sort: Sort::Int,
+                    body: Box::new(membership.clone()),
+                };
+                let nonempty_path = format!("{path}.nonempty");
+                let nonempty_actual = self.infer(nonempty, scope, &nonempty_path)?;
+                premise_conversion = self.check_rule_premise(
+                    &nonempty_expected,
+                    &nonempty_actual,
+                    &nonempty_path,
+                    "least element requires a nonempty witness",
+                )?;
+
+                let smallest = Proposition::Bound { index: 0 };
+                let candidate = Proposition::Bound { index: 1 };
+                let p_smallest =
+                    instantiate_bounded(predicate, std::slice::from_ref(&smallest))?;
+                let minimal = Proposition::Forall {
+                    name: name.clone(),
+                    sort: Sort::Int,
+                    body: Box::new(Proposition::Implies {
+                        left: Box::new(Proposition::And {
+                            left: Box::new(self.nonnegative_here(bound, 2)),
+                            right: Box::new(Proposition::Lt {
+                                left: Box::new(smallest),
+                                right: Box::new(candidate),
+                            }),
+                        }),
+                        right: Box::new(Proposition::Not {
+                            operand: Box::new(p_smallest),
+                        }),
+                    }),
+                };
+                let conclusion = Proposition::Exists {
+                    name: name.clone(),
+                    sort: Sort::Int,
+                    body: Box::new(Proposition::And {
+                        left: Box::new(membership),
+                        right: Box::new(minimal),
+                    }),
+                };
+                binder_sort = Some(Sort::Int);
+                (
+                    "least",
+                    vec![nonempty_path],
+                    conclusion,
+                    Some(name.clone()),
                     None,
                 )
             }

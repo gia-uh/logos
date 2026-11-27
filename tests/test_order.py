@@ -11,7 +11,7 @@ import pytest
 
 import logos
 from logos import tactics as t
-from logos.expr import Add, Eq, ForallNode, Implies, Lit, Lt, Not, Var
+from logos.expr import Add, Eq, ForallNode, Implies, Lit, Lt, Not, Or, Var
 from logos.goal import Goal
 from logos.helpers import structural_eq
 from logos.order import ORDER_LAWS, order_law, split_implications
@@ -50,7 +50,11 @@ def minimum_else(x, y, *, result):
 
 def test_order_law_schemas_are_explicit():
     a, b, c = (Var(name, int) for name in "abc")
-    assert ORDER_LAWS == ("lt_irrefl", "lt_trans", "lt_add", "lt_neq")
+    assert ORDER_LAWS == (
+        "lt_irrefl", "lt_trans", "lt_add", "lt_neq",
+        "mul_pos", "mul_eq_one", "lt_succ_fwd", "lt_succ_rev",
+        "eq_of_not_lt_not_lt", "lt_dne",
+    )
     assert structural_eq(order_law("lt_irrefl", (a,)), Not(Lt(a, a)))
     assert structural_eq(
         order_law("lt_trans", (a, b, c)),
@@ -63,6 +67,30 @@ def test_order_law_schemas_are_explicit():
     assert structural_eq(
         order_law("lt_neq", (a, b)),
         Implies(Lt(a, b), Not(Eq(a, b))),
+    )
+    assert structural_eq(
+        order_law("mul_pos", (a, b)),
+        Implies(Lt(Lit(0), a), Implies(Lt(Lit(0), b), Lt(Lit(0), a * b))),
+    )
+    assert structural_eq(
+        order_law("mul_eq_one", (a, b)),
+        Implies(Eq(a * b, Lit(1)), Or(Eq(a, Lit(1)), Eq(a, Lit(-1)))),
+    )
+    assert structural_eq(
+        order_law("lt_succ_fwd", (a, b)),
+        Implies(Lt(a, b + 1), Not(Lt(b, a))),
+    )
+    assert structural_eq(
+        order_law("lt_succ_rev", (a, b)),
+        Implies(Not(Lt(b, a)), Lt(a, b + 1)),
+    )
+    assert structural_eq(
+        order_law("eq_of_not_lt_not_lt", (a, b)),
+        Implies(Not(Lt(a, b)), Implies(Not(Lt(b, a)), Eq(a, b))),
+    )
+    assert structural_eq(
+        order_law("lt_dne", (a, b)),
+        Implies(Not(Not(Lt(a, b))), Lt(a, b)),
     )
     premises, conclusion = split_implications(order_law("lt_trans", (a, b, c)))
     assert len(premises) == 2 and structural_eq(conclusion, Lt(a, c))
