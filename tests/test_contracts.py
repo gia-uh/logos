@@ -273,7 +273,7 @@ def test_branch_syntax_fails_closed(tmp_path):
         ),
         (
             "def choose(x: int) -> int:\n"
-            "    if x:\n"
+            "    if x + 1:\n"
             "        return 1\n"
             "    else:\n"
             "        return x\n",

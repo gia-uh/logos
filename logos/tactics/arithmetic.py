@@ -1,6 +1,6 @@
 # logos/tactics/arithmetic.py
 from logos.expr import (
-    Expr, Lit, Var, Add, Sub, Mul, Neg, Eq, Not,
+    Expr, Lit, Var, Add, Sub, Mul, Div, Neg, Eq, Not,
     Lt, Le, Gt, Ge,
 )
 from logos.goal import Goal
@@ -35,7 +35,12 @@ def order(law: str):
             raise TacticFailed(
                 f"order: goal {goal.statement!r} does not match the {law} schema"
             )
-        premises, conclusion = split_implications(order_law(law, args))
+        try:
+            full = order_law(law, args)
+        except ValueError:
+            from logos.core_laws import law_statement
+            full = law_statement(law, args)
+        premises, conclusion = split_implications(full)
         if not structural_eq(conclusion, goal.statement):
             raise TacticFailed(
                 f"order: {law} concludes {conclusion!r}, not {goal.statement!r}"
@@ -91,6 +96,23 @@ def _order_arguments(law: str, goal: Goal):
                         second_right, right
                     ):
                         return (left, middle, right)
+        return None
+    if law in ("div_nonneg", "mul_nonneg"):
+        if (
+            isinstance(statement, Le)
+            and isinstance(statement.left, Lit)
+            and statement.left.value == 0
+            and isinstance(statement.right, (Div, Mul))
+        ):
+            return (statement.right.left, statement.right.right)
+        return None
+    if law == "div_lt":
+        if (
+            isinstance(statement, Lt)
+            and isinstance(statement.left, Div)
+            and structural_eq(statement.left.left, statement.right)
+        ):
+            return (statement.left.left, statement.left.right)
         return None
     if law == "lt_add":
         if (

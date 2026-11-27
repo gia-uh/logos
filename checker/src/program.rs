@@ -634,10 +634,9 @@ fn check_list(
     for statement in statements {
         match statement {
             Statement::Assign { name, value } => {
-                if params.contains(name.as_str()) {
-                    return Err(format!("program: assignment mutates parameter {name:?}"));
-                }
-                if !locals.contains(name.as_str()) {
+                // Parameters are call-by-value initial variables. Rebinding one
+                // is local, exactly as Python rebinding an int parameter is.
+                if !params.contains(name.as_str()) && !locals.contains(name.as_str()) {
                     return Err(format!("program: assignment to unknown local {name:?}"));
                 }
                 let mut names = Vec::new();

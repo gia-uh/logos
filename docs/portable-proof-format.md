@@ -129,6 +129,8 @@ conclusion is a proposition rather than an equality.
 | `le_total`, `lt_trichotomy`, `not_lt_le` | Integer totality. |
 | `lt_to_le`, `eq_symm`, `le_add` | Basic order and equality consequences. |
 | `half_lower`, `half_upper` | `0 <= a`, `a < b` give `a <= (a+b)//2 < b`. |
+| `mul_nonneg`, `div_nonneg` | A product of non-negative integers is non-negative, and `0 <= a`, `0 < b` give `0 <= a // b`. |
+| `div_lt` | `0 < a`, `1 < b` give `a // b < a`. |
 | `length_nonneg` | `0 <= len(xs)`. |
 | `sorted_elim` | Sorted `xs` orders every in-range pair `i <= j` with `xs[i] <= xs[j]`. |
 | `sorted_lower`, `sorted_upper` | An element on the low side of a smaller in-range element is smaller than the target, and symmetrically on the high side. |
@@ -188,6 +190,12 @@ the step rule requires a checked proof that the argument is nonnegative.
 integer substitution. `half_lower` and `half_upper` are floor division facts:
 for `0 <= a < b`, `a <= (a+b)//2` because `2a <= a+b`, and `(a+b)//2 < b`
 because `a+b < 2b`. `length_nonneg` is the range of a finite sequence length.
+
+`mul_nonneg`, `div_nonneg` and `div_lt` are floor-division facts.
+For `0 <= a` and `0 <= b`, the product is non-negative. For `0 <= a` and
+`b > 0`, the quotient is non-negative. For `a > 0` and `b > 1`, the quotient
+is at most `a // 2`, hence strictly below `a`. The checker recomputes each
+instance from the law ID and its two integer arguments.
 
 `sorted(xs)` means `xs[i] <= xs[j]` for every `0 <= i <= j < len(xs)`.
 `sorted_elim` is that definition. `sorted_lower` follows by transitivity:

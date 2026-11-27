@@ -164,6 +164,13 @@ pub fn rule_explanation(rule: &str, reference: Option<&str>) -> &'static str {
             Some("half_upper") => {
                 "Floor half of a non-empty interval stays strictly below the upper bound."
             }
+            Some("mul_nonneg") => "A product of two non-negative integers is non-negative.",
+            Some("div_nonneg") => {
+                "Floor division of a non-negative integer by a positive integer is non-negative."
+            }
+            Some("div_lt") => {
+                "Floor division of a positive integer by a divisor above one is strictly smaller."
+            }
             Some("length_nonneg") => "A finite sequence has non-negative length.",
             Some("sorted_elim") => "Sortedness gives the order of any two in-range elements.",
             Some("sorted_lower") => {

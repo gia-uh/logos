@@ -662,6 +662,11 @@ def _assigned_names(statements):
         elif isinstance(node, ast.If):
             yield from _assigned_names(node.body)
             yield from _assigned_names(node.orelse)
+        elif isinstance(node, ast.AugAssign):
+            if not isinstance(node.target, ast.Name):
+                yield None, node.lineno
+            else:
+                yield node.target.id, node.lineno
         elif isinstance(node, ast.While):
             yield from _assigned_names(node.body)
             yield from _assigned_names(node.orelse)
@@ -696,10 +701,11 @@ def _program_fragment(definition, fn, path, names, variables):
                 f"{path}:{line}: only plain local names can be assigned"
             )
         if name in variables:
-            raise LogosContractError(
-                f"{path}:{line}: {name!r} is a parameter of {fn.__name__!r}; the fragment "
-                "does not mutate inputs"
-            )
+            # Rebinding an integer parameter is local: Python passes the value,
+            # so the caller's object is untouched. The parameter stays a program
+            # variable and the contract's requires still speaks about its entry
+            # value. Only new names become locals.
+            continue
         assigned.setdefault(name, line)
     for name, line in assigned.items():
         if name.startswith("_"):
@@ -756,6 +762,46 @@ def _program_statement(node, variables, fn, path, initialized, *, top=False):
                     f"{path}:{node.lineno}: {used!r} is read before assignment in "
                     f"{fn.__name__!r}"
                 )
+        initialized.add(name)
+        return Assign(name, value)
+    if isinstance(node, ast.AugAssign):
+        if not isinstance(node.target, ast.Name):
+            raise LogosContractError(
+                f"{path}:{node.lineno}: augmented assignments in {fn.__name__!r} must "
+                "name one local"
+            )
+        name = node.target.id
+        if name not in variables:
+            raise LogosContractError(
+                f"{path}:{node.lineno}: {name!r} is assigned before it is declared in "
+                f"{fn.__name__!r}"
+            )
+        if name not in initialized:
+            raise LogosContractError(
+                f"{path}:{node.lineno}: {name!r} is read before assignment in "
+                f"{fn.__name__!r}"
+            )
+        for used in _used_names(node.value):
+            if used in variables and used not in initialized:
+                raise LogosContractError(
+                    f"{path}:{node.lineno}: {used!r} is read before assignment in "
+                    f"{fn.__name__!r}"
+                )
+        right = _term(node.value, variables, fn, path)
+        left = variables[name]
+        if isinstance(node.op, ast.Add):
+            value = Add(left, right)
+        elif isinstance(node.op, ast.Sub):
+            value = Sub(left, right)
+        elif isinstance(node.op, ast.Mult):
+            value = Mul(left, right)
+        elif isinstance(node.op, ast.FloorDiv):
+            value = Div(left, right)
+        else:
+            raise LogosContractError(
+                f"{path}:{node.lineno}: unsupported augmented operator in "
+                f"{fn.__name__!r}; use +=, -=, *= or //="
+            )
         initialized.add(name)
         return Assign(name, value)
     if isinstance(node, ast.If):
@@ -827,6 +873,10 @@ def _condition(node, variables, fn, path, *, ordered=False):
         return result
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
         return ~_condition(node.operand, variables, fn, path)
+    if isinstance(node, ast.Name) and node.id in variables and variables[node.id].type is int:
+        # Python treats a nonzero integer as true. Production fragments use
+        # this for sentinel flags; the checker sees the equivalent x != 0.
+        return Not(Eq(variables[node.id], Lit(0)))
     if (
         not isinstance(node, ast.Compare)
         or len(node.ops) != 1
