@@ -10,13 +10,20 @@ A disjunction says that one of two things is true, but it does not say which. A 
 
 ## Before you start
 
-**Prerequisites.** Chapters 1 and 3: `p.assume`, `p.apply` on a local implication, `p.and_intro`, `left()` and `right()`.
+**Prerequisites.** Writing Your First Proof and Facts That Hold Together: `p.assume`, `p.apply` on a local implication, `p.and_intro`, `left()` and `right()`.
 
 **Outcomes.** You will split a disjunction into two scoped branches, close a branch with `p.ex_falso`, prove a negation with `p.negate`, and package a value that refutes a false universal statement.
 
 ## A disjunction is an obligation to branch
 
-The following theorem is the constructive dilemma. If $P$ leads to $R$ and $Q$ leads to $R$, then the disjunction $P \lor Q$ also leads to $R$. The conclusion does not tell us which premise applies; the proof must handle both possibilities.
+We have evidence for $P \lor Q$ and two implications, $P \Rightarrow R$ and $Q \Rightarrow R$. We need $R$ whichever side holds. Before reading the proof, fill in the missing rule in each branch.
+
+| Branch | New local fact | Goal | Which implication has the local fact as its premise? |
+| --- | --- | --- | --- |
+| Left | $P$ | $R$ | ? |
+| Right | $Q$ | $R$ | ? |
+
+Use `with p.cases(either) as cases` for the split. The nested `with cases.left()` and `with cases.right()` blocks bind the fact for the corresponding side. In each block, `p.apply` uses the implication that matches the local fact, and `cases.finish` hands over evidence for $R$. Read `cases.result` after both branches finish.
 
 ```python {run}
 import logos
@@ -27,6 +34,11 @@ def dilemma(P: Prop, Q: Prop, R: Prop):
     """If both alternatives reach R, so does their disjunction."""
     return ((P >> R) & (Q >> R)) >> ((P | Q) >> R)
 
+```
+
+Project the two implications before entering either branch so the proof can select them from the shared assumptions.
+
+```python {run continue}
 @dilemma.proof
 def prove_dilemma(p, P, Q, R):
     """Split the disjunction and use the matching implication in each branch."""
@@ -42,11 +54,7 @@ def prove_dilemma(p, P, Q, R):
     return cases.result
 ```
 
-`p.cases(either)` opens a **scope** for each side of the disjunction. Inside `with cases.left()`, the local hypothesis `p_case` proves $P$. Inside `with cases.right()`, `q_case` proves $Q$. The two branches are independent: a fact introduced in one is not visible in the other.
-
-Both branches must reach the same goal, here $R$. `cases.finish(...)` closes a branch by handing it a fact for that goal. After both branches are closed, `cases.result` is a fact for $R$ that depends on the original disjunction and on both branch proofs. The checker records this as one disjunction-elimination step: it has the disjunction and a proof of the goal from each side, so the conclusion follows without knowing which side holds.
-
-The outer structure matters. `either` is assumed before the split, so it is available to `p.cases`. The two implications are projected before the split as well. If you project them inside a branch, the other branch will not see the name.
+The left branch uses `from_p` because its premise is $P$, and the right uses `from_q` because its premise is $Q$. Each local hypothesis can justify steps only in its own branch. The disjunction and the two implications were introduced before the split, so they are available in both. The checker combines the disjunction and both branch proofs in one disjunction-elimination step.
 
 ## A contradiction closes a branch
 
@@ -75,11 +83,11 @@ def prove_or_elim_negation(p, P, Q):
 
 `p.not_elim(not_p, p_case)` applies a negated fact to evidence for its operand. Its result is falsehood. `p.ex_falso(falsehood)` is the explosion rule: from falsehood it returns a fact for the **current goal**, whatever that goal is. In the left branch the goal is $Q$, so the falsehood is used to prove $Q$. In the right branch no contradiction is needed; `q_case` already proves $Q$.
 
-Falsehood has no introduction rule and no proof term of its own. It appears only as the conclusion of a failed application, such as `p.not_elim`, or as the goal inside `p.negate`. That is why the code carries a fact for falsehood instead of a Python `False`.
+Falsehood has no introduction rule and no proof term of its own. Here it is the result of successfully applying `p.not_elim` to contradictory evidence. It is also the goal inside `p.negate`. That is why the code carries a fact for falsehood instead of a Python `False`.
 
 ## Negation is a promise of contradiction
 
-To prove $\neg A$, assume $A$ and derive falsehood. `p.negate()` opens exactly that scope. With no argument it uses the current goal, which must be a negation.
+To prove $\neg A$, assume $A$ and derive falsehood. `p.negate()` opens exactly that scope. With no argument it uses the current goal, which must be a negation. Here the assumed operand is $P \land \neg P$. Project both parts and apply the negation to the positive fact to reach falsehood.
 
 ```python {run continue}
 @logos.theorem
@@ -105,11 +113,13 @@ def prove_no_contradiction(p, P):
 
 ## A counterexample is a checked instance
 
-A failed `check()` does not prove that a statement is false. The proof may be wrong, the automation may be incomplete, or the statement may be true and hard. To refute a universal statement you need a value and a proof that the instance fails.
+A failed `check()` does not prove that a statement is false. The proof may be wrong, the automation may be incomplete, or the statement may be true and hard. To refute a universal statement by counterexample, supply a value and a proof that the instance fails.
 
-Consider the false claim that every integer is positive. A counterexample is the integer zero, together with a proof that zero is not positive. Logos can state and check the counterexample as an existential.
+Consider the claim that every integer is positive. Which integer would make $0 < n$ fail? Try zero. Substituting it for $n$ leaves the instance $\neg(0 < 0)$ to prove.
 
-`lit(0)` builds the integer literal zero as a Logos expression. Writing `0 < 0` directly in Python would evaluate to a Python boolean before any Logos operation saw it; `lit(0) < lit(0)` builds the proposition instead.
+The goal is the whole existential, so name the intermediate negation explicitly with `p.negate(~(zero < zero))`. Inside that scope the assumption is $0 < 0$. The order law of strict irreflexivity, `p.order("lt_irrefl", zero)`, gives $\neg(0 < 0)$ because both sides of the comparison are the same value. Applying that negation to the assumption yields falsehood. The checker recomputes the cited law's instance.
+
+Use `lit(0)` to build a Logos integer expression. Python would evaluate plain `0 < 0` to a boolean before Logos could construct the proposition.
 
 ```python {run continue}
 @logos.theorem
@@ -117,6 +127,11 @@ def zero_not_positive():
     """There is an integer that is not positive: zero."""
     return exists(Int, lambda n: ~(lit(0) < n))
 
+```
+
+The finished negation supplies evidence for the chosen value. The last line passes both to `p.witness` to close the existential.
+
+```python {run continue}
 @zero_not_positive.proof
 def prove_zero_not_positive(p):
     """Prove the instance fails at zero, then package zero as the witness."""
@@ -125,12 +140,12 @@ def prove_zero_not_positive(p):
         irrefl = p.order("lt_irrefl", zero)
         falsehood = p.not_elim(irrefl, suppose.assumption)
         suppose.finish(falsehood)
+
+    # Package the checked instance with the integer that makes it hold.
     return p.witness(0, suppose.result)
 ```
 
-`p.order("lt_irrefl", zero)` cites the checker-owned law that no integer is less than itself. The checker recomputes the instance $\neg(0 < 0)$; Python does not get to assert it. `p.not_elim` turns the assumption $0 < 0$ into falsehood, and `p.negate` closes the negation.
-
-The final `p.witness(0, suppose.result)` packages the value zero and the proof of the instance into evidence for $\exists n. \neg(0 < n)$. That existential is the negation of the universal $\forall n. 0 < n$. Chapter 5 explains witnesses and their scope in detail; for now, read the line as “here is the value, and here is why it works.”
+The checked existential $\exists n.\;\neg(0 < n)$ constructively implies $\neg\forall n.\;0 < n$. If we had a proof of the universal, applying it to the witness would give $0 < 0$, contradicting the witness's instance proof. A constructive proof of the negated universal need not supply an integer witness. Chapter 5 shows how to open an existential when you need to use its witness.
 
 ## Check the four proofs
 
@@ -157,17 +172,15 @@ The branch is closed, so the failure is reported at the point where the branch h
 A different mistake leaves one branch unfinished. If the right branch has no `cases.finish`, the error is:
 
 ```text
-both branches of a case analysis need evidence
+this case was never finished with cases.finish(...)
 ```
 
 Both messages name the branch's obligation, not the original theorem. Read the expected statement first; it is the goal that the branch was supposed to reach.
 
 ## Exit exercise
 
-Prove
+1. As a warm-up, prove $((P \lor Q) \land \neg Q) \Rightarrow P$.
+2. Given $((Q \Rightarrow R) \land (P \lor Q)) \land (P \Rightarrow R)$, prove $R$. For each branch, state its local fact and goal, and identify where your proof gets the rule it needs.
+3. Give a checked counterexample to $\forall n.\; n < 1$ over the integers. Choose a witness and write the instantiated proposition you must prove. Then explain how it refutes the universal.
 
-$$\bigl((P \lor Q) \land \neg Q\bigr) \;\Rightarrow\; P.$$
-
-It is `or_elim_negation` with the two sides exchanged. Split the disjunction, and in the $Q$ branch use $Q$ and $\neg Q$ to derive falsehood before closing with `p.ex_falso`. The $P$ branch is already the goal.
-
-Then state the counterexample theorem for the false universal $\forall n. n < 0$: prove $\exists n. \neg(n < 0)$ with witness zero and an instance proof. Which checker-owned law do you need for $\neg(0 < 0)$?
+Check that all three theorems certify.
