@@ -2,11 +2,12 @@ use num_bigint::BigInt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Sort {
     Prop,
     Int,
+    Seq,
 }
 
 impl Sort {
@@ -14,12 +15,13 @@ impl Sort {
         match self {
             Self::Prop => "prop",
             Self::Int => "int",
+            Self::Seq => "seq",
         }
     }
 }
 
 // Bound occurrences are de Bruijn indices. Names on binders are display labels.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(tag = "tag", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Proposition {
     Symbol {
@@ -50,7 +52,25 @@ pub enum Proposition {
         base: Box<Self>,
         exponent: u32,
     },
+    Len {
+        seq: Box<Self>,
+    },
+    Nth {
+        seq: Box<Self>,
+        index: Box<Self>,
+    },
+    Sorted {
+        seq: Box<Self>,
+    },
+    Div {
+        left: Box<Self>,
+        right: Box<Self>,
+    },
     Eq {
+        left: Box<Self>,
+        right: Box<Self>,
+    },
+    Le {
         left: Box<Self>,
         right: Box<Self>,
     },
@@ -138,6 +158,7 @@ impl Proposition {
             Sub { left, right } => binary!(Sub, recurse(left), recurse(right)),
             Mul { left, right } => binary!(Mul, recurse(left), recurse(right)),
             Eq { left, right } => binary!(Eq, recurse(left), recurse(right)),
+            Le { left, right } => binary!(Le, recurse(left), recurse(right)),
             Lt { left, right } => binary!(Lt, recurse(left), recurse(right)),
             And { left, right } => binary!(And, recurse(left), recurse(right)),
             Or { left, right } => binary!(Or, recurse(left), recurse(right)),
@@ -152,6 +173,17 @@ impl Proposition {
                 base: Box::new(recurse(base)),
                 exponent: *exponent,
             },
+            Len { seq } => Len {
+                seq: Box::new(recurse(seq)),
+            },
+            Nth { seq, index } => Nth {
+                seq: Box::new(recurse(seq)),
+                index: Box::new(recurse(index)),
+            },
+            Sorted { seq } => Sorted {
+                seq: Box::new(recurse(seq)),
+            },
+            Div { left, right } => binary!(Div, recurse(left), recurse(right)),
             Forall { name, sort, body } => Forall {
                 name: name.clone(),
                 sort: *sort,
@@ -241,6 +273,7 @@ impl Proposition {
                 | Sub { left, right }
                 | Mul { left, right }
                 | Eq { left, right }
+                | Le { left, right }
                 | Lt { left, right }
                 | And { left, right }
                 | Or { left, right }
@@ -369,7 +402,32 @@ fn normalize(
             }
             Ok(result)
         }
+        Div { left, right } => {
+            let left = child(left, fuel)?;
+            let right = child(right, fuel)?;
+            match (&left, &right) {
+                (Int { value: a }, Int { value: b }) => {
+                    let (a, b) = (integer(a)?, integer(b)?);
+                    if b == 0.into() {
+                        return Err("integer division by zero".into());
+                    }
+                    literal(a / b)
+                }
+                _ => Ok(binary!(Div, left, right)),
+            }
+        }
+        Len { seq } => Ok(Len {
+            seq: Box::new(child(seq, fuel)?),
+        }),
+        Nth { seq, index } => Ok(Nth {
+            seq: Box::new(child(seq, fuel)?),
+            index: Box::new(child(index, fuel)?),
+        }),
+        Sorted { seq } => Ok(Sorted {
+            seq: Box::new(child(seq, fuel)?),
+        }),
         Eq { left, right } => Ok(binary!(Eq, child(left, fuel)?, child(right, fuel)?)),
+        Le { left, right } => Ok(binary!(Le, child(left, fuel)?, child(right, fuel)?)),
         Lt { left, right } => Ok(binary!(Lt, child(left, fuel)?, child(right, fuel)?)),
         And { left, right } => Ok(binary!(And, child(left, fuel)?, child(right, fuel)?)),
         Or { left, right } => Ok(binary!(Or, child(left, fuel)?, child(right, fuel)?)),
@@ -469,20 +527,31 @@ fn instantiate_with_fuel(
         );
         match term {
             Bound { index } => rest.saturating_sub(bound(*index, depth)),
-            Neg { operand } | Not { operand } | Pow { base: operand, .. } => {
-                visit(operand, depth, rest, bound)
-            }
+            Neg { operand }
+            | Not { operand }
+            | Pow { base: operand, .. }
+            | Len { seq: operand }
+            | Sorted { seq: operand } => visit(operand, depth, rest, bound),
             Forall { body, .. } | Exists { body, .. } => visit(body, depth + 1, rest, bound),
             Add { left, right }
             | Sub { left, right }
             | Mul { left, right }
             | Eq { left, right }
+            | Le { left, right }
             | Lt { left, right }
             | And { left, right }
             | Or { left, right }
             | Implies { left, right } => {
                 let rest = visit(left, depth, rest, bound);
                 visit(right, depth, rest, bound)
+            }
+            Div { left, right } => {
+                let rest = visit(left, depth, rest, bound);
+                visit(right, depth, rest, bound)
+            }
+            Nth { seq, index } => {
+                let rest = visit(seq, depth, rest, bound);
+                visit(index, depth, rest, bound)
             }
             App { args, .. } => args
                 .iter()
@@ -509,57 +578,332 @@ fn instantiate_with_fuel(
     Ok(result)
 }
 
-macro_rules! integer_laws {
-    ($int:ident, $add:ident, $mul:ident, $neg:ident, $lt:ident, $eq:ident, $not:ident, $or:ident, $implies:ident;
-     $($law:literal ($($var:ident),*) => $left:expr, $right:expr;)*
-     [$($order:literal ($($ovar:ident),*) => $body:expr;)*]) => {
-        pub fn law_formals(id: &str) -> Option<&'static [&'static str]> {
-            match id {
-                $($law => Some(&[$(stringify!($var)),*]),)*
-                $($order => Some(&[$(stringify!($ovar)),*]),)*
-                _ => None,
-            }
-        }
-
-        pub fn instantiate_law(id: &str, args: &[Proposition]) -> Option<Proposition> {
-            let $int = |value: &str| Int { value: value.into() };
-            let $add = |a, b| binary!(Add, a, b);
-            let $mul = |a, b| binary!(Mul, a, b);
-            let $neg = |operand| Neg { operand: Box::new(operand) };
-            let $lt = |a, b| binary!(Lt, a, b);
-            let $eq = |a, b| binary!(Eq, a, b);
-            let $not = |operand| Not { operand: Box::new(operand) };
-            let $or = |left, right| binary!(Or, left, right);
-            let $implies = |left, right| binary!(Implies, left, right);
-            match (id, args) {
-                $(($law, [$($var),*]) => Some(binary!(Eq, $left, $right)),)*
-                $(($order, [$($ovar),*]) => Some($body),)*
-                _ => None,
-            }
-        }
-    };
+fn int(value: &str) -> Proposition {
+    Int {
+        value: value.into(),
+    }
+}
+fn add(a: Proposition, b: Proposition) -> Proposition {
+    binary!(Add, a, b)
+}
+fn mul(a: Proposition, b: Proposition) -> Proposition {
+    binary!(Mul, a, b)
+}
+fn neg(operand: Proposition) -> Proposition {
+    Neg {
+        operand: Box::new(operand),
+    }
+}
+fn lt(a: Proposition, b: Proposition) -> Proposition {
+    binary!(Lt, a, b)
+}
+fn le(a: Proposition, b: Proposition) -> Proposition {
+    binary!(Le, a, b)
+}
+fn eq(a: Proposition, b: Proposition) -> Proposition {
+    binary!(Eq, a, b)
+}
+fn not(operand: Proposition) -> Proposition {
+    Not {
+        operand: Box::new(operand),
+    }
+}
+fn implies(left: Proposition, right: Proposition) -> Proposition {
+    binary!(Implies, left, right)
+}
+fn or(left: Proposition, right: Proposition) -> Proposition {
+    binary!(Or, left, right)
+}
+fn len(seq: Proposition) -> Proposition {
+    Len { seq: Box::new(seq) }
+}
+fn nth(seq: Proposition, index: Proposition) -> Proposition {
+    Nth {
+        seq: Box::new(seq),
+        index: Box::new(index),
+    }
+}
+fn sorted(seq: Proposition) -> Proposition {
+    Sorted { seq: Box::new(seq) }
+}
+fn div(left: Proposition, right: Proposition) -> Proposition {
+    binary!(Div, left, right)
+}
+fn half(a: Proposition, b: Proposition) -> Proposition {
+    div(add(a.clone(), b), Int { value: "2".into() })
+}
+fn forall_int(body: Proposition) -> Proposition {
+    Forall {
+        name: "i".into(),
+        sort: Sort::Int,
+        body: Box::new(body),
+    }
 }
 
-integer_laws! {
-    int, add, mul, neg, lt, eq, not, or, implies;
-    "add_assoc"(a, b, c) => add(add(a.clone(), b.clone()), c.clone()), add(a.clone(), add(b.clone(), c.clone()));
-    "add_comm"(a, b) => add(a.clone(), b.clone()), add(b.clone(), a.clone());
-    "add_zero"(a) => add(a.clone(), int("0")), a.clone();
-    "add_inverse"(a) => add(a.clone(), neg(a.clone())), int("0");
-    "mul_assoc"(a, b, c) => mul(mul(a.clone(), b.clone()), c.clone()), mul(a.clone(), mul(b.clone(), c.clone()));
-    "mul_comm"(a, b) => mul(a.clone(), b.clone()), mul(b.clone(), a.clone());
-    "mul_one"(a) => mul(a.clone(), int("1")), a.clone();
-    "distrib"(a, b, c) => mul(a.clone(), add(b.clone(), c.clone())), add(mul(a.clone(), b.clone()), mul(a.clone(), c.clone()));
-    [
-        "lt_irrefl"(a) => not(lt(a.clone(), a.clone()));
-        "lt_trans"(a, b, c) => implies(lt(a.clone(), b.clone()), implies(lt(b.clone(), c.clone()), lt(a.clone(), c.clone())));
-        "lt_add"(a, b, c) => implies(lt(a.clone(), b.clone()), lt(add(a.clone(), c.clone()), add(b.clone(), c.clone())));
-        "lt_neq"(a, b) => implies(lt(a.clone(), b.clone()), not(eq(a.clone(), b.clone())));
-        "mul_pos"(a, b) => implies(lt(int("0"), a.clone()), implies(lt(int("0"), b.clone()), lt(int("0"), mul(a.clone(), b.clone()))));
-        "mul_eq_one"(a, b) => implies(eq(mul(a.clone(), b.clone()), int("1")), or(eq(a.clone(), int("1")), eq(a.clone(), int("-1"))));
-        "lt_succ_fwd"(a, b) => implies(lt(a.clone(), add(b.clone(), int("1"))), not(lt(b.clone(), a.clone())));
-        "lt_succ_rev"(a, b) => implies(not(lt(b.clone(), a.clone())), lt(a.clone(), add(b.clone(), int("1"))));
-        "eq_of_not_lt_not_lt"(a, b) => implies(not(lt(a.clone(), b.clone())), implies(not(lt(b.clone(), a.clone())), eq(a.clone(), b.clone())));
-        "lt_dne"(a, b) => implies(not(not(lt(a.clone(), b.clone()))), lt(a.clone(), b.clone()));
-    ]
+pub fn law_formals(id: &str) -> Option<&'static [&'static str]> {
+    Some(match id {
+        "add_assoc" | "mul_assoc" | "distrib" => &["a", "b", "c"],
+        "add_comm"
+        | "mul_comm"
+        | "lt_neq"
+        | "le_antisymm"
+        | "le_total"
+        | "lt_trichotomy"
+        | "lt_to_le"
+        | "not_lt_le"
+        | "eq_symm"
+        | "mul_pos"
+        | "mul_eq_one"
+        | "lt_succ_fwd"
+        | "lt_succ_rev"
+        | "eq_of_not_lt_not_lt"
+        | "lt_dne" => &["a", "b"],
+        "add_zero" | "lt_irrefl" | "le_refl" => &["a"],
+        "add_inverse" | "mul_one" => &["a"],
+        "lt_trans" | "lt_add" | "le_trans" | "le_lt_trans" | "lt_le_trans" | "le_add" => {
+            &["a", "b", "c"]
+        }
+        "lt_succ_le" | "lt_add_one_le" => &["a", "b"],
+        "half_lower" | "half_upper" => &["a", "b"],
+        "length_nonneg" => &["xs"],
+        "sorted_elim" => &["xs", "i", "j"],
+        "sorted_lower" | "sorted_upper" | "sorted_gap" => &["xs", "a", "b", "t"],
+        _ => return None,
+    })
+}
+
+pub fn law_sorts(id: &str) -> Option<&'static [Sort]> {
+    Some(match id {
+        "sorted_elim" => &[Sort::Seq, Sort::Int, Sort::Int],
+        "length_nonneg" => &[Sort::Seq],
+        "sorted_lower" | "sorted_upper" | "sorted_gap" => {
+            &[Sort::Seq, Sort::Int, Sort::Int, Sort::Int]
+        }
+        _ => &[],
+    })
+}
+
+pub fn law_arg_sorts(id: &str) -> Vec<Sort> {
+    let arity = law_formals(id).map(|names| names.len()).unwrap_or(0);
+    let sequence = law_sorts(id).unwrap_or(&[]);
+    (0..arity)
+        .map(|index| sequence.get(index).copied().unwrap_or(Sort::Int))
+        .collect()
+}
+
+pub fn instantiate_law(id: &str, args: &[Proposition]) -> Option<Proposition> {
+    let a = args.first().cloned();
+    let b = args.get(1).cloned();
+    let c = args.get(2).cloned();
+    let body = match id {
+        "add_assoc" => eq(
+            add(add(a.clone()?, b.clone()?), c.clone()?),
+            add(a?, add(b?, c?)),
+        ),
+        "add_comm" => eq(add(a.clone()?, b.clone()?), add(b?, a?)),
+        "add_zero" => eq(add(a.clone()?, int("0")), a?),
+        "add_inverse" => eq(add(a.clone()?, neg(a?)), int("0")),
+        "mul_assoc" => eq(
+            mul(mul(a.clone()?, b.clone()?), c.clone()?),
+            mul(a?, mul(b?, c?)),
+        ),
+        "mul_comm" => eq(mul(a.clone()?, b.clone()?), mul(b?, a?)),
+        "mul_one" => eq(mul(a.clone()?, int("1")), a?),
+        "distrib" => eq(
+            mul(a.clone()?, add(b.clone()?, c.clone()?)),
+            add(mul(a.clone()?, b?), mul(a?, c?)),
+        ),
+        "lt_irrefl" => not(lt(a.clone()?, a?)),
+        "lt_trans" => implies(
+            lt(a.clone()?, b.clone()?),
+            implies(lt(b?, c.clone()?), lt(a?, c?)),
+        ),
+        "lt_add" => implies(
+            lt(a.clone()?, b.clone()?),
+            lt(add(a?, c.clone()?), add(b?, c?)),
+        ),
+        "lt_neq" => implies(lt(a.clone()?, b.clone()?), not(eq(a?, b?))),
+        "mul_pos" => implies(
+            lt(int("0"), a.clone()?),
+            implies(
+                lt(int("0"), b.clone()?),
+                lt(int("0"), mul(a.clone()?, b.clone()?)),
+            ),
+        ),
+        "mul_eq_one" => implies(
+            eq(mul(a.clone()?, b.clone()?), int("1")),
+            or(eq(a.clone()?, int("1")), eq(a.clone()?, int("-1"))),
+        ),
+        "lt_succ_fwd" => implies(
+            lt(a.clone()?, add(b.clone()?, int("1"))),
+            not(lt(b.clone()?, a.clone()?)),
+        ),
+        "lt_succ_rev" => implies(
+            not(lt(b.clone()?, a.clone()?)),
+            lt(a.clone()?, add(b.clone()?, int("1"))),
+        ),
+        "eq_of_not_lt_not_lt" => implies(
+            not(lt(a.clone()?, b.clone()?)),
+            implies(not(lt(b.clone()?, a.clone()?)), eq(a.clone()?, b.clone()?)),
+        ),
+        "lt_dne" => implies(
+            not(not(lt(a.clone()?, b.clone()?))),
+            lt(a.clone()?, b.clone()?),
+        ),
+        "le_refl" => le(a.clone()?, a?),
+        "le_trans" => implies(
+            le(a.clone()?, b.clone()?),
+            implies(le(b?, c.clone()?), le(a?, c?)),
+        ),
+        "le_antisymm" => implies(
+            le(a.clone()?, b.clone()?),
+            implies(le(b.clone()?, a.clone()?), eq(a?, b?)),
+        ),
+        "le_lt_trans" => implies(
+            le(a.clone()?, b.clone()?),
+            implies(lt(b?, c.clone()?), lt(a?, c?)),
+        ),
+        "lt_le_trans" => implies(
+            lt(a.clone()?, b.clone()?),
+            implies(le(b?, c.clone()?), lt(a?, c?)),
+        ),
+        "le_total" => or(le(a.clone()?, b.clone()?), le(b?, a?)),
+        "lt_trichotomy" => or(
+            lt(a.clone()?, b.clone()?),
+            or(eq(a.clone()?, b.clone()?), lt(b?, a?)),
+        ),
+        "lt_to_le" => implies(lt(a.clone()?, b.clone()?), le(a?, b?)),
+        "lt_succ_le" => implies(
+            lt(a.clone()?, b.clone()?),
+            le(add(a.clone()?, int("1")), b?),
+        ),
+        "lt_add_one_le" => implies(lt(a.clone()?, add(b.clone()?, int("1"))), le(a?, b?)),
+        "le_add" => implies(
+            le(a.clone()?, b.clone()?),
+            le(add(a?, c.clone()?), add(b?, c?)),
+        ),
+        "not_lt_le" => implies(not(lt(a.clone()?, b.clone()?)), le(b?, a?)),
+        "eq_symm" => implies(eq(a.clone()?, b.clone()?), eq(b?, a?)),
+        "half_lower" => implies(
+            le(int("0"), a.clone()?),
+            implies(lt(a.clone()?, b.clone()?), le(a.clone()?, half(a?, b?))),
+        ),
+        "half_upper" => implies(
+            le(int("0"), a.clone()?),
+            implies(lt(a.clone()?, b.clone()?), lt(half(a?, b.clone()?), b?)),
+        ),
+        "length_nonneg" => le(int("0"), len(a?)),
+        "sorted_elim" => {
+            let xs = a?;
+            let i = b?;
+            let j = c?;
+            implies(
+                sorted(xs.clone()),
+                implies(
+                    le(int("0"), i.clone()),
+                    implies(
+                        le(i.clone(), j.clone()),
+                        implies(
+                            lt(j.clone(), len(xs.clone())),
+                            le(nth(xs.clone(), i), nth(xs, j)),
+                        ),
+                    ),
+                ),
+            )
+        }
+        "sorted_lower" => {
+            let xs = a?;
+            let i = b?;
+            let mid = c?;
+            let t = args.get(3).cloned()?;
+            implies(
+                sorted(xs.clone()),
+                implies(
+                    le(int("0"), i.clone()),
+                    implies(
+                        le(i.clone(), mid.clone()),
+                        implies(
+                            lt(mid.clone(), len(xs.clone())),
+                            implies(lt(nth(xs.clone(), mid), t.clone()), lt(nth(xs, i), t)),
+                        ),
+                    ),
+                ),
+            )
+        }
+        "sorted_upper" => {
+            let xs = a?;
+            let mid = b?;
+            let i = c?;
+            let t = args.get(3).cloned()?;
+            implies(
+                sorted(xs.clone()),
+                implies(
+                    le(int("0"), mid.clone()),
+                    implies(
+                        le(mid.clone(), i.clone()),
+                        implies(
+                            lt(i.clone(), len(xs.clone())),
+                            implies(lt(t.clone(), nth(xs.clone(), mid)), lt(t, nth(xs, i))),
+                        ),
+                    ),
+                ),
+            )
+        }
+        "sorted_gap" => {
+            let xs = a?;
+            let low = b?;
+            let high = c?;
+            let t = args.get(3).cloned()?;
+            // The quantified cuts use a fresh index and shift the outer terms.
+            let at = |term: &Proposition| term.shift(1);
+            let xs1 = at(&xs);
+            let low1 = at(&low);
+            let high1 = at(&high);
+            let t1 = at(&t);
+            let index = prop_bound(0);
+            let lower_cut = forall_int(implies(
+                le(int("0"), index.clone()),
+                implies(
+                    lt(index.clone(), low1.clone()),
+                    lt(nth(xs1.clone(), index.clone()), t1.clone()),
+                ),
+            ));
+            let upper_cut = forall_int(implies(
+                le(high1.clone(), index.clone()),
+                implies(
+                    lt(index.clone(), len(xs1.clone())),
+                    lt(t1.clone(), nth(xs1.clone(), index.clone())),
+                ),
+            ));
+            let absent = forall_int(implies(
+                le(int("0"), index.clone()),
+                implies(
+                    lt(index.clone(), len(xs1.clone())),
+                    not(eq(nth(xs1.clone(), index.clone()), t1.clone())),
+                ),
+            ));
+            implies(
+                sorted(xs.clone()),
+                implies(
+                    le(int("0"), low.clone()),
+                    implies(
+                        le(low.clone(), high.clone()),
+                        implies(
+                            le(high.clone(), len(xs.clone())),
+                            implies(
+                                lower_cut,
+                                implies(upper_cut, implies(le(high, low), absent)),
+                            ),
+                        ),
+                    ),
+                ),
+            )
+        }
+        _ => return None,
+    };
+    Some(body)
+}
+
+fn prop_bound(index: usize) -> Proposition {
+    Bound { index }
 }

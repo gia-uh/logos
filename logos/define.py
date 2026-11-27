@@ -22,12 +22,15 @@ class Function:
     """
     def __init__(self, name: str, params: list[Var], body: Expr | None,
                  original_fn: Callable = None, result_type: type | None = None,
-                 recursor: tuple[Expr, Expr, Var] | None = None):
+                 recursor: tuple[Expr, Expr, Var] | None = None,
+                 portable_id: str | None = None):
         self.name = name
+        self.portable_id = portable_id
         self.params = params
         self.body = body
         self.result_type = result_type
         self._original_fn = original_fn
+        self.recursor = recursor
         self.recursor = recursor
         self.__name__ = name
         self.__logos_defined__ = True
