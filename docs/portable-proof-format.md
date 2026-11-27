@@ -9,7 +9,7 @@ installed checker. Earlier v1 files with empty dependency lists still replay.
 | --- | --- |
 | Proof file | `format: "logos-proof-v1"`, `theory: "logos-core-v1"`, optional `name: string or null`, `declarations: [Declaration]`, optional `functions: [Function]`, `custom_axioms: [CustomAxiom]`, `lemmas: [Lemma]`, `target: Expression`, `proof: Evidence` |
 | Declaration | `id: string`, `name: string` (display label), `sort: "prop" \| "int"` |
-| Function | `id: string`, `name: string`, `params: [Sort]`, `result: Sort`, optional `body: Expression` |
+| Function | `id: string`, `name: string`, `params: [Sort]`, `result: Sort`, optional `body: Expression`, optional `recursor: {base: Expression, step: Expression}` |
 | CustomAxiom | `id: string`, `statement: Expression` |
 | Lemma | `id: string`, `statement: Expression`, `proof: Evidence` |
 
@@ -17,7 +17,9 @@ IDs are nonempty strings and unique across all bundle lists. The eight
 core-law IDs are reserved. Display labels may repeat. A symbol declaration
 alone assumes no truth. Transparent function bodies can reference earlier
 function declarations and take the declared parameters as bound variables.
-Omitting a body declares an opaque function.
+Omitting a body declares an opaque function. A `recursor` declares a
+primitive-recursive function instead; it must take one integer, return an
+integer, and may not also have a body.
 
 | Expression tag | Other fields |
 | --- | --- |
@@ -55,6 +57,8 @@ Omitting a body declares an opaque function.
 | `eq_subst` | Proof of an equality, a proposition `context` with one extra innermost integer binder, and `proof` of the instance at the equality’s left side. Derives the instance at its right side. |
 | `induction` | Integer `bound`, display `name`, a proposition `predicate` with one extra innermost integer binder, a `base` proof of the predicate at the bound, and a `step` proof of `forall k, k >= bound -> P(k) -> P(k + 1)`. Derives `forall n, n >= bound -> P(n)`. |
 | `least` | Integer `bound`, display `name`, a proposition `predicate` with one extra innermost integer binder, and a `nonempty` proof of `exists m, m >= bound and P(m)`. Derives a least such `m` with its minimality clause. |
+| `recursor_base` | Function `id`. Derives `f(0) = base` for a declared primitive-recursive function. |
+| `recursor_step` | Function `id`, integer `argument`, and a `proof` of `not (argument < 0)`. Derives `f(argument + 1) = step(argument, f(argument))`. |
 | `refl` | A well-sorted `term`. Derives equality of that term with itself. |
 | `symm` | Equality `proof`. |
 | `trans` | Equality proofs `left` and `right` with convertible middle expressions. |
@@ -144,6 +148,21 @@ with `∀k. k ≥ bound → k < m → ¬P(k)`. If a smaller admissible witness
 existed, it would contradict minimality; the conclusion follows from the
 order of the integers. Both rules are general over the predicate and the
 bound. Neither introduces a custom axiom into a judgment.
+
+### Soundness of primitive recursion
+
+A `recursor` declaration defines one integer function of one integer
+argument on the natural numbers by `f(0) = base` and
+`f(k + 1) = step(k, f(k))`. `base` is a closed integer term. `step` is an
+integer term with two binders: the argument `k` (outer) and the previous
+value `f(k)` (inner). The checker rejects a declaration whose step calls the
+function anywhere except at that argument. That syntactic restriction is
+what makes the schema a primitive recursion: every recursive call is on the
+predecessor of a nonnegative argument, so the equations determine a unique
+total function on the naturals. A function is either transparent with a
+body or recursive with a recursor, never both. Recursive functions stay
+opaque to conversion; proofs use `recursor_base` and `recursor_step`, and
+the step rule requires a checked proof that the argument is nonnegative.
 
 ### Soundness of the order laws
 

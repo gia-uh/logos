@@ -56,3 +56,40 @@ def test_least_uses_the_checker_field_names():
     proof = data["proof"]
     assert proof["tag"] == "least"
     assert set(proof) == {"tag", "bound", "name", "predicate", "nonempty"}
+
+
+def test_recursor_uses_the_checker_field_names():
+    import logos
+    from logos.kernel import RecursorBase
+
+    fact = logos.recursor("fact_enc", 1, lambda n, previous: (n + 1) * previous)
+    data = encode(Eq(fact(Lit(0)), Lit(1)), RecursorBase(fact))
+    declaration = data["functions"][0]
+    assert declaration["recursor"]["base"] == {"tag": "int", "value": "1"}
+    assert declaration["recursor"]["step"]["tag"] == "mul"
+    assert data["proof"] == {"tag": "recursor_base", "id": declaration["id"]}
+
+
+def test_recursor_equations_infer_in_the_kernel():
+    import logos
+    from logos.expr import Add, App, Mul
+    from logos.helpers import structural_eq
+    from logos.kernel import Context, HypRef, RecursorBase, RecursorStep, infer
+
+    fact = logos.recursor("fact_inf", 1, lambda n, previous: (n + 1) * previous)
+    zero = Lit(0)
+    one = Lit(1)
+    applied_zero = App(fact.name, [zero], fact)
+    assert structural_eq(
+        infer(RecursorBase(fact), Context({}, {})),
+        Eq(applied_zero, one),
+    )
+    context = Context({}, {"nonneg": Not(Lt(zero, zero))})
+    result = infer(RecursorStep(fact, zero, HypRef("nonneg")), context)
+    assert structural_eq(
+        result,
+        Eq(
+            App(fact.name, [Add(zero, one)], fact),
+            Mul(Add(zero, one), applied_zero),
+        ),
+    )

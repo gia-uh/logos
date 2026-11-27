@@ -149,9 +149,11 @@
       "block": "{tag: block, steps, result}; result is a zero-based step index",
       "step_ref": "{tag: step_ref, index}; references an earlier step in the innermost block",
       "induction": "{tag: induction, bound, name, predicate, base, step}; the predicate has one extra innermost integer binder; derives forall n, n >= bound -> P(n)",
-      "least": "{tag: least, bound, name, predicate, nonempty}; the nonempty proof supplies exists m, m >= bound and P(m); derives the least witness with minimality"
+      "least": "{tag: least, bound, name, predicate, nonempty}; the nonempty proof supplies exists m, m >= bound and P(m); derives the least witness with minimality",
+      "recursor_base": "{tag: recursor_base, id}; derives f(0) = base for a declared primitive-recursive function",
+      "recursor_step": "{tag: recursor_step, id, argument, proof}; proof establishes argument >= 0; derives f(argument + 1) = step(argument, f(argument))"
     },
-    "function": "{id, name, params: [sort], result: sort, body?: expression}; transparent bodies can refer to earlier functions",
+    "function": "{id, name, params: [sort], result: sort, body?: expression, recursor?: {base: expression, step: expression}}; transparent bodies can refer to earlier functions; a recursor defines one integer function on the naturals and stays opaque to conversion",
     "terms": {
       "symbol": "{tag: symbol, id}",
       "bound": "{tag: bound, index}; index 0 denotes the nearest enclosing binder or last parameter",
