@@ -43,7 +43,13 @@ def adapt(delta: int, first: int, numchars: int) -> int:
 
 ## The assumptions and the contract
 
-The function assumes two things. `delta` must not be negative, because the divisions and the final numerator are meant to produce a bias. `numchars` must be positive, because the body divides by it. The contract makes both assumptions explicit; it does not hide them in a test.
+Start at the last assignment. What facts at loop exit make each summand of `divisions + (36 * delta // (delta + 38))` non-negative? The first summand needs `divisions >= 0`. For the second, `delta >= 0` gives a non-negative numerator and a denominator of at least 38. We can aim to keep these two lower bounds at every loop head, including the last one when the guard is false.
+
+Before writing the contract, check that the bounds hold even if the loop runs zero times. Assume the input `delta >= 0` and `numchars > 0`. Both branches divide by a positive constant, and `delta += delta // numchars` adds a non-negative quotient. Thus the loop starts with `delta >= 0` and `divisions = 0`. Each iteration keeps the bounds by dividing `delta` by 35 and adding 36 to `divisions`.
+
+To prove termination, look for a non-negative integer that gets smaller. Before an iteration, the guard gives `delta > 455`, so `delta // 35 < delta`. The invariant already gives the lower bound for using `delta` itself as the variant.
+
+In Logos, the parameters and `result` are supplied to the theorem. Name the loop local `divisions` with `Var` so the invariant refers to that local at the loop head.
 
 ```python {run}
 import logos
@@ -61,27 +67,15 @@ def adapt_bias_nonnegative(delta, first, numchars, *, result):
     )
 ```
 
-The invariant is one line because the function keeps one scalar and one counter. `delta` starts non-negative by the precondition and is only ever divided or increased by a non-negative quotient. `divisions` starts at zero and only ever receives `36`. The variant is `delta` itself: the loop divides it by 35, and a positive integer divided by 35 is strictly smaller.
+## The arithmetic behind the obligations
 
-The final expression is
+| Checker law | What it gives | Where to use it |
+| --- | --- | --- |
+| `mul_nonneg` | `0 <= a` and `0 <= b` imply `0 <= a * b` | At exit, show that `36 * delta` is non-negative. |
+| `div_nonneg` | `0 <= a` and `0 < b` imply `0 <= a // b` | At entry, justify the quotients in both branches and the one by `numchars`. Use it again for preservation with divisor 35 and at exit with denominator `delta + 38`. |
+| `div_lt` | `0 < a` and `1 < b` imply `a // b < a` | Under the guard, show that `delta // 35` decreases the variant. |
 
-$$\text{bias} = \text{divisions} + \left\lfloor \frac{36 \cdot \text{delta}}{\text{delta} + 38} \right\rfloor.$$
-
-Both summands are non-negative under the invariant: `divisions` by the invariant, and the quotient because its numerator is a product of non-negative integers and its denominator is positive.
-
-## The floor-division laws
-
-Three small core laws make the floor divisions visible to the checker. They are checker-owned, not custom axioms:
-
-| Law | Statement |
-| --- | --- |
-| `mul_nonneg` | `0 <= a` and `0 <= b` give `0 <= a * b` |
-| `div_nonneg` | `0 <= a` and `0 < b` give `0 <= a // b` |
-| `div_lt` | `0 < a` and `1 < b` give `a // b < a` |
-
-The soundness argument is the usual one for floor division. If $a \ge 0$ and $b > 0$, the quotient is at least zero. If $a > 0$ and $b > 1$, then $a // b \le a/2 < a$. The checker owns the schemas and recomputes every instance from the law ID and its integer arguments; the Python side only supplies the substitution.
-
-This is the authoring improvement the production contract needed. Before it, the proof search could see `// 2` in the midpoint laws but not a general floor division. The new laws are general over integer terms, and the proof search uses them for products and quotients wherever they appear in a verification condition.
+The checker owns these integer laws. Python proof search chooses the law and supplies its integer arguments. The checker reconstructs the instance from those arguments and checks its premises.
 
 ## Check the contract
 
@@ -101,7 +95,7 @@ The certificate is checked without Python:
 logos check --strict adapt.logos
 ```
 
-The expected last line is `Verified with 0 custom axioms`. The statement is
+The checker reports `Verified with 0 custom axioms`. The statement is
 
 $$\forall \delta, f, n, r.\ \ 0 \le \delta \rightarrow 0 < n \rightarrow
   \bigl(r = \operatorname{adapt}(\delta, f, n) \rightarrow 0 \le r\bigr).$$
@@ -110,7 +104,7 @@ The `first` argument is universally quantified, as it should be: the bias proper
 
 ## What the certificate binds, and what it does not
 
-The source binding is the point of this chapter. The theorem stores the translated program and re-reads the module on every check, export and receipt read. If the file changes after the theorem is declared, the translation no longer matches and the check raises a binding error instead of certifying stale code.
+The source binding is the point of this chapter. The theorem stores the translated program and re-reads the module on check and export, and when validating a cached receipt. If the file changes after the theorem is declared, the translation no longer matches and check and export raise a binding error. Reading the receipt of a previously certified theorem returns `None`.
 
 The CI regression does three things:
 
@@ -129,30 +123,84 @@ On a different Python minor version the code object may change. That is a featur
 
 ## When a step fails
 
-Change the last assignment from
+### Declare a theorem against an edited body
 
-```python
-bias = divisions + (36 * delta // (delta + 38))
-```
-
-to
+In a scratch directory, copy the function listing into `examples/punycode_adapt.py` and the theorem declaration (the block ending with `variant=delta`) into `prove_adapt.py`. Keep the import in that declaration. Before importing either file, replace the last assignment in the copied function with:
 
 ```python
 bias = divisions - 1
 ```
 
-The loop still terminates and the invariant still holds, but the exit condition no longer implies `0 <= result`. The checker refuses the `exit` obligation:
+Predict what happens with input `delta=0` and `numchars=1`. Then start a fresh Python process from the scratch directory, so the import and theorem declaration both see the edited body.
+
+```bash
+python -B -i prove_adapt.py
+```
+
+At the prompt, run:
+
+```python
+print(adapt(0, 0, 1), adapt(0, 1, 1))
+adapt_bias_nonnegative.check()
+```
+
+The output is `-1 -1`: the loop is skipped and `divisions` is zero. The source binding succeeds, and proof search reports a failed exit obligation. The diagnostic starts with:
 
 ```text
 logos.proofs.ProofSearchError: loop0.exit: cannot prove order atom 0 <= divisions - 1
 ```
 
-The message points at the expression that lost its lower bound. It does not say that the function is wrong for every input; it says that the invariant and the loop condition do not establish the postcondition. The repair is either to restore the non-negative expression or to strengthen the invariant with a lower bound on `divisions` that survives the branch, which the original body does not need.
+The invariant still holds, but the postcondition is false for allowed inputs on the changed body. An invariant that required `divisions >= 1` would already fail at loop entry. Restore the original bias expression to keep the original claim.
 
-The second failure is the source binding. Edit `examples/punycode_adapt.py` after the theorem is declared, for example by changing `455` to `456`, and call `adapt_bias_nonnegative.check()` again. The theorem re-reads the module, sees that the fresh code object no longer matches the imported function, and raises `source of 'adapt' in ... does not match the imported code object; the module is stale or the file changed after import`. The certificate is not written. A proof about a body that no longer exists is not a proof about the installed library.
+### Edit the source of an existing theorem
+
+Exit Python, restore the copied function, then start `python -B -i prove_adapt.py` again. Run `adapt_bias_nonnegative.check()` and check that `adapt_bias_nonnegative.certified` is true.
+
+Leave that process open. In your editor, change only the loop guard in the copy from `delta > 455` to `delta > 456`. Save the file, then call `adapt_bias_nonnegative.check()` again in the same process. The binding diagnostic names the source file and includes this message:
+
+```text
+does not match the imported code object; the module is stale
+```
+
+In that process, `logos.export_proof(adapt_bias_nonnegative, "stale.logos")` raises the same binding error before writing a file. Reading `adapt_bias_nonnegative.receipt` yields `None`. To check a contract on the new body, start a fresh process and declare it against the new import. To check the original body, restore the source.
 
 ## Exit exercise
 
-Prove a stronger bound: for `delta >= 0` and `numchars > 0`, `adapt` returns a bias of at least 72 when `delta` is at least 72. Is that true for the body as written? Evaluate the `first` branch at `delta = 72`, then the `else` branch. If the bound is not true, state the counterexample and explain which branch breaks it. If it is true, which invariant conjunct must be strengthened, and does the variant still decrease?
+1. Consider the claim that `adapt` returns at least 72 whenever the input `delta >= 72` and `numchars > 0`. Trace `adapt(72, 1, 1)` and `adapt(72, 0, 1)` on the original body. For each call, record `delta` after the branch and after augmentation, whether the loop runs, and the result. Decide whether the claim holds.
+2. Construct and check a total-correctness contract for the small halving loop below. Assume `value >= 0` and claim that the result is non-negative. Work backward from the return. Choose an invariant and a variant, then justify entry, preservation, exit and strict decrease before writing the theorem.
 
-As a second exercise, run the same contract against a second maintained function in the fragment. A good candidate is another pure-Python standard-library helper with one loop and integer parameters. Before you write the theorem, list its assumptions, its loop variant and the one postcondition you can actually justify. If the function needs list mutation, early returns or a function call, say so and stop: the fragment does not cover it, and the right answer is to report the limit rather than weaken the claim.
+```python {export=examples/halving_total.py}
+def halving_total(value: int) -> int:
+    total = 0
+    while value > 0:
+        total += value
+        value //= 2
+    return total
+```
+
+## Instructor solutions
+
+For the first trace, `72 // 700` is 0 and augmentation leaves it at 0. For the second, `72 // 2` is 36 and augmentation takes it to 72. Both skip the loop, so the results are `0` and `2592 // 110 = 23`, respectively. Each call refutes the claim.
+
+```python {run continue}
+assert (adapt(72, 1, 1), adapt(72, 0, 1)) == (0, 23)
+```
+
+The return needs `total >= 0`. It starts at zero and increases because the guard gives `value > 0`. Use `value` as the variant. It starts non-negative, halving keeps it non-negative, and the guard gives strict decrease. Keep both bounds in the invariant. At exit, `total >= 0` proves the result.
+
+```python {run continue}
+from examples.halving_total import halving_total
+
+@logos.theorem(about=halving_total)
+def halving_total_nonnegative(value, *, result):
+    total = Var("total", int)
+    return logos.program_contract(
+        requires=Lit(0) <= value,
+        ensures=Lit(0) <= result,
+        invariant=(Lit(0) <= total) & (Lit(0) <= value),
+        variant=value,
+    )
+
+halving_total_nonnegative.check()
+print("halving_total_nonnegative:", halving_total_nonnegative.certified)
+```
