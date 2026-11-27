@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+- Finite integer sequences, `len`, `nth`, `sorted` and non-strict order in the portable core
+- Checker-owned order, half-interval and sortedness laws with explicit soundness arguments
+- Checked rational linear-arithmetic certificates (`linear`) and checked local facts (`have`)
+- Source-bound loop programs with `program_ref`, recomputed loop obligations, read bounds and a termination variant
+- `logos.program_contract`, sequence helpers and the total-correctness binary search example
+- Mutation tests for wrong midpoints, wrong invariants, forged program bodies and missing obligations
+
 ## [0.1.0] - 2026-06-17
 
 ### Features

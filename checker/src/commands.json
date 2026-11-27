@@ -104,9 +104,9 @@
   },
   "proof_format": {
     "encoding": "UTF-8 JSON, unknown fields and tags rejected",
-    "bundle": "{format, theory, name?, declarations, functions?, custom_axioms, lemmas, target, proof}",
-    "declaration": "{id, name, sort}, sort is prop or int",
-    "ids": "Nonempty strings, unique across declarations, functions, custom axioms and lemmas; core law IDs are reserved",
+    "bundle": "{format, theory, name?, declarations, functions?, programs?, custom_axioms, lemmas, target, proof}",
+    "declaration": "{id, name, sort}, sort is prop, int or seq",
+    "ids": "Nonempty strings, unique across declarations, functions, programs, custom axioms and lemmas; core law IDs are reserved",
     "custom_axiom": "{id, statement}",
     "lemma": "{id, statement, proof}, checked in an empty hypothesis scope when the target proof reaches it",
     "propositions": {
@@ -119,7 +119,12 @@
       "eq": "{tag: eq, left, right}; operands have the same sort",
       "lt": "{tag: lt, left, right}; strict integer order, both operands have sort int",
       "forall": "{tag: forall, name, sort, body}; the body is a proposition",
-      "exists": "{tag: exists, name, sort, body}; the body is a proposition"
+      "exists": "{tag: exists, name, sort, body}; the body is a proposition",
+      "le": "{tag: le, left, right}; non-strict integer order",
+      "div": "{tag: div, left, right}; integer division term",
+      "len": "{tag: len, seq}",
+      "nth": "{tag: nth, seq, index}",
+      "sorted": "{tag: sorted, seq}; checker-owned sortedness predicate"
     },
     "evidence": {
       "axiom_ref": "{tag: axiom_ref, id}",
@@ -151,7 +156,10 @@
       "induction": "{tag: induction, bound, name, predicate, base, step}; the predicate has one extra innermost integer binder; derives forall n, n >= bound -> P(n)",
       "least": "{tag: least, bound, name, predicate, nonempty}; the nonempty proof supplies exists m, m >= bound and P(m); derives the least witness with minimality",
       "recursor_base": "{tag: recursor_base, id}; derives f(0) = base for a declared primitive-recursive function",
-      "recursor_step": "{tag: recursor_step, id, argument, proof}; proof establishes argument >= 0; derives f(argument + 1) = step(argument, f(argument))"
+      "recursor_step": "{tag: recursor_step, id, argument, proof}; proof establishes argument >= 0; derives f(argument + 1) = step(argument, f(argument))",
+      "linear": "{tag: linear, conclusion, terms: [{binder, coefficient}]}; a Farkas combination of order hypotheses and the negated conclusion",
+      "have": "{tag: have, binder, statement, proof, body}; bind a checked intermediate conclusion for the body",
+      "program_ref": "{tag: program_ref, id}; check every program obligation and derive the program contract"
     },
     "function": "{id, name, params: [sort], result: sort, body?: expression, recursor?: {base: expression, step: expression}}; transparent bodies can refer to earlier functions; a recursor defines one integer function on the naturals and stays opaque to conversion",
     "terms": {
@@ -181,8 +189,15 @@
       "lt_succ_fwd",
       "lt_succ_rev",
       "eq_of_not_lt_not_lt",
+      "lt_dne",
       "lt_decidable"
-    ]
+    ],
+    "program": "{id, function, params, locals, ghosts?, result, requires, ensures, body, obligations}; loop programs are checked against their executable statements by program_ref",
+    "programs": {
+      "statement": "assign {name, value} | if {condition, then_body, else_body} | while {condition, body, invariant, variant} | return {value}",
+      "obligations": "main, loopN.preserve, loopN.exit, loopN.variant_nonnegative, loopN.variant_decreases, readN; the checker recomputes every condition and requires one proof per ID",
+      "variables": "expressions use declaration IDs for params, locals, ghosts and result"
+    }
   },
   "json_policy_denied": {
     "stream": "stdout",

@@ -353,6 +353,7 @@ fn domain(sort: Sort) -> &'static str {
     match sort {
         Sort::Int => "\\mathbb{Z}",
         Sort::Prop => "\\mathsf{Prop}",
+        Sort::Seq => "\\mathsf{Seq}(\\mathbb{Z})",
     }
 }
 
@@ -459,8 +460,29 @@ impl<'a> Math<'a> {
             Add { left, right } => (left, "+", right),
             Sub { left, right } => (left, "-", right),
             Mul { left, right } => (left, "\\cdot", right),
+            Len { seq } => {
+                return format!(
+                    "\\operatorname{{len}}({})",
+                    self.term(seq, vars, true, formal)
+                );
+            }
+            Nth { seq, index } => {
+                return format!(
+                    "{}[{}]",
+                    self.term(seq, vars, true, formal),
+                    self.term(index, vars, false, formal)
+                );
+            }
+            Sorted { seq } => {
+                return format!(
+                    "\\operatorname{{sorted}}({})",
+                    self.term(seq, vars, true, formal)
+                );
+            }
             Eq { left, right } => (left, "=", right),
+            Le { left, right } => (left, "\\le", right),
             Lt { left, right } => (left, "<", right),
+            Div { left, right } => (left, "\\operatorname{div}", right),
             And { left, right } => (left, "\\land", right),
             Or { left, right } => (left, "\\lor", right),
             False => return "\\bot".into(),

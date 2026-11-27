@@ -133,8 +133,59 @@ pub fn rule_explanation(rule: &str, reference: Option<&str>) -> &'static str {
             Some("lt_decidable") => {
                 "Strict integer order is decidable: two integers are ordered one way or not at all."
             }
+            Some("le_refl") => "Every integer is less than or equal to itself.",
+            Some("le_trans") => {
+                "Two non-strict integer inequalities with a shared middle term compose transitively."
+            }
+            Some("le_antisymm") => "Two opposite non-strict integer inequalities force equality.",
+            Some("le_lt_trans") => "A non-strict inequality followed by a strict one is strict.",
+            Some("lt_le_trans") => "A strict inequality followed by a non-strict one is strict.",
+            Some("le_total") => "Any two integers are ordered one way or the other.",
+            Some("lt_trichotomy") => {
+                "Two integers are ordered, equal, or ordered in the opposite direction."
+            }
+            Some("lt_to_le") => {
+                "A strict integer inequality implies the corresponding non-strict one."
+            }
+            Some("lt_succ_le") => {
+                "A strict integer inequality implies the successor of the left side is at most the right side."
+            }
+            Some("lt_add_one_le") => "An integer below a successor is at most the predecessor.",
+            Some("le_add") => {
+                "Adding the same integer to both sides preserves a non-strict integer inequality."
+            }
+            Some("not_lt_le") => {
+                "If one integer is not less than another, the second is at most the first."
+            }
+            Some("eq_symm") => "Integer equality is symmetric.",
+            Some("half_lower") => {
+                "Floor half of an interval with non-negative lower bound stays above the lower bound."
+            }
+            Some("half_upper") => {
+                "Floor half of a non-empty interval stays strictly below the upper bound."
+            }
+            Some("length_nonneg") => "A finite sequence has non-negative length.",
+            Some("sorted_elim") => "Sortedness gives the order of any two in-range elements.",
+            Some("sorted_lower") => {
+                "An element at or below a smaller in-range element is also smaller than the target."
+            }
+            Some("sorted_upper") => {
+                "An element at or above a larger in-range element also exceeds the target."
+            }
+            Some("sorted_gap") => {
+                "A sorted sequence with a target below every left element and above every right element has no occurrence of the target."
+            }
             _ => unreachable!("checked core law"),
         },
+        "linear" => {
+            "A non-negative rational combination of the indicated inequality hypotheses and the negated conclusion is contradictory."
+        }
+        "have" => {
+            "The checked intermediate proposition is available under its binder while checking the body."
+        }
+        "program_ref" => {
+            "The executable program satisfies its checked precondition, loop invariants and postcondition."
+        }
         "block" => "Take the selected conclusion from the block of shared steps.",
         "step_ref" => "Reuse the indicated earlier checked step in this block.",
         _ => unreachable!("checked rule"),

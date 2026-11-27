@@ -2,6 +2,8 @@ from logos.expr import Var, Lit, Forall, Exists, Expr, Implies
 from logos.define import define, extern, recursor, cases, if_
 from logos.theorem import theorem, axiom, check, prove, LogosProofError, Axiom, Theorem
 from logos.contracts import contract, Contract, LogosContractError
+from logos.programs import program_contract, ProgramContract
+from logos.sequence import Seq, absent, length, nth, occurrence, seq_var, sorted
 from logos.portable import ProofReceipt, export_proof
 from logos import tactics
 import logos.builtins  # ensure builtin Axiom objects are available
