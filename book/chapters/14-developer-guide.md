@@ -59,6 +59,12 @@ assert "The first implication supplies Q for the second." in reading
 print("compose: Rust replay verified and the checked reading includes the note")
 ```
 
+::: proof
+```python {run continue echo=false}
+print(reading)
+```
+:::
+
 Python records a `ProofReceipt` after the Rust response matches the target, format, theory and SHA-256 of the submitted bytes. Export writes those exact bytes. The digest identifies the artifact, and successful replay establishes its judgment. `inspect()` requires a current receipt and asks Rust to replay its artifact and render the checked trace. Read the derived `Q` in the scope that contains `given_p`, then read the final universally quantified implication. The theorem and proof docstrings supply the author's claim and strategy. `p.note` annotates the last derived fact. All three travel as author commentary and contribute no inference. The checked conclusion comes from the evidence.
 
 Send `compose.logos` to another reader with a compatible Rust executable. These commands run offline with only that executable and the file. Keep the certificate alongside the Markdown so the recipient can replay it.
@@ -96,6 +102,28 @@ The rest of this guide develops the interval extension for closed integer interv
 
 The first decision is what the words mean. `contains` and `overlaps` are definitions with bodies. The checker may unfold them during conversion, so a proof never needs a custom axiom to relate the name to its meaning.
 
+Use ordered endpoints: `a_lo <= a_hi` and `b_lo <= b_hi`. A point lies
+in an interval when both endpoints bound it. Two valid intervals share
+a point exactly when the later start is at or before the earlier end.
+Each start is already at or before its own end, leaving two comparisons
+to check: `a_lo <= b_hi` and `b_lo <= a_hi`. If both hold, the later start
+itself belongs to both intervals.
+
+```text
+Intersecting   A: [0-------3]
+               B:     [2-------5]
+
+Separated      A: [0---1]
+               B:           [2---3]
+```
+
+For `[0,3]` and `[2,5]`, both cross-bounds hold and 2 is common.
+For `[0,1]` and `[2,3]`, the second cross-bound would require `2 <= 1`.
+The definitions leave endpoint validity to the caller. With reversed
+endpoints, `[3,1]` contains no point, yet both its cross-bounds with
+`[0,4]` hold. The docstring's “share a point” interpretation assumes
+valid endpoints for both intervals.
+
 <!-- source: contains -->
 ```python
 @logos.definition
@@ -113,8 +141,6 @@ def overlaps(a_lo: Int, a_hi: Int, b_lo: Int, b_hi: Int):
 ```
 
 The source blocks in this chapter are quoted from the module and a test compares them, so the guide cannot drift from the code. The important difference from an axiom is that an axiom would be an opaque fact the checker accepts without a body. A definition has a body, and the checker can replace the name with it whenever two statements are compared. No custom axiom enters the judgment.
-
-The cost is that every lemma is about the unfolded form. A reader who wants to know why `overlaps(a, b)` follows from a point in both intervals has to read the two order atoms, not trust a table.
 
 ## Check the lemmas once, reuse them everywhere
 
@@ -147,6 +173,18 @@ def prove_overlap_comm(p, a_lo, a_hi, b_lo, b_hi):
     shared = p.assume(overlaps(a_lo, a_hi, b_lo, b_hi))
     return p.and_intro(shared.right(), shared.left())
 ```
+
+Unfold the two containment premises to get `a_lo <= x <= a_hi` and
+`b_lo <= x <= b_hi`. A common point already forces both intervals to
+be valid. Work backward from each overlap goal:
+
+| Goal | Chain | Facts passed to `p.linear` |
+|---|---|---|
+| `a_lo <= b_hi` | `a_lo <= x <= b_hi` | `left.left()`, `right.right()` |
+| `b_lo <= a_hi` | `b_lo <= x <= a_hi` | `right.left()`, `left.right()` |
+
+Here `left` is the containment in A and `right` is the containment in
+B. The second call needs B's lower bound to connect `b_lo` to `x`.
 
 <!-- source: common_point -->
 ```python
@@ -203,14 +241,26 @@ for theorem in intervals.check_all():
 
 The four lemmas are enough to write proofs by hand, but a developer will meet the same overlap goal repeatedly. The `interval` tactic closes an overlap goal by unfolding it and building two linear certificates from the order facts in the local context. It uses the same exact Farkas routine as `p.linear`; it does not search for a truth it cannot certify.
 
-<!-- source: tactic -->
+### Extract bounds and their proofs
+
+After introducing the common-point premise, the context contains the five
+integer variables followed by the premise `both`. The variables
+yield no order facts. The premise has index 5 and gets prefix
+`__interval_5`. Unfold it and its two containments, then project the
+leaves. Each left or right projection appends `l` or `r`.
+
+| Name | Statement | Projections from `both` |
+|---|---|---|
+| `__interval_5ll` | `a_lo <= x` | left, left |
+| `__interval_5lr` | `x <= a_hi` | left, right |
+| `__interval_5rl` | `b_lo <= x` | right, left |
+| `__interval_5rr` | `x <= b_hi` | right, right |
+
+Each recursive call carries the evidence for its part of the conjunction.
+Start here when an expected bound is absent from the solver's input.
+
+<!-- source: order-facts -->
 ```python
-def _fraction_text(value: Fraction) -> str:
-    if value.denominator == 1:
-        return str(value.numerator)
-    return f"{value.numerator}/{value.denominator}"
-
-
 def _orders(expression, proof, name):
     """Yield the order conjuncts of a fact, with evidence for each one."""
     expression = unfold(expression)
@@ -219,6 +269,39 @@ def _orders(expression, proof, name):
         yield from _orders(expression.right, AndElimR(proof), name + "r")
     elif isinstance(expression, (Le, Lt, Eq)):
         yield name, expression, proof
+```
+
+### Bind facts before replaying the linear step
+
+For the first chain, the solver assigns coefficient 1 to each of the
+`ll` and `rr` facts. Their sum cancels `x`:
+`(a_lo - x) + (x - b_hi) <= 0`. Rust adds the negated goal,
+`b_hi < a_lo`, and checks that the sum yields the contradiction
+`0 < 0`.
+
+Each `Have` checks its projection from `both` and binds the fact in
+its body. The first side has this structure:
+
+```text
+Have __interval_5ll  (a_lo <= x)
+  Have __interval_5lr  (x <= a_hi)
+    Have __interval_5rl  (b_lo <= x)
+      Have __interval_5rr  (x <= b_hi)
+        Linear a_lo <= b_hi  [__interval_5ll: 1, __interval_5rr: 1]
+```
+
+The loop builds from the inside out. It iterates in reverse so replay
+sees the bindings in extraction order. All four projections refer
+directly to `both`, so their order does not affect the arithmetic.
+The `Linear` node must sit inside the bindings it uses. The tactic
+builds the other side the same way and joins them with `AndIntro`.
+
+<!-- source: tactic -->
+```python
+def _fraction_text(value: Fraction) -> str:
+    if value.denominator == 1:
+        return str(value.numerator)
+    return f"{value.numerator}/{value.denominator}"
 
 
 def interval(goal: Goal):
@@ -232,16 +315,20 @@ def interval(goal: Goal):
     statement = unfold(goal.statement)
     if not isinstance(statement, And):
         raise TacticFailed(
-            f"interval: expected an overlap after unfolding, got {format_expr(statement)}"
+            "interval: expected an overlap after unfolding, got "
+            f"{format_expr(statement)}"
         )
     facts = []
     for index, (binder, proposition) in enumerate(goal.context.items()):
         facts.extend(_orders(proposition, HypRef(binder), f"__interval_{index}"))
 
     def close(side):
-        labels = farkas(unfold(side), [(name, expression) for name, expression, _ in facts])
+        bounds = [(name, expression) for name, expression, _ in facts]
+        labels = farkas(unfold(side), bounds)
         if labels is None:
-            raise TacticFailed(f"interval: no linear certificate for {format_expr(side)}")
+            raise TacticFailed(
+                f"interval: no linear certificate for {format_expr(side)}"
+            )
         proof = Linear(
             side,
             tuple((name, _fraction_text(value)) for name, value in labels.items()),
@@ -252,8 +339,6 @@ def interval(goal: Goal):
 
     return AndIntro(close(statement.left), close(statement.right))
 ```
-
-Read the last three lines of `close`. `farkas` returns coefficients for the facts it used; `Linear` is the checker-owned certificate; each derived order fact is bound with `Have` before the certificate. The tactic's only job is to propose a certificate. The Rust checker parses it, recomputes the arithmetic and rejects a wrong combination. A tactic bug can make a proof fail; it cannot make a false proof pass.
 
 Use it on the common-point claim. The proof introduces the five variables and the conjunction, then hands the goal to the tactic.
 
@@ -269,13 +354,20 @@ logos.check(common_point_by_tactic.proof(
     intervals.interval,
 ))
 print("common_point_by_tactic:", common_point_by_tactic.certified)
+logos.export_proof(common_point_by_tactic, "intervals.logos")
+tactic_reading = common_point_by_tactic.inspect()
+print("zero custom axioms:", "Uses zero custom axioms." in tactic_reading)
+print("certificate: intervals.logos")
 ```
 
 ## When a step fails
 
 A failed tactic is not a refutation. It says the evidence you supplied does not establish this goal. The distinction matters when the goal is true but the context is too weak, and when the goal is false.
 
-The first failure is a claim with no certificate. The hypothesis says the left interval ends before the right one starts; the goal says they overlap. The tactic finds no linear combination for the first side and names it.
+First try to prove overlap from `a_hi < b_lo`. The intervals
+`[0,1]` and `[2,3]` satisfy the premise but violate `b_lo <= a_hi`.
+The tactic stops at the first side it cannot derive, `a_lo <= b_hi`,
+which happens to hold for these particular endpoints.
 
 ```python {run continue}
 @logos.theorem
@@ -289,17 +381,38 @@ try:
     ))
 except logos.LogosProofError as error:
     print("diagnostic:", error)
+else:
+    raise AssertionError("separated intervals should defeat the tactic")
 ```
 
-The message is
+Compare this with a failed attempt at the true common-point claim.
+Giving the second call A's lower bound instead of B's drops the link
+from `b_lo` to `x`. The conjunction is in scope, but this call to
+`p.linear` receives only A's projected bounds.
 
-```text
-Theorem 'impossible': interval: no linear certificate for a_lo <= b_hi
+```python {run continue}
+@common_point_by_tactic.proof
+def missing_bound(p, a_lo, a_hi, b_lo, b_hi, x):
+    both = p.assume(intervals.contains(a_lo, a_hi, x) &
+                    intervals.contains(b_lo, b_hi, x))
+    left, right = both.left(), both.right()
+    first = p.linear(a_lo <= b_hi, using=[left.left(), right.right()])
+    second = p.linear(b_lo <= a_hi, using=[left.left(), left.right()])
+    return p.and_intro(first, second)
+
+try:
+    common_point_by_tactic.check()
+except logos.LogosProofError as error:
+    print("construction diagnostic:", error)
+else:
+    raise AssertionError("the selected bounds should be insufficient")
 ```
 
-It names the side, not a step number. If the goal is true, the repair is to add the missing order fact to the context or to prove an intermediate lemma. If the goal is false, the message is the evidence that the domain model and the claim disagree.
+Both diagnostics report a failure to construct evidence. The separated
+intervals refute the first claim. The two valid chains prove the
+second claim when both lower bounds are supplied.
 
-The second failure is the wrong shape. A negation is not an overlap, so the tactic refuses before it builds any certificate:
+Another failure is the wrong shape. A negation is not an overlap, so the tactic refuses before it builds any certificate:
 
 ```python {run continue}
 @logos.theorem
@@ -315,20 +428,19 @@ try:
     ))
 except logos.LogosProofError as error:
     print("diagnostic:", error)
+else:
+    raise AssertionError("the interval tactic should reject a negation")
 ```
 
-The message says `interval: expected an overlap after unfolding`. A tactic that silently returned an unchecked term, or a checker that trusted the tactic, would turn either diagnostic into a false success. Neither happens here.
-
-A third failure is a wrong bound inside a hand-written lemma. Change the sign in `prove_common_point_overlaps`, or pass the wrong containment fact to `p.linear`, and the authoring layer reports `linear arithmetic could not derive the goal from these facts` with the goal and the facts it was given. The checker never sees a certificate, so the theorem is not certified.
+The message says `interval: expected an overlap after unfolding`.
+The tactic requires an unfolded conjunction before trying arithmetic.
 
 ## Test the domain, not only the examples
 
-The domain has two kinds of tests. The positive tests check every lemma and replay a certificate. The negative tests construct the failures above and require the exact diagnostic. A test that only checks the happy path would not notice a tactic that returned a plausible term.
-
-The repository test file is `tests/test_intervals.py`. Run it with the checker on `PATH`:
+The domain tests check each lemma, replay a certificate and assert the tactic diagnostics. The chapter tests also render the examples, replay the exported tactic proof and check the exit solutions. Run them with Scriptorium and the Rust checker on `PATH`:
 
 ```bash
-python -m pytest -q tests/test_intervals.py
+python -m pytest -q tests/test_intervals.py tests/test_developer_guide.py
 ```
 
 The important assertions are not the printed `True` values. They are:
@@ -339,18 +451,23 @@ The important assertions are not the printed `True` values. They are:
 - a negated overlap fails with `interval: expected an overlap after unfolding`;
 - the JSON trace contains a `linear` step, so the proof really used the checked certificate.
 
-A mutation test is the next step. Change one bound in `common_point_overlaps` from `a_lo <= b_hi` to `b_hi <= a_lo`, or swap the two facts passed to `p.linear`, and the proof must fail. If it still passes, the domain's tests are testing Python, not the checker.
+The insufficient-bound mutation fails during Python proof construction.
+To test Rust directly, the replay test changes one coefficient in the
+exported working tactic proof and runs `logos check --strict` on both
+files. Rust accepts the original and rejects the changed combination.
 
 ## Replay it without Python
 
-The certificate is the artifact a recipient uses. Export the common-point theorem and inspect the bytes:
+In the checked reading below, follow step 18 back to steps 5 and 17.
+These are the two bound hypotheses named `__interval_5ll` and
+`__interval_5rr` in the certificate. Step 39 checks the other chain
+and step 44 joins the two results after their local bindings close.
 
-```python {run continue}
-logos.export_proof(intervals.common_point_overlaps, "intervals.logos")
-reading = intervals.common_point_overlaps.inspect()
-print("zero custom axioms:", "Uses zero custom axioms." in reading)
-print("certificate: intervals.logos")
+::: proof
+```python {run continue echo=false}
+print(tactic_reading)
 ```
+:::
 
 The recipient needs only the Rust executable and the file. No Python, no module, no tactic script, no repository checkout:
 
@@ -359,7 +476,7 @@ logos check --strict intervals.logos
 logos inspect --markdown --strict intervals.logos > intervals.md
 ```
 
-The first command prints the verified statement and `Verified with 0 custom axioms`; the second writes a Markdown derivation from the checked trace. The `--strict` flag is meaningful because the proof uses no custom axioms. A conditional proof would verify and exit 0; a proof that needed an author assumption would exit 3 under strict policy. The file's SHA-256 identifies the exact bytes, and the format and theory IDs are `logos-proof-v1` and `logos-core-v1`.
+The first command prints the verified statement and `Verified with 0 custom axioms`; the second writes a Markdown derivation from the checked trace. The `--strict` flag is meaningful because the proof uses no custom axioms. A theorem with discharged premises can verify and exit 0. A proof that depends on a custom axiom exits 3 under strict policy. The file's SHA-256 identifies the exact bytes, and the format and theory IDs are `logos-proof-v1` and `logos-core-v1`.
 
 The extension did not change either ID. A recipient with an older binary can still replay an older certificate, and this certificate replays on a binary that predates the interval module because the module produced only existing evidence tags.
 
@@ -398,6 +515,17 @@ The tactic is a certificate builder, not a decision procedure. It closes overlap
 
 ## Exit exercise
 
-Add a `touches` definition for closed intervals that meet at one endpoint: `a_hi = b_lo` or `b_hi = a_lo`. Prove that `touches` is symmetric. Then add a lemma that says a nonempty interval touches itself, and decide whether either fact warrants a new Rust law. Write the negative test for the case where the intervals are separated, export the positive certificate and replay it with `logos check --strict`.
+1. Define `touches` on valid closed intervals by endpoint equality:
+   `a_hi == b_lo` or `b_hi == a_lo`. Prove symmetry and prove that
+   the singleton interval `[x,x]` touches itself. Test separated
+   intervals and refute “every nonempty interval touches itself.”
+2. Define `inside` with two explicit endpoint bounds. Prove that if
+   A lies inside B and A overlaps C, then B overlaps C. Find a
+   counterexample to the reverse implication. Identify both bound
+   chains before writing Python.
+3. Export the three proofs and replay them with `logos check --strict`.
+   Use the layer table to choose where this extension belongs. Explain
+   how Python constructs evidence and what Rust checks independently.
 
-As a second exercise, add a `contained` lemma: if `[a_lo, a_hi]` is inside `[b_lo, b_hi]` and the outer interval overlaps `[c_lo, c_hi]`, then the inner one overlaps it too. State the two containment hypotheses explicitly. If the proof needs a new order fact, add it as a `p.linear` certificate; if it needs a new definition, keep the definition transparent. Do not add a Rust law unless the same schema is needed by a second domain.
+After attempting the exercises, compare your argument with the
+[instructor proofs and counterexample tests](https://github.com/gia-uh/logos/blob/main/tests/test_developer_guide.py).

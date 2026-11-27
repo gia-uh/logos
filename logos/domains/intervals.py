@@ -39,13 +39,7 @@ def overlaps(a_lo: Int, a_hi: Int, b_lo: Int, b_hi: Int):
 # --8<-- [end:overlaps]
 
 
-# --8<-- [start:tactic]
-def _fraction_text(value: Fraction) -> str:
-    if value.denominator == 1:
-        return str(value.numerator)
-    return f"{value.numerator}/{value.denominator}"
-
-
+# --8<-- [start:order-facts]
 def _orders(expression, proof, name):
     """Yield the order conjuncts of a fact, with evidence for each one."""
     expression = unfold(expression)
@@ -54,6 +48,14 @@ def _orders(expression, proof, name):
         yield from _orders(expression.right, AndElimR(proof), name + "r")
     elif isinstance(expression, (Le, Lt, Eq)):
         yield name, expression, proof
+# --8<-- [end:order-facts]
+
+
+# --8<-- [start:tactic]
+def _fraction_text(value: Fraction) -> str:
+    if value.denominator == 1:
+        return str(value.numerator)
+    return f"{value.numerator}/{value.denominator}"
 
 
 def interval(goal: Goal):
@@ -67,16 +69,20 @@ def interval(goal: Goal):
     statement = unfold(goal.statement)
     if not isinstance(statement, And):
         raise TacticFailed(
-            f"interval: expected an overlap after unfolding, got {format_expr(statement)}"
+            "interval: expected an overlap after unfolding, got "
+            f"{format_expr(statement)}"
         )
     facts = []
     for index, (binder, proposition) in enumerate(goal.context.items()):
         facts.extend(_orders(proposition, HypRef(binder), f"__interval_{index}"))
 
     def close(side):
-        labels = farkas(unfold(side), [(name, expression) for name, expression, _ in facts])
+        bounds = [(name, expression) for name, expression, _ in facts]
+        labels = farkas(unfold(side), bounds)
         if labels is None:
-            raise TacticFailed(f"interval: no linear certificate for {format_expr(side)}")
+            raise TacticFailed(
+                f"interval: no linear certificate for {format_expr(side)}"
+            )
         proof = Linear(
             side,
             tuple((name, _fraction_text(value)) for name, value in labels.items()),
