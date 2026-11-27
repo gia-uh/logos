@@ -198,7 +198,7 @@ print("two more primes:", two_more_primes.certified)
 
 With $m=n!+2$, `common_divisor` is the first broken application. It requires $q\mid n!\land q\mid n!+1$, while the proof supplies $q\mid n!\land q\mid n!+2$. A common divisor of the altered pair can divide their difference $2$. At $n=4$ the candidate is $26=2\cdot13$, and its least prime divisor is $2\le4$.
 
-## Read the portable proof
+## Read the portable proof {#what-the-reader-should-be-able-to-check}
 
 Find where the checker opens the prime-divisor existential, and follow the two divisibility facts into the contradiction. The complete reading comes from the checker that accepted the certificate.
 

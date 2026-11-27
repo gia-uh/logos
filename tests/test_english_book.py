@@ -297,7 +297,11 @@ def test_euclid_chapter_exports_a_strict_certificate(tmp_path):
     assert proof
     assert "Checked proof" in proof[1]
     assert "Uses zero custom axioms." in proof[1]
-    assert "The conclusion follows from" in proof[1]
+    assert 'id="what-the-reader-should-be-able-to-check"' in html
+    conclusion = re.search(r"The conclusion follows from \((\d+)\)", proof[1])
+    assert conclusion
+    steps = [int(n) for n in re.findall(r"<strong>\((\d+)\)</strong>", proof[1])]
+    assert steps == list(range(1, int(conclusion[1]) + 1))
     for filename, statement in [
         ("euclid.logos", "euclid"),
         ("two-more-primes.logos", "two_more_primes"),
