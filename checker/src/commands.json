@@ -189,7 +189,8 @@
       "lt_succ_fwd",
       "lt_succ_rev",
       "eq_of_not_lt_not_lt",
-      "lt_dne"
+      "lt_dne",
+      "lt_decidable"
     ],
     "program": "{id, function, params, locals, ghosts?, result, requires, ensures, body, obligations}; loop programs are checked against their executable statements by program_ref",
     "programs": {

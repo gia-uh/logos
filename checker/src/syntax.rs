@@ -243,6 +243,31 @@ impl Proposition {
     }
 }
 
+/// Instantiate a one-binder predicate template at a target scope.
+///
+/// `new_binders` counts the binders between the template's outer scope and
+/// the target, including the binder that replaces the template's own binder.
+/// For ordinary universal elimination the template binder is removed, so
+/// `new_binders` is zero. For an induction or least-element conclusion the
+/// replacement binder stays in scope, so it is one or more.
+pub fn instantiate_predicate(
+    body: &Proposition,
+    new_binders: usize,
+    term: &Proposition,
+) -> Proposition {
+    body.map_bound(0, &|index, depth| {
+        if index == depth {
+            term.shift(depth)
+        } else if index > depth {
+            Bound {
+                index: index - 1 + new_binders,
+            }
+        } else {
+            Bound { index }
+        }
+    })
+}
+
 impl Proposition {
     fn children(&self) -> &[Self] {
         match self {
@@ -657,7 +682,8 @@ pub fn law_formals(id: &str) -> Option<&'static [&'static str]> {
         | "lt_succ_fwd"
         | "lt_succ_rev"
         | "eq_of_not_lt_not_lt"
-        | "lt_dne" => &["a", "b"],
+        | "lt_dne"
+        | "lt_decidable" => &["a", "b"],
         "add_zero" | "lt_irrefl" | "le_refl" => &["a"],
         "add_inverse" | "mul_one" => &["a"],
         "lt_trans" | "lt_add" | "le_trans" | "le_lt_trans" | "lt_le_trans" | "le_add" => {
@@ -750,6 +776,7 @@ pub fn instantiate_law(id: &str, args: &[Proposition]) -> Option<Proposition> {
             not(not(lt(a.clone()?, b.clone()?))),
             lt(a.clone()?, b.clone()?),
         ),
+        "lt_decidable" => or(lt(a.clone()?, b.clone()?), not(lt(a.clone()?, b.clone()?))),
         "le_refl" => le(a.clone()?, a?),
         "le_trans" => implies(
             le(a.clone()?, b.clone()?),

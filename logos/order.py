@@ -12,7 +12,7 @@ axiom. Each law is universally quantified over integer terms:
 ``lt_succ_fwd``  ``a < b + 1`` implies ``not (b < a)``.
 ``lt_succ_rev``  ``not (b < a)`` implies ``a < b + 1``.
 ``eq_of_not_lt_not_lt``  ``not (a < b)`` and ``not (b < a)`` imply ``a = b``.
-``lt_dne``    ``not (not (a < b))`` implies ``a < b``.
+``lt_decidable``  ``a < b`` or ``not (a < b)``.
 
 This module only describes the schemas for tactics and tests. The Rust
 checker recomputes every instance from the law ID and its integer arguments.
@@ -31,7 +31,7 @@ _LAWS = {
     "lt_succ_fwd": 2,
     "lt_succ_rev": 2,
     "eq_of_not_lt_not_lt": 2,
-    "lt_dne": 2,
+    "lt_decidable": 2,
 }
 
 ORDER_LAWS = tuple(_LAWS)
@@ -73,7 +73,7 @@ def order_law(law: str, args: tuple[Expr, ...]) -> Expr:
         a, b = args
         return Implies(Not(Lt(a, b)), Implies(Not(Lt(b, a)), Eq(a, b)))
     a, b = args
-    return Implies(Not(Not(Lt(a, b))), Lt(a, b))
+    return Or(Lt(a, b), Not(Lt(a, b)))
 
 
 def split_implications(expr: Expr) -> tuple[list[Expr], Expr]:

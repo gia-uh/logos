@@ -123,6 +123,7 @@ conclusion is a proposition rather than an equality.
 | `lt_succ_rev` | `¬(b < a) → a < b + 1` |
 | `eq_of_not_lt_not_lt` | `¬(a < b) → (¬(b < a) → a = b)` |
 | `lt_dne` | `¬¬(a < b) → a < b` |
+| `lt_decidable` | `a < b ∨ ¬(a < b)` |
 | `le_refl`, `le_trans`, `le_antisymm` | Non-strict order is reflexive, transitive and antisymmetric. |
 | `le_lt_trans`, `lt_le_trans`, `lt_succ_le`, `lt_add_one_le` | Mixed strict/non-strict transport and integer successor facts. |
 | `le_total`, `lt_trichotomy`, `not_lt_le` | Integer totality. |
@@ -227,10 +228,12 @@ law instance is sound without any decision procedure:
   order.
 - `eq_of_not_lt_not_lt` is trichotomy in the form needed for case analysis:
   two integers that are not strictly ordered either way are equal.
-- `lt_dne` is double-negation elimination for a strict integer comparison.
-  It is constructively justified because `a < b` is decidable: either it
-  holds or it does not, so stability follows by case analysis. The checker
-  owns the case analysis rather than a general classical axiom.
+- `lt_decidable` states that a strict integer comparison holds or does not.
+  It is constructively justified: integer terms are compared by a terminating
+  computation. The rule exposes that computation's two outcomes as a checked
+  disjunction. Double-negation elimination for `<` follows by disjunction
+  elimination. The earlier `lt_dne` law states that consequence directly and
+  remains available for proofs written against it.
 
 The checker verifies the law ID, the arity and that every argument has sort
 `int`, then builds exactly the proposition above. It never trusts a tactic.
