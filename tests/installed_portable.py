@@ -1119,6 +1119,58 @@ def primes(python, cold, recipient, evidence, env, offline):
     (evidence / "primes.json").write_text(json.dumps(inspected, indent=2))
 
 
+def binary_search_contract(python, cold, recipient, evidence, env, offline):
+    application = cold / "binary_search_application"
+    application.mkdir()
+    source = (Path(__file__).resolve().parents[1] / "examples/binary_search.py").read_text()
+    (application / "binary_search.py").write_text(source)
+    print("Binary search · author the loop contract with the installed wheel")
+    run(["python", "binary_search.py"], application, env=env)
+    shutil.move(application / "binary_search.logos", recipient / "binary_search.logos")
+    shutil.copy2(application / "binary_search.py", evidence / "binary_search.py")
+
+    print(f"Binary search · strict replay and machine inspection, then an offline replay")
+    check = replay(recipient, "check", "--strict", "binary_search.logos", offline=offline)
+    assert "Verified with 0 custom axioms" in check.stdout
+    inspected = json.loads(replay(
+        recipient, "inspect", "--json", "--strict", "binary_search.logos", offline=offline
+    ).stdout)
+    assert inspected["status"] == "verified"
+    assert inspected["custom_axioms"] == []
+
+    wrong = source.replace("(low + high) // 2", "(low + high + 1) // 2")
+    (application / "wrong_midpoint.py").write_text(wrong)
+    rejected = run(["python", "wrong_midpoint.py"], application, env=env, code=1)
+    assert "LogosProofError" in rejected.stderr or "cannot prove" in rejected.stderr
+
+    data = json.loads((recipient / "binary_search.logos").read_text())
+    for statement in data["programs"][0]["body"]:
+        if statement.get("tag") == "while":
+            for item in statement["body"]:
+                if item.get("tag") == "if":
+                    for assignment in item["then_body"]:
+                        if assignment.get("tag") == "assign":
+                            assignment["value"] = {"tag": "int", "value": "0"}
+                            break
+    (recipient / "forged-binary-search.logos").write_text(json.dumps(data))
+    forged = replay(
+        recipient, "check", "--json", "forged-binary-search.logos",
+        offline=offline, code=1, show_output=False,
+    )
+    assert "error" in json.loads(forged.stderr)
+    data = json.loads((recipient / "binary_search.logos").read_text())
+    data["programs"][0]["obligations"].pop(0)
+    (recipient / "missing-binary-search.logos").write_text(json.dumps(data))
+    missing = replay(
+        recipient, "check", "--json", "missing-binary-search.logos",
+        offline=offline, code=1, show_output=False,
+    )
+    assert "missing proof" in json.loads(missing.stderr)["error"]
+    for artifact in ("binary_search.logos", "forged-binary-search.logos",
+                     "missing-binary-search.logos"):
+        shutil.copy2(recipient / artifact, evidence / artifact)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
@@ -1305,10 +1357,13 @@ def main():
         print(f"Strict order · prove both minimum paths and order laws, then {isolation}")
         order_contracts(python, cold, recipient, evidence, env, options.offline)
 
+        print(f"Binary search · prove total correctness, then {isolation}")
+        binary_search_contract(python, cold, recipient, evidence, env, options.offline)
+
         print(f"Primes · check Euclid's theorem and rebuild it, then {isolation}")
         primes(python, cold, recipient, evidence, env, options.offline)
 
-    print("13 acceptance stages exercised")
+    print("14 acceptance stages exercised")
 
 
 if __name__ == "__main__":

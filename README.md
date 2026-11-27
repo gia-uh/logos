@@ -157,7 +157,59 @@ logos.check(lt_add_transport.proof(t.intro("x", "y", "c", "h"), t.order("lt_add"
 
 Run the [branch example](examples/branch_contract.py) with `python examples/branch_contract.py`, then strict-check the three artifacts with `logos check --strict`. Run the [order example](examples/order_contract.py) the same way to write both minimum paths and the two order consequences. Run the [single-return example](examples/function_contract.py) too.
 
-The supported fragment is deliberately small. A function is either an undecorated module-level function whose body is a single `return` of parameters, integer literals and `+`, or one `if`/`else` over a single `<`, `==` or `!=` comparison of such integer expressions with one `return` per branch. Every parameter and the return are annotated with the built-in `int`. The decorated theorem takes the same input names in the same order plus exactly one keyword-only result. Its `ensures` must be one equality between integer terms over the parameters and the result, with the result on exactly one side; `requires`, when present, is a proposition over the parameters built from integer equalities, strict order and `&`, `|`, `~`, `>>`. A branching function needs a `requires=` that selects a path; for `<`, the complement is `~(x < y)`, not `y < x`. Loops, `elif`, nested branches, missing `else`, `<=`, `>`, `>=`, chained comparisons, calls, globals, closures, wrappers, missing or ambiguous source, postponed annotations and a stale source/code match all raise `logos.LogosContractError` with the file and line. Revalidation binds the whole fragment, so changing the guard, either branch, the parameter binding, the source or the imported code object invalidates every theorem for that function. Verification never executes the function with symbolic arguments. Interpreting Python's source and compiling the supported fragment is the trust boundary; the proof about the extracted integer function is checked by Rust.
+## Prove a loop program: binary search
+
+The next fragment binds a real Python function with one `while` loop and proves
+its contract over every input. The example uses half-open bounds `[low, high)`
+and returns any valid occurrence, or `-1` exactly when the target is absent.
+
+```python
+def binary_search(xs: list[int], target: int) -> int:
+    low = 0
+    high = len(xs)
+    answer = -1
+    while low < high:
+        mid = (low + high) // 2
+        if xs[mid] == target:
+            answer = mid
+            low = high
+        elif xs[mid] < target:
+            low = mid + 1
+        else:
+            high = mid
+    return answer
+```
+
+The theorem supplies the loop invariant and the interval variant. The Rust
+checker recomputes every verification condition from the exported program and
+checks the proof supplied for each one; no loop summary is trusted.
+
+```python
+@logos.theorem(about=binary_search)
+def binary_search_correct(xs, target, *, result):
+    # ... invariant over low, high, answer and the two strict cuts ...
+    return logos.program_contract(
+        requires=logos.sorted(xs),
+        ensures=((result == -1) & logos.absent(xs, target))
+        | ((0 <= result) & (result < logos.length(xs))
+           & (logos.nth(xs, result) == target)),
+        invariant=invariant,
+        variant=high - low,
+    )
+```
+
+Run the [full example](examples/binary_search.py) with
+`python examples/binary_search.py`, then `logos check --strict
+binary_search.logos`. The contract covers the empty sequence, duplicates and an
+absent target. A mutated midpoint or invariant, a changed program body, and a
+missing or forged obligation are rejected.
+
+The supported fragment is deliberately small. A function is either an undecorated module-level function whose body is a single `return` of parameters, integer literals and `+`, or one `if`/`else` over a single `<`, `==` or `!=` comparison of such integer expressions with one `return` per branch. Every parameter and the return are annotated with the built-in `int`. The decorated theorem takes the same input names in the same order plus exactly one keyword-only result. Its `ensures` must be one equality between integer terms over the parameters and the result, with the result on exactly one side; `requires`, when present, is a proposition over the parameters built from integer equalities, strict order and `&`, `|`, `~`, `>>`. A branching function needs a `requires=` that selects a path; for `<`, the complement is `~(x < y)`, not `y < x`. Loops, `elif`, nested branches, missing `else`, `<=`, `>`, `>=`, chained comparisons, calls, globals, closures, wrappers, missing or ambiguous source, postponed annotations and a stale source/code match all raise `logos.LogosContractError` with the file and line. Revalidation binds the whole fragment, so changing the guard, either branch, the parameter binding, the source or the imported code object invalidates every theorem for that function. Verification never executes the function with symbolic arguments. Interpreting
+Python's source and compiling the supported fragment is the trust boundary. For
+a loop program, that extraction is the exported statement list and its loop
+invariant; Rust recomputes every verification condition from it and checks each
+proof, so Python only proposes evidence. For a branch or single-return
+function, Rust checks the proof about the extracted integer expression.
 
 <details>
 <summary>Choose a witness for an existential claim</summary>

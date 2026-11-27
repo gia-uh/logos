@@ -99,14 +99,18 @@ print("(a+b)² = a² + 2ab + b² ✓")
 
 ## Linear Inequalities
 
-The expression language can describe bounds such as additive monotonicity. The portable checker currently rejects inequalities, even when a tactic can generate candidate evidence:
+The expression language can describe bounds such as additive monotonicity. The
+portable core now accepts non-strict order atoms, but the legacy `linarith`
+tactic still emits no checked certificate, so the checker rejects its proof
+with a conclusion mismatch. The loop fragment uses checked `linear`
+certificates instead:
 
 ```{python}
 @logos.theorem
 def add_mono(x: int, y: int, z: int):
     return (x <= y) >> (x + z <= y + z)
 
-with pytest.raises(logos.LogosProofError, match="unsupported portable proposition or term Le"):
+with pytest.raises(logos.LogosProofError, match="proof conclusion mismatch"):
     logos.check(add_mono.proof(t.intro("x", "y", "z", "h"), t.linarith()))
 assert not add_mono.certified
 ```
