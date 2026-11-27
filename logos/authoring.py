@@ -442,7 +442,7 @@ def _caller_outside():
     return None
 
 
-def _return_location(fn) -> tuple[str, int, str]:
+def _return_location(fn) -> tuple[str | None, int | None, str]:
     path = _absolute(fn.__code__.co_filename)
     tree = _tree(path)
     if tree is not None:
@@ -463,7 +463,9 @@ def _return_location(fn) -> tuple[str, int, str]:
             if returns:
                 node = max(returns, key=lambda node: node.lineno)
                 return path, node.lineno, _line_text(path, node.lineno)
-    return path, first, _line_text(path, first)
+    # Generated proof functions may have no source file. The function's
+    # first line is not a return site.
+    return None, None, ""
 
 
 def _location(frame) -> tuple[str, int, str]:
@@ -823,8 +825,8 @@ class ProofContext:
             "hypotheses", tuple(self.hypotheses.items())
         )
         kwargs.setdefault("opened", tuple(self.opened))
-        file = kwargs.get("file") or file
-        line = kwargs.get("line") or line
+        file = kwargs["file"]
+        line = kwargs["line"]
         if file and line:
             kwargs.setdefault("related", _related_assignments(file, line))
         return AuthoringFailure(kind, message, **kwargs)
