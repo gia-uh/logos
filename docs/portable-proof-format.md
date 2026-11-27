@@ -549,6 +549,15 @@ its mutation tests are new.
 | `test_builtins_are_axiom_objects` | The legacy assertion treats the flag on an author-declared axiom as certification. The checked core laws are selected by theory ID and instantiated by the verifier. |
 
 The portable checker also supports conjunction, disjunction, negation,
-falsehood, implication, local hypotheses, and checked dependencies.
-The checker supports existential introduction with checked witnesses.
-Existential elimination and other domains remain milestone work.
+falsehood, implication, local hypotheses, checked definitions, checked
+dependencies, existential introduction and existential elimination with a
+fresh eigenvariable. The `exists_elim` rule and its soundness argument are
+described above. Other theories remain milestone work.
+
+The core-law inventory printed by `logos commands --json` is the published
+list. It is compared with the checker table, this manual and the Python schema
+by tests, so a law cannot be accepted by the verifier and omitted from the
+inventory. Adding a law ID is additive inside `logos-proof-v1`: an older file
+does not mention the new ID and still replays with the same digest. Changing a
+law's statement or the meaning of an expression tag requires a new theory or
+format ID.

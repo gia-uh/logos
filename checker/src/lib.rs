@@ -12,7 +12,7 @@ mod program;
 mod syntax;
 mod trace;
 
-pub use syntax::{Function, Proposition, Sort};
+pub use syntax::{CORE_LAWS, Function, LawSpec, Proposition, Sort};
 use syntax::{
     Functions, convert, instantiate_bounded, instantiate_law, instantiate_predicate, integer,
     law_arg_sorts, law_formals,
@@ -727,8 +727,17 @@ impl<'a> Checker<'a> {
                     });
                 }
             }
-            for premise in step.premises.iter().rev() {
-                let premise = premise.as_str();
+            // Markdown and the structured trace refer to discharged hypotheses,
+            // including a `have` binder the body never uses. Those steps are
+            // part of the argument even when no premise points at them.
+            let mut links: Vec<&str> = step.premises.iter().map(String::as_str).collect();
+            if let Some(id) = step.discharged.as_deref() {
+                links.push(id);
+            }
+            if let Some([left, right]) = step.discharged_cases.as_ref() {
+                links.extend([left.as_str(), right.as_str()]);
+            }
+            for premise in links.into_iter().rev() {
                 if let std::collections::hash_map::Entry::Vacant(entry) = parents.entry(premise) {
                     entry.insert(Some(path));
                     pending.push(premise);
@@ -2018,6 +2027,7 @@ impl<'a> Checker<'a> {
                     .iter()
                     .map(|name| Proposition::Symbol { id: (*name).into() })
                     .collect();
+                let sorts = law_arg_sorts(id);
                 law = Some(LawApplication {
                     id: id.clone(),
                     formal_statement: instantiate_law(id, &formal_args)
@@ -2025,10 +2035,11 @@ impl<'a> Checker<'a> {
                     substitution: formals
                         .iter()
                         .zip(args)
-                        .map(|(formal, actual)| Substitution {
+                        .zip(sorts)
+                        .map(|((formal, actual), sort)| Substitution {
                             formal,
                             actual: actual.clone(),
-                            sort: Sort::Int,
+                            sort,
                         })
                         .collect(),
                 });
