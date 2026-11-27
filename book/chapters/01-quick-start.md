@@ -48,6 +48,19 @@ logos --version
 
 The `-P` flag stops Python from putting the current directory first, so the command imports the installed wheel rather than the `logos/` directory of the checkout. It must print a path inside the virtual environment, not a path inside the repository. The second must print a version. If either fails, fix the installation before continuing; a proof error later would only hide the real problem.
 
+## Read the book offline
+
+The release wheel bundles the same book you are reading and its PDF. The `logos` Python package can find both without a checkout or a network connection:
+
+```bash
+python -m logos book --pdf     # path of the bundled PDF
+python -m logos book --open    # open the offline HTML pages
+python -m logos book --serve   # serve them on localhost, including search
+python -m logos book --json    # machine-readable paths and page count
+```
+
+From Python, `import logos.book` gives the same paths through `logos.book.pdf()`, `logos.book.site()` and `logos.book.index()`. A source checkout that has rendered the book reads it from `book/`; a wheel reads the copy under `logos/_book/`. If neither is present, the command fails and names the build step instead of printing a path to nothing.
+
 ## Check your first theorem
 
 The statement is transitivity of implication: if $P$ implies $Q$, and $Q$ implies $R$, then $P$ implies $R$. The proof assumes the two implications and $P$, derives $Q$, and applies the second implication to reach $R$.

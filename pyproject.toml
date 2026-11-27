@@ -17,3 +17,6 @@ testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
 include = ["logos", "logos.*"]
+
+[tool.setuptools.package-data]
+logos = ["py.typed", "_book/manifest.json", "_book/book.pdf", "_book/site/*", "_book/site/fonts/*", "_book/site/guide/*", "_book/site/guide/examples/*", "_book/site/guide/tactics/*", "_book/site/reference/*"]

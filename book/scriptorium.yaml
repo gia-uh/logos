@@ -2,6 +2,7 @@
 # built; the installed `logos` executable must be on PATH. The Spanish pages in
 # book/ are regression fixtures and are not part of this project.
 theme: book
+base-url: https://logos.uhgia.org/
 execute: {timeout: 120, freeze: file}
 
 vars:

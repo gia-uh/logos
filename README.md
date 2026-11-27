@@ -21,6 +21,16 @@ logos --version
 
 The Python package is `logos-ai`, imported as `logos`. Python authors proofs. The `logos` executable checks them.
 
+The release wheel also carries the rendered book and its PDF for offline reading. After installing the wheel:
+
+```bash
+python -m logos book --pdf     # print the bundled PDF path
+python -m logos book --open    # open the offline HTML book
+python -m logos book --serve   # serve it on localhost, for search and links
+```
+
+From Python, `import logos.book` exposes `logos.book.pdf()`, `logos.book.site()` and `logos.book.index()`.
+
 ## Describe a puzzle and solve it
 
 On an island, every inhabitant is either a knight who tells the truth or a knave who lies. A tells B, “We are both knaves.” This complete Python example asks the domain to discover their roles and export its proof:
@@ -251,7 +261,7 @@ logos inspect --json --strict successor.logos
 
 ## Prove infinitely many primes
 
-The [Infinitely Many Primes](https://logos.uhgia.org/guide/examples/infinitely-many-primes.html) chapter proves that every integer `n >= 2` has a prime `p > n`. The statement expands divisibility and primality inline: `d | n` is `exists q, n = d * q`, and `p` is prime when `1 < p` and no `d` with `1 < d < p` divides `p`. The proof takes a least divisor of `n! + 1`, shows it is prime, and derives `p > n` by the consecutive-divisibility lemma. It needs induction and primitive recursion for the factorial, not an axiom about primes.
+The [Infinitely Many Primes](https://logos.uhgia.org/one-more-prime-always.html) chapter proves that every integer `n >= 2` has a prime `p > n`. The statement expands divisibility and primality inline: `d | n` is `exists q, n = d * q`, and `p` is prime when `1 < p` and no `d` with `1 < d < p` divides `p`. The proof takes a least divisor of `n! + 1`, shows it is prime, and derives `p > n` by the consecutive-divisibility lemma. It needs induction and primitive recursion for the factorial, not an axiom about primes.
 
 ```bash
 logos example primes

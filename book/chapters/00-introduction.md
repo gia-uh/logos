@@ -4,6 +4,8 @@ title: Introduction
 stem: introduction
 ---
 
+Logos is a Python library for writing mathematical arguments that another program can check. This book is the guided path from the first checked proof through number theory to Euclid's theorem. The same canonical source renders as this site and as [a single PDF](book.pdf) for offline reading.
+
 # Introduction
 
 Logos is a Python library for writing mathematical arguments that another program can check. You state a theorem as a Python function, build evidence for it with a small set of operations, and hand that evidence to an independent Rust executable. The executable either accepts the exact derivation or reports the first step it cannot justify.
@@ -66,7 +68,7 @@ The User Guide chapters follow the order in which the operations become necessar
 
 Each lesson states its prerequisites and outcomes before the first block, and includes a diagnostic that shows what a specific mistake looks like and an exit exercise that uses only the operations introduced so far. Later chapters assume the earlier ones.
 
-The chapters are not a reference manual. They teach the mechanism: which evidence a step produces, why the checker accepts it, and what the Python name does and does not mean. The reference material lives in the repository's `docs/` directory and in the checker's `--help`.
+The chapters are not a reference manual. They teach the mechanism: which evidence a step produces, why the checker accepts it, and what the Python name does and does not mean. The generated [Public API Reference](public-api-reference.html) collects the public names, and the checker's `--help` describes the portable commands.
 
 ## Conventions
 

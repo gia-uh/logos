@@ -57,3 +57,6 @@ htmlcov/
 /book/site/
 /book/build/
 /book/book.pdf
+
+# Offline reading packaged from the rendered book
+/logos/_book/
