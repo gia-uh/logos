@@ -147,7 +147,9 @@
       "eq_subst": "{tag: eq_subst, equality, context, proof}; proof establishes the left instance of the proposition template and the rule returns the right instance",
       "core_law": "{tag: core_law, id, args}",
       "block": "{tag: block, steps, result}; result is a zero-based step index",
-      "step_ref": "{tag: step_ref, index}; references an earlier step in the innermost block"
+      "step_ref": "{tag: step_ref, index}; references an earlier step in the innermost block",
+      "induction": "{tag: induction, bound, name, predicate, base, step}; the predicate has one extra innermost integer binder; derives forall n, n >= bound -> P(n)",
+      "least": "{tag: least, bound, name, predicate, nonempty}; the nonempty proof supplies exists m, m >= bound and P(m); derives the least witness with minimality"
     },
     "function": "{id, name, params: [sort], result: sort, body?: expression}; transparent bodies can refer to earlier functions",
     "terms": {
@@ -171,7 +173,13 @@
       "lt_irrefl",
       "lt_trans",
       "lt_add",
-      "lt_neq"
+      "lt_neq",
+      "mul_pos",
+      "mul_eq_one",
+      "lt_succ_fwd",
+      "lt_succ_rev",
+      "eq_of_not_lt_not_lt",
+      "lt_dne"
     ]
   },
   "json_policy_denied": {

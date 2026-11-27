@@ -130,3 +130,42 @@ def test_eq_subst_rejects_wrong_premise(x, y):
     term = EqSubst(HypRef("h"), x, x == x, Refl(y))
     with pytest.raises(KernelError):
         infer(term, ctx)
+
+
+
+def test_induction_infers_the_universal_conclusion():
+    from logos.expr import Lt, Not
+    from logos.kernel import ForallIntro, ImpliesIntro, Induction
+
+    n = Var("n", int)
+    k = Var("n", int)
+    step = ForallIntro(
+        k,
+        ImpliesIntro(
+            Not(Lt(k, Lit(0))),
+            "lower",
+            ImpliesIntro(k == k, "previous", Refl(k + Lit(1))),
+        ),
+    )
+    term = Induction(Lit(0), n, n == n, Refl(Lit(0)), step)
+    result = infer(term, Context({}, {}))
+    assert isinstance(result, ForallNode)
+
+
+def test_induction_rejects_a_wrong_base():
+    from logos.expr import Lt, Not
+    from logos.kernel import ForallIntro, ImpliesIntro, Induction
+
+    n = Var("n", int)
+    k = Var("n", int)
+    step = ForallIntro(
+        k,
+        ImpliesIntro(
+            Not(Lt(k, Lit(0))),
+            "lower",
+            ImpliesIntro(k == k, "previous", Refl(k + Lit(1))),
+        ),
+    )
+    term = Induction(Lit(0), n, n == n, Refl(Lit(1)), step)
+    with pytest.raises(KernelError):
+        infer(term, Context({}, {}))

@@ -496,7 +496,7 @@ fn instantiate_with_fuel(
 }
 
 macro_rules! integer_laws {
-    ($int:ident, $add:ident, $mul:ident, $neg:ident, $lt:ident, $eq:ident, $not:ident, $implies:ident;
+    ($int:ident, $add:ident, $mul:ident, $neg:ident, $lt:ident, $eq:ident, $not:ident, $or:ident, $implies:ident;
      $($law:literal ($($var:ident),*) => $left:expr, $right:expr;)*
      [$($order:literal ($($ovar:ident),*) => $body:expr;)*]) => {
         pub fn law_formals(id: &str) -> Option<&'static [&'static str]> {
@@ -515,6 +515,7 @@ macro_rules! integer_laws {
             let $lt = |a, b| binary!(Lt, a, b);
             let $eq = |a, b| binary!(Eq, a, b);
             let $not = |operand| Not { operand: Box::new(operand) };
+            let $or = |left, right| binary!(Or, left, right);
             let $implies = |left, right| binary!(Implies, left, right);
             match (id, args) {
                 $(($law, [$($var),*]) => Some(binary!(Eq, $left, $right)),)*
@@ -526,7 +527,7 @@ macro_rules! integer_laws {
 }
 
 integer_laws! {
-    int, add, mul, neg, lt, eq, not, implies;
+    int, add, mul, neg, lt, eq, not, or, implies;
     "add_assoc"(a, b, c) => add(add(a.clone(), b.clone()), c.clone()), add(a.clone(), add(b.clone(), c.clone()));
     "add_comm"(a, b) => add(a.clone(), b.clone()), add(b.clone(), a.clone());
     "add_zero"(a) => add(a.clone(), int("0")), a.clone();
@@ -540,5 +541,11 @@ integer_laws! {
         "lt_trans"(a, b, c) => implies(lt(a.clone(), b.clone()), implies(lt(b.clone(), c.clone()), lt(a.clone(), c.clone())));
         "lt_add"(a, b, c) => implies(lt(a.clone(), b.clone()), lt(add(a.clone(), c.clone()), add(b.clone(), c.clone())));
         "lt_neq"(a, b) => implies(lt(a.clone(), b.clone()), not(eq(a.clone(), b.clone())));
+        "mul_pos"(a, b) => implies(lt(int("0"), a.clone()), implies(lt(int("0"), b.clone()), lt(int("0"), mul(a.clone(), b.clone()))));
+        "mul_eq_one"(a, b) => implies(eq(mul(a.clone(), b.clone()), int("1")), or(eq(a.clone(), int("1")), eq(a.clone(), int("-1"))));
+        "lt_succ_fwd"(a, b) => implies(lt(a.clone(), add(b.clone(), int("1"))), not(lt(b.clone(), a.clone())));
+        "lt_succ_rev"(a, b) => implies(not(lt(b.clone(), a.clone())), lt(a.clone(), add(b.clone(), int("1"))));
+        "eq_of_not_lt_not_lt"(a, b) => implies(not(lt(a.clone(), b.clone())), implies(not(lt(b.clone(), a.clone())), eq(a.clone(), b.clone())));
+        "lt_dne"(a, b) => implies(not(not(lt(a.clone(), b.clone()))), lt(a.clone(), b.clone()));
     ]
 }
