@@ -43,7 +43,7 @@ def prove_and_swap(p, P, Q):
 
 The `p.note` line is authored commentary. It rides inside the evidence and appears in the checker's reading, labelled as unchecked. A `#` comment would stay in the Python source and never reach the certificate. Use comments for the mechanics of the code and notes for the mathematics you want a reader of the derivation to see.
 
-## Name the fact that proves part of the goal
+## Name the fact that proves part of the goal {#name-the-fact-you-will-reuse}
 
 Start at the outer conjunction in `(P & Q) & R`. What must the two arguments of the final `p.and_intro` prove? The left one must prove `P & Q` and the right one must prove `R`.
 
