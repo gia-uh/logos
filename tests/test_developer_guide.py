@@ -27,8 +27,8 @@ pytestmark = pytest.mark.skipif(
     reason="install Scriptorium and the Rust logos checker to render the guide",
 )
 
-GUIDE = "15-developer-guide.md"
-REFERENCE = "16-api-reference.md"
+GUIDE = "14-developer-guide.md"
+REFERENCE = "15-api-reference.md"
 
 SOURCE_REF = re.compile(
     r"<!-- source: ([\w-]+) -->\s*\n```python[^\n]*\n(.*?)\n```", re.S
@@ -140,4 +140,4 @@ def test_the_reference_matches_a_fresh_render():
     from tools.generate_api_reference import render as generate
 
     current = (CHAPTERS / REFERENCE).read_text(encoding="utf-8")
-    assert current == generate(), "book/chapters/16-api-reference.md is stale"
+    assert current == generate(), "book/chapters/15-api-reference.md is stale"

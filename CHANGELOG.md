@@ -73,10 +73,12 @@ First public release. The Python distribution is `logos-ai`, imported as
 
 - One English Scriptorium book, executable end to end, from the first checked
   proof through number theory to Euclid's theorem.
-- The English finite-graph, binary-search and production-contract chapters,
-  with a strict certificate for the standard-library `punycode.adapt`.
+- The English binary-search and production-contract chapters, with a strict
+  certificate for the standard-library `punycode.adapt`.
 - The English Developer Guide and a generated Public API Reference, with a rift
   gate over every public class, function and method.
+- The finite-graph chapter was removed until the library grows a graph domain;
+  its published URL now redirects to the binary-search chapter.
 - The book builds the public site, the PDF, the old Quarto redirects and the
   offline reading bundled in the wheel.
 - `python -m logos book` and `logos.book` expose the bundled offline reading,

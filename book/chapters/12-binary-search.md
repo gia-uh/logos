@@ -12,7 +12,7 @@ The function is ordinary Python. The contract is written in Logos, and the proof
 
 ## Before you start
 
-**Prerequisites.** Chapters 6, 7 and 12: transparent definitions, checked lemmas, case analysis, linear arithmetic and the idea of an invariant that survives a path. You should be comfortable reading an implication and a conjunction.
+**Prerequisites.** Chapters 6 and 7: transparent definitions, checked lemmas, case analysis and linear arithmetic. You should be comfortable reading an implication and a conjunction.
 
 **Outcomes.** You will bind a contract to an executable function with a loop, read the four parts of a loop invariant, follow the three branches of binary search, check the bounds obligation for every array read, see why the variant proves termination, and reproduce two failures: a shifted midpoint and a weakened invariant. You will also see a concrete input on which the function is wrong when the sortedness precondition is removed.
 

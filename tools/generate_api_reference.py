@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "logos"
-CHAPTER = ROOT / "book" / "chapters" / "16-api-reference.md"
+CHAPTER = ROOT / "book" / "chapters" / "15-api-reference.md"
 
 CLASS = re.compile(r"^class ([A-Za-z]\w*)")
 FUNCTION = re.compile(r"^def ([a-z]\w*)|^    def ([a-z]\w*)\((?:self|cls)\b")

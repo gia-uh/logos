@@ -22,11 +22,10 @@ files:
   - chapters/09-factorial.md
   - chapters/10-least-prime.md
   - chapters/11-euclid.md
-  - chapters/12-finite-graph.md
-  - chapters/13-binary-search.md
-  - chapters/14-production-contract.md
-  - chapters/15-developer-guide.md
-  - chapters/16-api-reference.md
+  - chapters/12-binary-search.md
+  - chapters/13-production-contract.md
+  - chapters/14-developer-guide.md
+  - chapters/15-api-reference.md
 
 outputs:
   site:

@@ -41,11 +41,10 @@ ORDER = [
     "09-factorial.md",
     "10-least-prime.md",
     "11-euclid.md",
-    "12-finite-graph.md",
-    "13-binary-search.md",
-    "14-production-contract.md",
-    "15-developer-guide.md",
-    "16-api-reference.md",
+    "12-binary-search.md",
+    "13-production-contract.md",
+    "14-developer-guide.md",
+    "15-api-reference.md",
 ]
 
 EXPECTED = {
@@ -74,31 +73,25 @@ EXPECTED = {
     ],
     "10-least-prime.md": ["least_prime_divisor: True", "least: 7"],
     "11-euclid.md": ["euclid: True", "certificate: euclid.logos"],
-    "12-finite-graph.md": [
-        "every_edge_goes_up: True",
-        "no_self_loop: True",
-        "no_two_cycle: True",
-        "every_two_step_path_goes_up: True",
-    ],
-    "13-binary-search.md": [
+    "12-binary-search.md": [
         "binary_search_correct: True",
         "certificate: binary_search.logos",
         "result: -1",
         "postcondition holds: False",
     ],
-    "14-production-contract.md": [
+    "13-production-contract.md": [
         "adapt_bias_nonnegative: True",
         "certificate: adapt.logos",
         "obligations: loop0.preserve",
     ],
-    "15-developer-guide.md": [
+    "14-developer-guide.md": [
         "overlap_self: True",
         "common_point_by_tactic: True",
         "interval: no linear certificate for",
         "zero custom axioms: True",
         "certificate: intervals.logos",
     ],
-    "16-api-reference.md": [
+    "15-api-reference.md": [
         "Classes",
         "Functions and methods",
         "Theorem",
@@ -267,7 +260,7 @@ def domain_snippets() -> dict[str, str]:
     return {name: "\n".join(body).strip("\n") for name, body in found.items()}
 
 
-@pytest.mark.parametrize("name", [chapter for chapter in ORDER if chapter < "15"])
+@pytest.mark.parametrize("name", [chapter for chapter in ORDER if chapter < "14"])
 def test_quoted_number_theory_snippets_match_the_module(name):
     source = (CHAPTERS / name).read_text(encoding="utf-8")
     quoted = SOURCE_REF.findall(source)

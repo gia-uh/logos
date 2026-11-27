@@ -1,8 +1,8 @@
-"""Render the finite-graph, binary-search and production-contract chapters.
+"""Render the binary-search and production-contract chapters.
 
-These tests exercise the pages added after the number theory sequence. They use
-the same installed-wheel renderer as ``test_english_book`` and run the exported
-certificates with the standalone Rust checker.
+These tests exercise the algorithm pages after the number theory sequence. They
+use the same installed-wheel renderer as ``test_english_book`` and run the
+exported certificates with the standalone Rust checker.
 """
 from __future__ import annotations
 
@@ -35,20 +35,11 @@ def exported_blocks(name: str) -> dict[str, str]:
 
 
 def production_source() -> str:
-    return exported_blocks("14-production-contract.md")["examples/punycode_adapt.py"]
-
-
-def test_finite_graph_reports_a_descending_edge(tmp_path):
-    source = (CHAPTERS / "12-finite-graph.md").read_text(encoding="utf-8")
-    broken = source.replace("| ((u == 3) & (v == 4))", "| ((u == 3) & (v == 1))", 1)
-    _, html = render(tmp_path, "12-finite-graph.md", broken)
-    assert "linear arithmetic could not derive the goal" in html
-    assert "expected goal: u &lt; v" in html
-    assert "u = 3" in html
+    return exported_blocks("13-production-contract.md")["examples/punycode_adapt.py"]
 
 
 def test_binary_search_exports_a_strict_certificate(tmp_path):
-    result, _ = render(tmp_path, "13-binary-search.md")
+    result, _ = render(tmp_path, "12-binary-search.md")
     assert result.returncode == 0, result.stderr
     assert (tmp_path / "binary_search.logos").exists()
     checked = subprocess.run(
@@ -63,31 +54,31 @@ def test_binary_search_exports_a_strict_certificate(tmp_path):
 
 
 def test_binary_search_shifted_midpoint_is_refused(tmp_path):
-    source = (CHAPTERS / "13-binary-search.md").read_text(encoding="utf-8")
+    source = (CHAPTERS / "12-binary-search.md").read_text(encoding="utf-8")
     broken = source.replace(
         "mid = (low + high) // 2", "mid = (low + high + 1) // 2", 1
     )
-    _, html = render(tmp_path, "13-binary-search.md", broken)
+    _, html = render(tmp_path, "12-binary-search.md", broken)
     assert "loop0.preserve" in html
     assert "cannot prove disjunction" in html
     assert not (tmp_path / "binary_search.logos").exists()
 
 
 def test_binary_search_weakened_invariant_is_refused(tmp_path):
-    source = (CHAPTERS / "13-binary-search.md").read_text(encoding="utf-8")
+    source = (CHAPTERS / "12-binary-search.md").read_text(encoding="utf-8")
     assert source.count("& (low <= high)") == 1
     broken = source.replace("& (low <= high)", "& (low < high)", 1)
-    _, html = render(tmp_path, "13-binary-search.md", broken)
+    _, html = render(tmp_path, "12-binary-search.md", broken)
     assert "cannot prove order atom high &lt; high" in html
     assert not (tmp_path / "binary_search.logos").exists()
 
 
 def test_binary_search_missing_precondition_needs_a_counterexample(tmp_path):
-    source = (CHAPTERS / "13-binary-search.md").read_text(encoding="utf-8")
+    source = (CHAPTERS / "12-binary-search.md").read_text(encoding="utf-8")
     broken = source.replace(
         "requires=logos.sorted(xs),", "requires=logos.lit(True),", 1
     )
-    _, html = render(tmp_path, "13-binary-search.md", broken)
+    _, html = render(tmp_path, "12-binary-search.md", broken)
     assert "main: no proof found for sorted(xs)" in html
     assert not (tmp_path / "binary_search.logos").exists()
 
@@ -105,7 +96,7 @@ def test_binary_search_executable_counterexample():
 
 
 def test_production_chapter_exports_a_strict_certificate(tmp_path):
-    result, _ = render(tmp_path, "14-production-contract.md")
+    result, _ = render(tmp_path, "13-production-contract.md")
     assert result.returncode == 0, result.stderr
     assert (tmp_path / "adapt.logos").exists()
     checked = subprocess.run(
@@ -146,13 +137,13 @@ def test_production_body_matches_the_standard_library(tmp_path):
 
 
 def test_production_mutation_is_refused(tmp_path):
-    source = (CHAPTERS / "14-production-contract.md").read_text(encoding="utf-8")
+    source = (CHAPTERS / "13-production-contract.md").read_text(encoding="utf-8")
     broken = source.replace(
         "bias = divisions + (36 * delta // (delta + 38))",
         "bias = divisions - 1",
         1,
     )
-    _, html = render(tmp_path, "14-production-contract.md", broken)
+    _, html = render(tmp_path, "13-production-contract.md", broken)
     assert "loop0.exit" in html
     assert "cannot prove order atom 0 &lt;= divisions - 1" in html
     assert not (tmp_path / "adapt.logos").exists()
@@ -209,8 +200,8 @@ def test_production_source_drift_is_refused(tmp_path):
 @pytest.mark.parametrize(
     "name,path",
     [
-        ("13-binary-search.md", "examples/binary_search.py"),
-        ("14-production-contract.md", "examples/punycode_adapt.py"),
+        ("12-binary-search.md", "examples/binary_search.py"),
+        ("13-production-contract.md", "examples/punycode_adapt.py"),
     ],
 )
 def test_book_examples_are_the_generated_modules(name, path):
@@ -219,8 +210,8 @@ def test_book_examples_are_the_generated_modules(name, path):
 
 
 def test_book_examples_are_imported_normally():
-    binary = (CHAPTERS / "13-binary-search.md").read_text(encoding="utf-8")
-    punycode = (CHAPTERS / "14-production-contract.md").read_text(encoding="utf-8")
+    binary = (CHAPTERS / "12-binary-search.md").read_text(encoding="utf-8")
+    punycode = (CHAPTERS / "13-production-contract.md").read_text(encoding="utf-8")
     assert "from examples.binary_search import binary_search" in binary
     assert "from examples.binary_search import main" in binary
     assert "from examples.punycode_adapt import adapt" in punycode

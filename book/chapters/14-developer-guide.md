@@ -12,7 +12,7 @@ The extension is one Python module, `logos.domains.intervals`. It adds no Rust r
 
 ## Before you start
 
-**Prerequisites.** Chapters 6, 7 and 11 for transparent definitions, checked lemmas and witnesses; Chapter 14 for the distinction between a Python search and a checked certificate. You should be able to read a `Goal`, a `ProofTerm` and a `core_law` step.
+**Prerequisites.** Chapters 6, 7 and 11 for transparent definitions, checked lemmas and witnesses; Chapter 13 for the distinction between a Python search and a checked certificate. You should be able to read a `Goal`, a `ProofTerm` and a `core_law` step.
 
 **Outcomes.** You will add domain vocabulary as transparent definitions, prove reusable lemmas, write a goal-level tactic that returns checked evidence, read its failures, test the domain, and replay the certificate with only the Rust executable. You will also decide whether a new general law belongs in Rust or in Python.
 

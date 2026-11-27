@@ -18,9 +18,10 @@ project and its publish workflow no longer build or deploy.
 
 ## Old routes
 
-Every old Quarto page has a redirect with the same path. A redirect preserves a
-known deep link through the `anchors` map in `book/redirects.json`; an unknown
-fragment is carried to the new page rather than dropped.
+Every old Quarto page has a redirect with the same path, and a page removed from
+the book keeps a redirect from its published URL. A redirect preserves a known
+deep link through the `anchors` map in `book/redirects.json`; an unknown fragment
+is carried to the new page rather than dropped.
 
 | Old route | New destination |
 |---|---|
@@ -40,6 +41,7 @@ fragment is carried to the new page rather than dropped.
 | `/guide/examples/infinitely-many-primes.html` | `/one-more-prime-always.html` |
 | `/guide/examples/knights-knaves.html` | `/extend-the-checked-language-with-a-domain.html` |
 | `/guide/examples/data-structures.html` | `/a-contract-on-code-that-ships.html` |
+| `/a-finite-graph-you-can-audit.html` | `/binary-search-all-the-way-down.html` |
 | `/reference/api.html` | `/public-api-reference.html` |
 
 ## Reference content
