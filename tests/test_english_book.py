@@ -190,7 +190,7 @@ def test_each_lesson_has_a_diagnostic_and_an_exit_exercise(name):
     if name == "12-binary-search.md":
         assert "## Tell a broken algorithm from a broken argument" in source
         assert "logos.contracts.LogosContractError" in source
-        assert "Then write and check the contract for a leftmost variant." in source
+        assert "Then write and check the contract for a smaller scan." in source
     else:
         assert "## When a step fails" in source
         assert "## Exit exercise" in source

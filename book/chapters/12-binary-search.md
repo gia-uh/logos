@@ -226,7 +226,9 @@ Search for 8 instead. The first comparison succeeds. The code saves index 2, the
 
 Walk through the two exits before writing the clause. Search `[2, 4, 8]` for 6. The loop ends with `low == high == 2` and `answer == -1`. The left cut says indices 0 and 1 hold values below 6; the right cut says index 2 holds a value above 6. Together they cover the array, so `absent` holds. Now search for 8. The first comparison succeeds: `answer` becomes 2 and `low` becomes `high`. If the left cut were still active, it would claim `xs[2] < 8`, which is false. That is why the two cuts carry `answer == -1`.
 
-At the loop head, one statement must survive either history: either a valid answer was found, or the search is unfinished and both cuts hold. Write those two alternatives as a disjunction before reading the code. `found` records the first; `searching` records the second. `searching` repeats the cuts because this clause is the one the exit obligation splits; deleting the repetition leaves `loop0.exit` unable to assemble `absent` from the guarded clauses. `found` also carries `~(answer == -1)`. The inequality `0 <= answer` already excludes the sentinel, so that conjunct is there to name the history, not to make the proof pass.
+At the loop head, one statement must survive either history: either a valid answer was found, or the search is unfinished and both cuts hold. Write those two alternatives as a disjunction before reading the code. `found` is the second arm of `finds_or_absent`: an in-range index holding the target. `searching` is the first arm after the loop ends with `low == high`: `answer == -1` and the two cuts together give `absent`. The sentinel `-1` is not an index; it is the mark that no answer has been recorded. That is why the cuts are guarded by `answer == -1`, and why `found` excludes the sentinel.
+
+`searching` also repeats the cuts. Mathematically the two separate cut clauses already imply the same thing at exit. The repetition is for the current proof search: this clause is the disjunction the exit obligation splits, and deleting the repeated cuts makes `loop0.exit` fail even though the separate clauses are in scope. The conjunct `~(answer == -1)` inside `found` is different: `0 <= answer` already excludes the sentinel, so it is redundant. It is there to name the case split, not to make the proof pass.
 
 The following clause expresses those two ways of remembering the past. Read `return found | searching` first. Which half survives the assignment `answer = mid`? Which half combines with an empty interval to justify −1?
 
@@ -313,11 +315,23 @@ main: no proof found for sorted(xs)
 
 As a quick diagnostic, change the promise in a different direction: require the *first* occurrence. Give a sorted input on which the present code returns a later occurrence, and name the branch that would have to keep searching even after seeing the target.
 
-Then write and check the contract for a leftmost variant. Return `low` instead of `answer`, and keep the same loop and measure. The postcondition is
+Then write and check the contract for a smaller scan. It uses the same `-1` sentinel and the same result shape as `binary_search`, but it visits every index in order:
 
-$$0 \le result \le n \quad\land\quad
-  \bigl(\forall i.\ 0 \le i < result \Rightarrow xs[i] < target\bigr)
-  \quad\land\quad
-  \bigl(\forall i.\ result \le i < n \Rightarrow target \le xs[i]\bigr).$$
+```python
+@logos.function
+def find(xs: list[int], target: int) -> int:
+    """Return an index holding target, or -1."""
+    i = 0
+    answer = -1
+    while i < len(xs):
+        if xs[i] == target:
+            answer = i
+            i = len(xs)
+        else:
+            i = i + 1
+    return answer
+```
 
-Hint: the two discarded regions no longer need the `answer == -1` guard, and the equality branch must set `high = mid` instead of exiting. Which clause replaces `answer_or_searching`, and which obligation fails if you keep `answer` and return it? Check the new contract with `.check()` and explain the first failure.
+Write its postcondition, two invariants and variant, then check it. The postcondition should say that a nonnegative result is an occurrence; it need not say that `-1` means absence. Which invariant keeps the read `xs[i]` in range, and what does the other one say about `answer` when the scan continues?
+
+A lower-bound variant would return `n` instead of `-1`, and its right side would be `target <= xs[i]`; this scan returns `-1`, so its contract has the `binary_search` shape. The full insertion-point suffix is a further exercise.
