@@ -17,6 +17,11 @@ The project is [`scriptorium.yaml`](scriptorium.yaml). The chapters are under
 | `04-cases.md` | User Guide | `p.cases`, contradiction, a checked counterexample |
 | `05-witnesses.md` | User Guide | `p.obtain`, `p.witness`, `p.fix`, scope |
 | `06-definitions.md` | User Guide | Transparent definitions and reusable lemmas |
+| `07-parity.md` | User Guide | Even and odd, witnesses, the divisibility lemmas |
+| `08-neighbours.md` | User Guide | Consecutive divisors, negation, cases |
+| `09-factorial.md` | User Guide | Primitive recursion, induction, factorial divisibility |
+| `10-least-prime.md` | User Guide | A negated definition, `p.least`, the least prime divisor |
+| `11-euclid.md` | User Guide | Euclid's theorem composed from named lemmas |
 
 ## Build it
 
@@ -54,7 +59,13 @@ text when WeasyPrint is installed.
 `tests/test_english_book.py` renders every English chapter from the installed
 wheel, requires a traceback-free page, and checks one targeted broken variant per
 lesson for the diagnostic it documents. It also checks that `scriptorium.yaml`
-lists every chapter in order.
+lists every chapter in order, that every quoted number theory snippet matches
+`logos/domains/number_theory.py`, and that the Euclid certificate verifies with
+`--strict` while the altered `n! + 1` line fails at the consecutive-divisor
+application and writes no certificate.
+
+`tests/test_number_theory.py` checks the domain on its own: every lemma, the
+strict certificate for `euclid`, and the exported artifact.
 
 The `English book` workflow in `.github/workflows/book.yml` runs those tests and
 renders both outputs on a pull request. It uploads the site as an artifact and
@@ -71,49 +82,36 @@ candidate.
 
 ## Editorial map for later stages
 
-The current book stops after reusable lemmas. The next stages, in the order the
+The book stops after Euclid's theorem. The next stages, in the order the
 material becomes useful:
 
 | Stage | Content | Why it comes here | Status |
 |---|---|---|---|
-| Arithmetic and induction | A second pass over induction, primitive recursion and the factorial | The Spanish Euclid chapter already proves it; the English book needs the mechanism before contracts | Not drafted |
-| Number theory | Least divisors, Euclid's theorem, the infinitude of primes | Reuses `divides` and the lemmas from chapter 6; the Spanish pages are the source material | Not drafted |
+| Arithmetic and induction | Primitive recursion and the factorial | Chapter 9 teaches the mechanism before contracts and finite structures | Drafted |
+| Number theory | Divisibility, least divisors, Euclid's theorem | Chapters 7 to 11, with the reusable domain in `logos/domains/number_theory.py` | Drafted |
 | Logic puzzles | Finite models, `KnightsKnaves`, guided and automatic search | Shows a domain that searches for a model instead of a proof, and a diagnostic that reports a counterexample | Not drafted |
 | Contracts | Function contracts, branch selection, loop invariants, binary search | The engineering half of the project; assumes quantifiers and definitions | Not drafted |
 | Developer Guide | Kernel terms, portable encoding, the Rust checker, the authoring API | Explains how to extend the checker without weakening it | Not drafted |
 | Embedding | Serve the built book from the CLI and the API; search over its sections | Needs the site and the PDF to be stable first | Not drafted |
 
+The number theory domain (`logos/domains/number_theory.py`) earned its place:
+chapters 8 to 11 use its lemmas by name, and the chapter 11 composition matches
+the domain's `euclid` proof. The chapters quote the domain source and the tests
+compare the quotes with the module, so the reusable copy and the lesson cannot
+drift apart.
+
 Open editorial decisions:
 
-- Whether a reusable number-theory domain earns its place, or whether the
-  lessons should keep spelling out `divides` in each chapter.
-- Whether the Spanish `vecinos.md` and `euclides.md` pages move under `book/es/`
-  or become translations of the English chapters.
 - When the Developer Guide starts: after contracts, or in parallel with the
-  number-theory chapters.
+  remaining User Guide material.
 - Which pages of the Quarto guide have no replacement and must be migrated
   before the site switches.
 
-## Legacy Spanish pages
+## Spanish regression fixtures
 
-The Spanish checked chapters remain at [`vecinos.md`](vecinos.md) and
-[`euclides.md`](euclides.md). They are Scriptorium sources with `export=` blocks,
-so they are replayed with `scriptorium tangle`:
-
-- `vecinos.md` stops at `common_divisor`, the lemma about two consecutive
-  integers, and introduces transparent divisibility, implication introduction,
-  existential witnesses and the source-located failure report.
-- `euclides.md` reuses that definition and proof, then carries the argument
-  through the least prime divisor, factorial positivity, factorial divisibility
-  and Euclid's theorem that every integer `n >= 2` has a prime `q > n`.
-
-
-```bash
-cd book
-scriptorium tangle vecinos.md
-python vecinos.py
-logos check --strict vecinos.logos
-```
-
-`tests/test_book.py` and `tests/installed_portable.py` keep them working. They
-are not part of the English project and are not listed in `scriptorium.yaml`.
+`vecinos.md` and `euclides.md` are no longer part of the book's navigation.
+They remain in the directory as regression fixtures for the `scriptorium tangle`
+path: `tests/test_book.py` and `tests/installed_portable.py` still tangle them,
+run the generated modules, verify the certificates and exercise their negative
+controls. They are not listed in `scriptorium.yaml` and the English chapters do
+not link to them.

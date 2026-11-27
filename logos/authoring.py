@@ -94,6 +94,12 @@ def _render(expr: Expr, parent: int = 0) -> str:
         case Eq(left, right):
             text = f"{_render(left, _PREC['eq'] + 1)} = {_render(right, _PREC['eq'] + 1)}"
             return f"({text})" if _PREC["eq"] < parent else text
+        case Lt(left, right):
+            text = f"{_render(left, _PREC['eq'] + 1)} < {_render(right, _PREC['eq'] + 1)}"
+            return f"({text})" if _PREC["eq"] < parent else text
+        case Le(left, right):
+            text = f"{_render(left, _PREC['eq'] + 1)} <= {_render(right, _PREC['eq'] + 1)}"
+            return f"({text})" if _PREC["eq"] < parent else text
         case And(left, right):
             text = f"{_render(left, _PREC['and'] + 1)} & {_render(right, _PREC['and'] + 1)}"
             return f"({text})" if _PREC["and"] < parent else text

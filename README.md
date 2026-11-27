@@ -2,7 +2,7 @@
 
 Logos lets people and AI agents prove claims about symbolic models in Python and send the proof to someone else to check. A domain can discover a solution, or an author can guide the search with tactics written in Python. The result is a portable `.logos` file. A recipient needs only the Rust executable to verify it offline, inspect its assumptions, or read the derivation as mathematics.
 
-The [English book](book/) is the guided path from the first checked proof to transparent definitions and reusable lemmas. Its chapters are executable Scriptorium sources.
+The [English book](book/) is the guided path from the first checked proof through number theory to Euclid's theorem. Its chapters are executable Scriptorium sources.
 
 ## Install from source
 
@@ -263,71 +263,51 @@ logos check --strict authored-primes.logos
 
 The shipped `primes.logos` and the certificate rebuilt from the installed wheel are byte-for-byte identical. Both verify with zero custom axioms.
 
-## Book lessons: consecutive divisors and Euclid
+## The book: from divisibility to Euclid
 
-`book/vecinos.md` is the first runnable chapter of the Spanish Logos book. It uses
-`@logos.definition`, `Prop`, `Int`, and a proof function whose first parameter is
-a context `p`:
+The canonical English book is [`book/`](book/README.md). Chapters 7 to 11 build
+number theory in order: parity and witnesses, consecutive divisors, induction
+through the factorial, the least prime divisor, and Euclid's theorem composed
+from named checked lemmas.
+
+The reusable definitions and lemmas live in
+[`logos/domains/number_theory.py`](logos/domains/number_theory.py). This is the
+consecutive-divisor lemma as the book presents it:
 
 ```python
 @logos.theorem
 def common_divisor(d: Int, a: Int):
-    return (divides(d, a) & divides(d, a+1)) >> divides(d, 1)
+    """A divisor of two consecutive integers divides one."""
+    return (divides(d, a) & divides(d, a + 1)) >> divides(d, 1)
 
 @common_divisor.proof
-def prove_difference(p, d, a):
-    h = p.assume(divides(d, a) & divides(d, a+1))
-    k, left = p.obtain(h.left())
-    j, right = p.obtain(h.right())
+def prove_common_divisor(p, d, a):
+    """Subtract the two quotient equations; the difference is one."""
+    both = p.assume(divides(d, a) & divides(d, a + 1))
+    k, left = p.obtain(both.left())   # a = d * k
+    j, right = p.obtain(both.right()) # a + 1 = d * j
     quotient = j - k
     one = p.ring(1 == d * quotient, using=[left, right])
     return p.witness(quotient, one)
 ```
 
-`p.assume` enters an implication, `p.obtain` opens a checked existential,
-`p.ring(using=...)` proves an integer identity from the opened equalities, and
-`p.witness` closes an existential goal. The original `.proof(tactic, ...)` form
-continues to work. The chapter is Spanish because it is written for that reader;
-this note and the rest of the public documentation are English.
+Render a chapter with Scriptorium and the installed wheel and checker:
 
 ```bash
 cd book
-scriptorium tangle vecinos.md
-python vecinos.py
-logos check --strict vecinos.logos
+scriptorium render chapters/08-neighbours.md --html
 ```
 
-The acceptance test also flips `quotient = j - k` to `quotient = k - j`. The
-proof fails at the authored source line and reports the expected goal plus both
-opened equalities, as text and on `LogosProofError.details`.
-
-[`book/euclides.md`](book/euclides.md) is the second chapter. It reuses that `divides` definition and
-`common_divisor` proof, then authors the least prime divisor, factorial
-positivity, factorial divisibility and Euclid's theorem with the same `p`
-context. The page adds reusable operations for named lemma application,
-induction, case analysis, least elements, contradiction and linear arithmetic:
-
-```python
-with p.induction(n, 0, nonnegative=nonnegative) as induction:
-    with induction.base() as base:
-        base.finish(p.linear(0 < factorial(0), using=[zero_eq]))
-    with induction.step() as step:
-        ...
-        step.finish(p.subst(product_positive, p.symm(step_eq)))
-return induction.result
-```
+The final chapter proves that every integer `n >= 2` has a prime `q > n` and
+writes `euclid.logos` as it runs. The Rust checker verifies that certificate
+without Python:
 
 ```bash
-cd book
-scriptorium tangle euclides.md
-python euclides.py
-logos check --strict euclides.logos
+logos check --strict euclid.logos
 ```
 
-The Euclid negative control changes `m = f + 1` to `m = f`; the proof still
-reaches `common_divisor` and fails there because it has `q | f` twice instead of
-`q | f` and `q | (f + 1)`. See [`book/README.md`](book/README.md) for the replay
-and evidence paths.
+The older Spanish `export=` pages remain in `book/` as regression fixtures for
+the `scriptorium tangle` path; they are not part of the book's navigation.
 
 ## Read a proof or build on it
 

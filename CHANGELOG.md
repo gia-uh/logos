@@ -20,6 +20,9 @@
 - The complete executable Spanish Euclid chapter, `book/euclides.md`, with least prime divisors, factorial induction and a strict zero-axiom certificate
 - Book authoring operations for named lemma application, universal introduction, induction, cases, least elements, contradiction, substitution and linear arithmetic
 - The Python kernel now infers congruence terms
+- `logos.domains.number_theory`: transparent `divides`, `prime` and `factorial`, plus checked lemmas from divisibility through Euclid's theorem
+- The English number theory chapters 7 to 11, which quote the domain and compose the final theorem from its lemmas
+- Authoring diagnostics render inequalities with the same notation as the book
 
 ## [0.1.0] - 2026-06-17
 
