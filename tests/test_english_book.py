@@ -266,6 +266,52 @@ def execution_errors(html: str) -> str:
     return unescape("\n".join(re.findall(r'<span class="stderr">(.*?)</span>', html, re.S)))
 
 
+@pytest.mark.parametrize(
+    "name, original, returned, theorem, expected, got",
+    [
+        (
+            "06-definitions.md",
+            "return p.apply(chain, p.and_intro(multiple, square))",
+            "return chain",
+            "divides_square_of_multiple",
+            "exists k:Int. b * b = a * k",
+            "exists k:Int. b = a * k & exists k:Int. b * b = b * k"
+            " >> exists k:Int. b * b = a * k",
+        ),
+        (
+            "07-parity.md",
+            "return p.witness(i + j, total)",
+            "return total",
+            "even_sum",
+            "exists k:Int. a + b = 2 * k",
+            "a + b = 2 * (k + k1)",
+        ),
+    ],
+)
+def test_continued_proof_reports_returned_evidence(
+    tmp_path, name, original, returned, theorem, expected, got
+):
+    source = (CHAPTERS / name).read_text(encoding="utf-8")
+    assert source.count(f"    {original}\n") == 1
+    broken = source.replace(f"    {original}\n", f"    {returned}\n", 1)
+    _, html = render(tmp_path, name, broken)
+    errors = execution_errors(html)
+    assert (
+        f"AuthoringFailure: Theorem '{theorem}': "
+        "the returned evidence does not prove the current goal\n"
+    ) in errors
+    assert f"expected goal: {expected}\n" in errors
+    assert f"got: {got}\n" in errors
+    assert "failing source:" not in errors
+    assert "related authored lines:" not in errors
+    assert "UnboundLocalError" not in errors
+
+    result, html = render(tmp_path, name)
+    assert result.returncode == 0, result.stderr
+    assert not execution_errors(html)
+    assert f"{theorem}: True" in html
+
+
 def test_definitions_report_the_lemma_premise(tmp_path):
     source = (CHAPTERS / "06-definitions.md").read_text(encoding="utf-8")
     broken = source.replace(
