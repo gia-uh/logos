@@ -51,6 +51,8 @@ Omitting a body declares an opaque function.
 | `forall_intro` | Binder `name`, `sort`, and proof `body` under the fresh arbitrary variable. |
 | `forall_elim` | Universal `proof` and instantiation `term` of the binder's sort. |
 | `exists_intro` | Existential `goal`, same-sort `witness`, and `proof` of the predicate after capture-avoiding substitution. The witness and proof use the surrounding scope. |
+| `exists_elim` | Proof of an existential, display `name`, hypothesis `binder`, and `body`. The body runs under a fresh variable and the assumption that the predicate holds for it. The conclusion must not mention the eigenvariable. |
+| `eq_subst` | Proof of an equality, a proposition `context` with one extra innermost integer binder, and `proof` of the instance at the equality’s left side. Derives the instance at its right side. |
 | `refl` | A well-sorted `term`. Derives equality of that term with itself. |
 | `symm` | Equality `proof`. |
 | `trans` | Equality proofs `left` and `right` with convertible middle expressions. |
@@ -101,6 +103,21 @@ substitution; only the conclusion is a proposition rather than an equality.
 | `lt_trans` | `a < b → (b < c → a < c)` |
 | `lt_add` | `a < b → a + c < b + c` |
 | `lt_neq` | `a < b → ¬(a = b)` |
+
+### Soundness of existential elimination and equality substitution
+
+`exists_elim` is the usual natural-deduction rule. Once a proof of
+`∃x.P(x)` has been checked, the body may use a fresh variable `c` and the
+assumption `P(c)`. The checker lowers the body’s conclusion only when it
+contains no occurrence of the innermost bound variable, so the conclusion
+cannot depend on the chosen witness. The assumption is discharged at the
+rule, and the eigenvariable is removed from the returned scope.
+
+`eq_subst` is Leibniz elimination. Given checked `a = b` and the instance
+`P(a)` of a proposition template, it returns `P(b)`. The checker compares
+the supplied premise with `P(a)` under the ordinary conversion and
+instantiates the template at the equality’s two sides. No rewriting
+direction is assumed: the premise must establish the left instance.
 
 ### Soundness of the order laws
 

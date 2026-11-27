@@ -102,6 +102,17 @@ enum Evidence {
         witness: Proposition,
         proof: Box<Self>,
     },
+    ExistsElim {
+        proof: Box<Self>,
+        name: String,
+        binder: String,
+        body: Box<Self>,
+    },
+    EqSubst {
+        equality: Box<Self>,
+        context: Proposition,
+        proof: Box<Self>,
+    },
     CoreLaw {
         id: String,
         args: Vec<Proposition>,
@@ -140,6 +151,16 @@ impl Evidence {
             | Self::NotElim {
                 negation: left,
                 premise: right,
+            }
+            | Self::ExistsElim {
+                proof: left,
+                body: right,
+                ..
+            }
+            | Self::EqSubst {
+                equality: left,
+                proof: right,
+                ..
             } => [Some(left), Some(right), None],
             Self::OrElim {
                 proof, left, right, ..
@@ -866,6 +887,74 @@ impl<'a> Checker<'a> {
         Ok((assumption, result?))
     }
 
+    /// Open an existential: bind a fresh eigenvariable and assume its predicate.
+    ///
+    /// `premise` is the existential body, which already mentions the new
+    /// innermost binder, so it is used unchanged as the local hypothesis.
+    fn infer_under_eigenvariable(
+        &mut self,
+        name: &'a str,
+        sort: Sort,
+        binder: &'a str,
+        premise: &Proposition,
+        body: &'a Evidence,
+        scope: &mut Scope<'a>,
+        path: &str,
+    ) -> Result<(String, String, Proposition), String> {
+        if binder.is_empty() {
+            return Err(format!("{path}: empty hypothesis binder"));
+        }
+        self.charge(premise)?;
+        scope.binders.push(sort);
+        let binding = Variable {
+            id: format!("{path}.variable"),
+            name: name.to_owned(),
+            sort,
+        };
+        scope.variables.push(binding);
+        let assumption = format!("{path}.assumption");
+        scope.hyps.push((
+            binder,
+            premise.clone(),
+            assumption.clone(),
+            scope.binders.len(),
+        ));
+        let context_id = self.context_id(scope);
+        let mut variables = scope
+            .variables
+            .iter()
+            .map(|var| (var.name.as_str(), var.sort))
+            .collect();
+        self.steps.push(Step {
+            id: assumption.clone(),
+            rule: "local_assumption",
+            explanation: "Assume the predicate of the existential for a fresh witness.",
+            context_id,
+            conclusion_sort: Sort::Prop,
+            premises: Vec::new(),
+            conclusion: premise.clone(),
+            conclusion_text: self.render_scoped(premise, false, false, &mut variables),
+            binder: Some(binder.to_owned()),
+            discharged: None,
+            discharged_cases: None,
+            reference_id: None,
+            substitutions: None,
+            context: None,
+            binder_sort: None,
+            introduced_variable: Some(format!("{path}.variable")),
+            introduced_hypothesis: Some(assumption.clone()),
+            provenance: None,
+            law: None,
+            premise_conversion: None,
+            conclusion_conversion: None,
+        });
+        let result = self.infer(body, scope, path);
+        scope.hyps.pop();
+        scope.variables.pop();
+        scope.binders.pop();
+        Ok((format!("{path}.variable"), assumption, result?))
+    }
+
     fn infer(
         &mut self,
         evidence: &'a Evidence,
@@ -1209,6 +1298,79 @@ impl<'a> Checker<'a> {
                     vec![proof_path],
                     goal.clone(),
                     Some(name.clone()),
+                    None,
+                )
+            }
+            Evidence::ExistsElim {
+                proof,
+                name,
+                binder,
+                body,
+            } => {
+                let proof_path = format!("{path}.proof");
+                let inferred = self.infer(proof, scope, &proof_path)?;
+                let exists = if matches!(inferred, Proposition::Exists { .. }) {
+                    inferred
+                } else {
+                    convert(&inferred, &self.functions)?
+                };
+                let Proposition::Exists {
+                    sort,
+                    body: predicate,
+                    ..
+                } = exists
+                else {
+                    return Err(format!(
+                        "{path}: exists_elim requires an existential premise"
+                    ));
+                };
+                if sort != Sort::Int {
+                    return Err(format!("{path}: exists_elim requires an integer binder"));
+                }
+                let body_path = format!("{path}.body");
+                let (variable, assumption, result) = self.infer_under_eigenvariable(
+                    name, sort, binder, &predicate, body, scope, &body_path,
+                )?;
+                introduced_variable = Some(variable);
+                binder_sort = Some(sort);
+                let conclusion = result
+                    .lower_outer()
+                    .map_err(|error| format!("{path}: {error}"))?;
+                (
+                    "exists_elim",
+                    vec![proof_path, assumption.clone(), body_path],
+                    conclusion,
+                    Some(name.clone()),
+                    Some(assumption),
+                )
+            }
+            Evidence::EqSubst {
+                equality,
+                context: template,
+                proof,
+            } => {
+                let equality_path = format!("{path}.equality");
+                let proof_path = format!("{path}.proof");
+                let inferred = self.infer(equality, scope, &equality_path)?;
+                let (left, right) = self.equality(inferred, path)?;
+                let sort = self.sort(&left, &scope.binders)?;
+                scope.binders.push(sort);
+                let template_sort = self.sort(template, &scope.binders);
+                scope.binders.pop();
+                template_sort?.expect(Sort::Prop)?;
+                binder_sort = Some(sort);
+                let expected = instantiate_bounded(template, std::slice::from_ref(&*left))?;
+                let premise = self.infer(proof, scope, &proof_path)?;
+                premise_conversion = self.compare(&expected, &premise)?.ok_or_else(|| {
+                    format!("{path}: eq_subst premise does not establish P(left)")
+                })?;
+                let conclusion = instantiate_bounded(template, std::slice::from_ref(&*right))?;
+                context = Some(template.clone());
+                (
+                    "eq_subst",
+                    vec![equality_path, proof_path],
+                    conclusion,
+                    None,
                     None,
                 )
             }

@@ -6,7 +6,7 @@ from logos.expr import (
     Expr, Lit, Var, Eq, And, Or, Not, Implies,
     ForallNode, ExistsNode,
 )
-from logos.helpers import structural_eq, substitute, substitute_symbols
+from logos.helpers import free_vars, structural_eq, substitute, substitute_symbols
 
 if TYPE_CHECKING:
     from logos.theorem import Axiom as AuthorAxiom, Theorem
@@ -177,6 +177,31 @@ class ExistsIntro(ProofTerm):
     body: ProofTerm   # proof of P[x := witness]
     exists_goal: "ExistsNode | None" = None
 
+@dataclass(frozen=True)
+class ExistsElim(ProofTerm):
+    """Proves C from Exists(x, P) and a proof of C under P[x := var].
+
+    ``var`` is the eigenvariable and must not escape the conclusion or any
+    enclosing hypothesis. ``hyp_name`` names the local assumption
+    ``P[x := var]`` inside ``body``.
+    """
+    proof: ProofTerm          # proves Exists(x, P)
+    var: Var                  # fresh eigenvariable
+    hyp_name: str             # local name of P[var]
+    body: ProofTerm           # proves C using var and the hypothesis
+
+@dataclass(frozen=True)
+class EqSubst(ProofTerm):
+    """Leibniz elimination: from a == b and P[a], derive P[b].
+
+    ``template`` is the proposition P with ``var`` free; ``proof`` proves
+    the instance P[a] for the left side of ``equality``.
+    """
+    equality: ProofTerm       # proves a == b
+    var: Var                  # template variable
+    template: Expr            # P with var free
+    proof: ProofTerm          # proves P[a]
+
 
 # ── Kernel Inference ──────────────────────────────────────────────────────────
 
@@ -298,6 +323,39 @@ def infer(term: ProofTerm, ctx: Context) -> Expr:
 
         case ExistsIntro():
             raise KernelError("ExistsIntro: expected an existential goal")
+
+        case ExistsElim(proof, var, hyp_name, body):
+            stmt = infer(proof, ctx)
+            match stmt:
+                case ExistsNode(bound, predicate):
+                    if not isinstance(var, Var):
+                        raise KernelError("ExistsElim: eigenvariable must be a Var")
+                    if var.type is not bound.type:
+                        raise KernelError("ExistsElim: eigenvariable sort does not match the binder")
+                    occupied = set()
+                    for outer in list(ctx.hyps.values()) + list(ctx.axioms.values()):
+                        occupied |= free_vars(outer)
+                    if var.name in occupied:
+                        raise KernelError(
+                            f"ExistsElim: eigenvariable {var.name!r} already occurs in the context"
+                        )
+                    assumption = substitute_symbols(predicate, {id(bound): var})
+                    conclusion = infer(body, ctx.with_hyp(hyp_name, assumption))
+                    if var.name in free_vars(conclusion):
+                        raise KernelError(
+                            f"ExistsElim: eigenvariable {var.name!r} escapes the conclusion"
+                        )
+                    return conclusion
+            raise KernelError(f"ExistsElim: expected an existential premise, got {stmt!r}")
+
+        case EqSubst(equality, var, template, proof):
+            stmt = infer(equality, ctx)
+            match stmt:
+                case Eq(left, right):
+                    expected = substitute_symbols(template, {id(var): left})
+                    check(proof, expected, ctx)
+                    return substitute_symbols(template, {id(var): right})
+            raise KernelError(f"EqSubst: expected an equality, got {stmt!r}")
 
         case _:
             raise KernelError(f"Unknown proof term: {term!r}")

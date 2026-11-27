@@ -78,6 +78,12 @@ pub fn rule_explanation(rule: &str, reference: Option<&str>) -> &'static str {
             "Substitute the given term for the quantified variable, preserving scope and sort."
         }
         "exists_intro" => "The checked premise establishes the predicate with this witness.",
+        "exists_elim" => {
+            "Open the existential with a fresh witness and its predicate; the conclusion does not mention the witness."
+        }
+        "eq_subst" => {
+            "Substitute the right side of the checked equality for its left side inside the proposition template."
+        }
         "refl" => "An expression equals itself.",
         "symm" => "Reverse the two sides of the premise equality.",
         "trans" => "Compose two equalities whose middle expressions are definitionally equal.",

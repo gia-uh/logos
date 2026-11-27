@@ -80,7 +80,7 @@
         "provenance": "{kind, id, proof_step?} for core laws, custom axioms, checked lemmas and local hypotheses",
         "law": "{id, formal_statement, substitution: [{formal, actual, sort}]} for a checker-owned law application",
         "substitutions": "ordered actual terms for a core law, universal elimination or existential introduction; exists_intro lists the witness and links its checked predicate proof in premises",
-        "context": "congruence syntax with the substituted term at bound index 0 outside nested binders",
+        "context": "congruence or equality-substitution syntax with the substituted term at bound index 0 outside nested binders",
         "premise_conversion": "optional {explanation, left, right, common_normal_form} for rule premise comparison",
         "conclusion_conversion": "optional {explanation, left, right, common_normal_form} for the verified target or lemma root"
       },
@@ -143,6 +143,8 @@
       "forall_intro": "{tag: forall_intro, name, sort, body}",
       "forall_elim": "{tag: forall_elim, proof, term}",
       "exists_intro": "{tag: exists_intro, goal, witness, proof}; the proof derives the capture-avoiding instantiation of the existential goal using the same-sort witness",
+      "exists_elim": "{tag: exists_elim, proof, name, binder, body}; opens a fresh integer witness and assumes its predicate; the conclusion must not mention the witness",
+      "eq_subst": "{tag: eq_subst, equality, context, proof}; proof establishes the left instance of the proposition template and the rule returns the right instance",
       "core_law": "{tag: core_law, id, args}",
       "block": "{tag: block, steps, result}; result is a zero-based step index",
       "step_ref": "{tag: step_ref, index}; references an earlier step in the innermost block"

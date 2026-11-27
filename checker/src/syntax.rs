@@ -162,6 +162,26 @@ impl Proposition {
         })
     }
 
+    /// Close the innermost binder, failing when the term still mentions it.
+    pub fn lower_outer(&self) -> Result<Self, String> {
+        let escaped = std::cell::Cell::new(false);
+        let result = self.map_bound(0, &|index, depth| {
+            if index == depth {
+                escaped.set(true);
+                Bound { index }
+            } else if index > depth {
+                Bound { index: index - 1 }
+            } else {
+                Bound { index }
+            }
+        });
+        if escaped.get() {
+            Err("eigenvariable escapes the conclusion".into())
+        } else {
+            Ok(result)
+        }
+    }
+
     fn instantiate(&self, args: &[Self]) -> Self {
         self.map_bound(0, &|index, depth| {
             if index < depth {

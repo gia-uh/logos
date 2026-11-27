@@ -10,9 +10,10 @@ import subprocess
 
 from logos.expr import Add, And, App, Eq, Expr, ExistsNode, ForallNode, Implies, Lit, Lt, Mul, Neg, Not, Or, Pow, Sub, Var
 from logos.kernel import (
-    AndElimL, AndElimR, AndIntro, AxiomRef, Block, Congr, CoreLaw, ExistsIntro, ForallElim,
-    CaseAnalysis, ExFalso, ForallIntro, HypRef, ImpliesElim, ImpliesIntro,
-    NotElim, NotIntro, OrIntroL, OrIntroR, ProofTerm, Refl, StepRef, Symm, TheoremRef, Trans,
+    AndElimL, AndElimR, AndIntro, AxiomRef, Block, Congr, CoreLaw, EqSubst, ExistsElim,
+    ExistsIntro, ForallElim, CaseAnalysis, ExFalso, ForallIntro, HypRef, ImpliesElim,
+    ImpliesIntro, NotElim, NotIntro, OrIntroL, OrIntroR, ProofTerm, Refl, StepRef, Symm,
+    TheoremRef, Trans,
 )
 
 FORMAT = "logos-proof-v1"
@@ -211,6 +212,14 @@ def artifact_bytes(
             case ExistsIntro(witness, body, ExistsNode() as goal):
                 return {"tag": "exists_intro", "goal": encode(goal),
                         "witness": encode(witness), "proof": derive(body)}
+            case ExistsElim(child, var, binder, body):
+                return {"tag": "exists_elim", "proof": derive(child),
+                        "name": var.name, "binder": binder,
+                        "body": proof(body, scope, (*bound, var))}
+            case EqSubst(child, var, template, body):
+                return {"tag": "eq_subst", "equality": derive(child),
+                        "context": proposition(template, scope, (*bound, var)),
+                        "proof": derive(body)}
             case Refl(expr):
                 return {"tag": "refl", "term": encode(expr)}
             case Symm(child):
