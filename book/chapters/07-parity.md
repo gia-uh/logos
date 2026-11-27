@@ -121,7 +121,7 @@ for theorem in (even_sum, odd_successor):
     print(f"{theorem.name}: {theorem.certified}")
 ```
 
-## Find the checked lemmas in the package
+## Find the checked lemmas in the package {#three-lemmas-worth-keeping}
 
 The shared number theory module provides the same three lemmas we constructed in Chapter 6. Import them when you need their checked evidence. The first says that every integer divides itself, with quotient one.
 

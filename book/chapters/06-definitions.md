@@ -49,7 +49,7 @@ def prove_divides_self(p, d):
 
 `p.ring(d == d * 1)` proves the equation by polynomial normalization. `p.witness(1, one)` closes the existential that the definition unfolds to. The proof never unfolds `divides` by hand; the checker does it when it compares the witness evidence with the definitional body.
 
-## Build reusable lemmas
+## Build reusable lemmas {#three-lemmas-worth-keeping}
 
 Transitivity lets a later proof connect two divisibility facts through a common middle term.
 
