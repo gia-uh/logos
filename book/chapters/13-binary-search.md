@@ -132,9 +132,9 @@ The checker turns the loop into verification conditions. The `preserve` obligati
 
 **Equality: `xs[mid] == target`.** The branch sets `answer = mid` and `low = high`. `mid` is in `[low, high)` by the bounds conjunct and the half-interval laws, so `found` holds. The cuts are irrelevant because the disjunction is already true. The new interval is empty, so the variant is zero.
 
-**Less: `xs[mid] < target`.** The branch sets `low = mid + 1`. Every index below the new `low` is either below the old `low`, where `lower_cut` already applies, or equal to `mid`, where the comparison gives the strict bound. Sortedness is what makes the old lower cut and the new comparison meet. The upper cut is unchanged.
+**Less: `xs[mid] < target`.** The branch sets `low = mid + 1`, so every index below the new `low` is at most `mid`. Indices below the old `low` are covered by `lower_cut`. The newly discarded interior indices, `low <= i < mid`, are covered by sortedness together with the branch comparison: `xs[i] <= xs[mid] < target`. The upper cut is unchanged.
 
-**Greater: `target < xs[mid]`.** The branch sets `high = mid`. Every index at or above the new `high` is either at `mid`, where the comparison gives the strict bound, or above the old `high`, where `upper_cut` already applies. The lower cut is unchanged.
+**Greater: `target < xs[mid]`.** The branch sets `high = mid`, so every index at or above the new `high` is at least `mid`. Index `mid` itself is the branch comparison, the newly discarded interior indices `mid < i < high` satisfy `target < xs[mid] <= xs[i]` by sortedness, and indices at or above the old `high` are covered by `upper_cut`. The lower cut is unchanged.
 
 The three branches are not three separate proofs in the certificate. They are one checked `preserve` condition whose proof splits on the same guards the source uses. The Rust checker recomputes that condition from the exported statements; the Python side only proposes the invariant and the proof terms.
 
