@@ -90,6 +90,10 @@ pub fn rule_explanation(rule: &str, reference: Option<&str>) -> &'static str {
         "least" => {
             "A witnessed predicate has a least integer witness at or above the bound."
         }
+        "recursor_base" => "Apply the base equation of a primitive-recursive definition.",
+        "recursor_step" => {
+            "Apply the step equation of a primitive-recursive definition at a nonnegative argument."
+        }
         "refl" => "An expression equals itself.",
         "symm" => "Reverse the two sides of the premise equality.",
         "trans" => "Compose two equalities whose middle expressions are definitionally equal.",

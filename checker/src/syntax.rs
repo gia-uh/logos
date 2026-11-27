@@ -110,6 +110,20 @@ pub struct Function {
     pub result: Sort,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub body: Option<Proposition>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recursor: Option<Recursor>,
+}
+
+/// A primitive-recursive definition on the natural numbers.
+///
+/// `base` is a closed integer term. `step` is an integer term with two
+/// integer binders: the argument (outer) and its previous value (inner).
+/// A step may call the recursive function only at the argument itself.
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Recursor {
+    pub base: Proposition,
+    pub step: Proposition,
 }
 
 pub type Functions<'a> = HashMap<&'a str, &'a Function>;

@@ -12,8 +12,8 @@ from logos.expr import Add, And, App, Eq, Expr, ExistsNode, ForallNode, Implies,
 from logos.kernel import (
     AndElimL, AndElimR, AndIntro, AxiomRef, Block, Congr, CoreLaw, EqSubst, ExistsElim,
     ExistsIntro, ForallElim, CaseAnalysis, ExFalso, ForallIntro, HypRef, ImpliesElim,
-    ImpliesIntro, Induction, Least, NotElim, NotIntro, OrIntroL, OrIntroR, ProofTerm, Refl,
-    StepRef, Symm, TheoremRef, Trans,
+    ImpliesIntro, Induction, Least, NotElim, NotIntro, OrIntroL, OrIntroR, ProofTerm,
+    RecursorBase, RecursorStep, Refl, StepRef, Symm, TheoremRef, Trans,
 )
 
 FORMAT = "logos-proof-v1"
@@ -161,6 +161,12 @@ def artifact_bytes(
             }
             if symbol.body is not None:
                 declaration["body"] = proposition(symbol.body, set(), tuple(symbol.params))
+            if symbol.recursor is not None:
+                base, step, previous = symbol.recursor
+                declaration["recursor"] = {
+                    "base": proposition(base, set(), ()),
+                    "step": proposition(step, set(), (symbol.params[0], previous)),
+                }
             functions.append(declaration)
         return function_ids[key]
 
@@ -228,6 +234,11 @@ def artifact_bytes(
                 return {"tag": "least", "bound": encode(lower), "name": var.name,
                         "predicate": proposition(predicate, scope, (*bound, var)),
                         "nonempty": derive(nonempty)}
+            case RecursorBase(function):
+                return {"tag": "recursor_base", "id": function_id(function)}
+            case RecursorStep(function, argument, nonnegative):
+                return {"tag": "recursor_step", "id": function_id(function),
+                        "argument": encode(argument), "proof": derive(nonnegative)}
             case Refl(expr):
                 return {"tag": "refl", "term": encode(expr)}
             case Symm(child):

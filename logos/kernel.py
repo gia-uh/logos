@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 from logos.expr import (
-    Expr, Lit, Var, Eq, And, Or, Not, Implies, Lt,
+    Expr, Lit, Var, App, Eq, And, Or, Not, Implies, Lt,
     ForallNode, ExistsNode,
 )
 from logos.helpers import free_vars, structural_eq, substitute, substitute_symbols
@@ -228,6 +228,18 @@ class Least(ProofTerm):
     predicate: Expr
     nonempty: ProofTerm
 
+@dataclass(frozen=True)
+class RecursorBase(ProofTerm):
+    """The base equation f(0) = base of a primitive-recursive function."""
+    function: object
+
+@dataclass(frozen=True)
+class RecursorStep(ProofTerm):
+    """The step equation f(k + 1) = step(k, f(k)) for k >= 0."""
+    function: object
+    argument: Expr
+    proof: ProofTerm          # proves not (argument < 0)
+
 
 # ── Kernel Inference ──────────────────────────────────────────────────────────
 
@@ -414,6 +426,24 @@ def infer(term: ProofTerm, ctx: Context) -> Expr:
                 ),
             )
             return ExistsNode(m, And(membership, minimal))
+
+        case RecursorBase(function):
+            if getattr(function, "recursor", None) is None:
+                raise KernelError("RecursorBase: function is not recursive")
+            base, _, _ = function.recursor
+            return Eq(App(function.name, [Lit(0)], function), base)
+
+        case RecursorStep(function, argument, proof):
+            if getattr(function, "recursor", None) is None:
+                raise KernelError("RecursorStep: function is not recursive")
+            _, step, previous = function.recursor
+            check(proof, Not(Lt(argument, Lit(0))), ctx)
+            value = App(function.name, [argument], function)
+            instantiated = substitute_symbols(
+                step,
+                {id(function.params[0]): argument, id(previous): value},
+            )
+            return Eq(App(function.name, [argument + 1], function), instantiated)
 
         case _:
             raise KernelError(f"Unknown proof term: {term!r}")

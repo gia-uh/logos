@@ -1,5 +1,5 @@
 from logos.expr import Var, Lit, Forall, Exists, Expr, Implies
-from logos.define import define, extern, cases, if_
+from logos.define import define, extern, recursor, cases, if_
 from logos.theorem import theorem, axiom, check, prove, LogosProofError, Axiom, Theorem
 from logos.contracts import contract, Contract, LogosContractError
 from logos.portable import ProofReceipt, export_proof

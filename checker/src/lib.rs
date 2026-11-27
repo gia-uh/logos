@@ -126,6 +126,14 @@ enum Evidence {
         predicate: Proposition,
         nonempty: Box<Self>,
     },
+    RecursorBase {
+        id: String,
+    },
+    RecursorStep {
+        id: String,
+        argument: Proposition,
+        proof: Box<Self>,
+    },
     CoreLaw {
         id: String,
         args: Vec<Proposition>,
@@ -155,7 +163,8 @@ impl Evidence {
             | Self::Congr { proof, .. }
             | Self::ForallElim { proof, .. }
             | Self::ExistsIntro { proof, .. }
-            | Self::Least { nonempty: proof, .. } => [Some(proof), None, None],
+            | Self::Least { nonempty: proof, .. }
+            | Self::RecursorStep { proof, .. } => [Some(proof), None, None],
             Self::AndIntro { left, right }
             | Self::Trans { left, right }
             | Self::ImpliesElim {
@@ -239,6 +248,51 @@ fn block_order(steps: &[Evidence], result: usize) -> Result<Vec<usize>, String> 
     let mut order: Vec<_> = reachable.into_iter().collect();
     order.sort_unstable();
     Ok(order)
+}
+
+/// A recursive step may call the function only at the predecessor argument.
+///
+/// The step is checked in the scope `[argument, value]`, so at depth zero the
+/// predecessor is bound index 1. Nested binders shift that index by their own
+/// depth. Any other recursive call would describe a definition that is not a
+/// primitive recursion.
+fn check_recursor_step(step: &Proposition, id: &str) -> Result<(), String> {
+    fn walk(term: &Proposition, depth: usize, id: &str) -> Result<(), String> {
+        use Proposition::*;
+        match term {
+            App { id: called, args } => {
+                if called == id {
+                    let predecessor = Bound { index: depth + 1 };
+                    if args.len() != 1 || args[0] != predecessor {
+                        return Err(format!(
+                            "recursor step calls {id:?} away from its predecessor"
+                        ));
+                    }
+                }
+                for arg in args {
+                    walk(arg, depth, id)?;
+                }
+                Ok(())
+            }
+            Bound { .. } | Symbol { .. } | Int { .. } | False => Ok(()),
+            Add { left, right }
+            | Sub { left, right }
+            | Mul { left, right }
+            | Eq { left, right }
+            | Lt { left, right }
+            | And { left, right }
+            | Or { left, right }
+            | Implies { left, right } => {
+                walk(left, depth, id)?;
+                walk(right, depth, id)
+            }
+            Neg { operand } | Not { operand } | Pow { base: operand, .. } => {
+                walk(operand, depth, id)
+            }
+            Forall { body, .. } | Exists { body, .. } => walk(body, depth + 1, id),
+        }
+    }
+    walk(step, 0, id)
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -397,14 +451,41 @@ pub fn verify(bytes: &[u8]) -> Result<Verified, String> {
         declarations.insert(declaration.id.as_str(), declaration);
     }
     let mut checker = Checker::new(declarations);
-    // Transparent bodies can mention earlier functions only. This makes
-    // definition references acyclic before any conversion takes place.
+    // Transparent bodies and recursive steps mention earlier functions only,
+    // so definition references are acyclic before any conversion takes place.
+    // A recursor is the sole exception: its step may call itself at the
+    // immediate predecessor, and the function stays opaque to conversion.
     for function in &bundle.functions {
         register(&function.id, "function")?;
+        if function.body.is_some() && function.recursor.is_some() {
+            return Err(format!(
+                "function {:?} cannot have both a body and a recursor",
+                function.id
+            ));
+        }
         if let Some(body) = &function.body {
             checker
                 .sort(body, &function.params)?
                 .expect(function.result)?;
+        }
+        if let Some(recursor) = &function.recursor {
+            if function.params.len() != 1
+                || function.params[0] != Sort::Int
+                || function.result != Sort::Int
+            {
+                return Err(format!(
+                    "recursor {:?} must take one integer and return an integer",
+                    function.id
+                ));
+            }
+            checker.functions.insert(function.id.as_str(), function);
+            checker
+                .sort(&recursor.base, &[])?
+                .expect(Sort::Int)?;
+            checker
+                .sort(&recursor.step, &[Sort::Int, Sort::Int])?
+                .expect(Sort::Int)?;
+            check_recursor_step(&recursor.step, &function.id)?;
         }
         checker.functions.insert(function.id.as_str(), function);
     }
@@ -1556,6 +1637,81 @@ impl<'a> Checker<'a> {
                     vec![nonempty_path],
                     conclusion,
                     Some(name.clone()),
+                    None,
+                )
+            }
+            Evidence::RecursorBase { id } => {
+                let function = self
+                    .functions
+                    .get(id.as_str())
+                    .ok_or_else(|| format!("{path}: unknown function {id:?}"))?;
+                let recursor = function.recursor.as_ref().ok_or_else(|| {
+                    format!("{path}: function {id:?} is not a recursive definition")
+                })?;
+                let base = recursor.base.clone();
+                reference_id = Some(id.clone());
+                let conclusion = Proposition::Eq {
+                    left: Box::new(Proposition::App {
+                        id: id.clone(),
+                        args: vec![Proposition::Int { value: "0".into() }],
+                    }),
+                    right: Box::new(base),
+                };
+                ("recursor_base", Vec::new(), conclusion, None, None)
+            }
+            Evidence::RecursorStep {
+                id,
+                argument,
+                proof,
+            } => {
+                let step_expression = {
+                    let function = self
+                        .functions
+                        .get(id.as_str())
+                        .ok_or_else(|| format!("{path}: unknown function {id:?}"))?;
+                    let recursor = function.recursor.as_ref().ok_or_else(|| {
+                        format!("{path}: function {id:?} is not a recursive definition")
+                    })?;
+                    recursor.step.clone()
+                };
+                self.sort(argument, &scope.binders)?.expect(Sort::Int)?;
+                let nonnegative = Proposition::Not {
+                    operand: Box::new(Proposition::Lt {
+                        left: Box::new(argument.clone()),
+                        right: Box::new(Proposition::Int { value: "0".into() }),
+                    }),
+                };
+                let proof_path = format!("{path}.proof");
+                let premise = self.infer(proof, scope, &proof_path)?;
+                premise_conversion = self.check_rule_premise(
+                    &nonnegative,
+                    &premise,
+                    &proof_path,
+                    "recursor step requires a nonnegative argument",
+                )?;
+                let value = Proposition::App {
+                    id: id.clone(),
+                    args: vec![argument.clone()],
+                };
+                let step_term =
+                    instantiate_bounded(&step_expression, &[value, argument.clone()])?;
+                let successor = Proposition::Add {
+                    left: Box::new(argument.clone()),
+                    right: Box::new(Proposition::Int { value: "1".into() }),
+                };
+                let conclusion = Proposition::Eq {
+                    left: Box::new(Proposition::App {
+                        id: id.clone(),
+                        args: vec![successor],
+                    }),
+                    right: Box::new(step_term),
+                };
+                reference_id = Some(id.clone());
+                (
+                    "recursor_step",
+                    vec![proof_path],
+                    conclusion,
+                    None,
                     None,
                 )
             }
