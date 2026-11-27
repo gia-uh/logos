@@ -94,6 +94,7 @@ def test_the_guide_renders_and_replays_its_certificate(tmp_path):
     assert result.returncode == 0, result.stderr
     assert "Traceback (most recent call last)" not in html
     for marker in (
+        "compose: Rust replay verified and the checked reading includes the note",
         "overlap_self: True",
         "common_point_by_tactic: True",
         "interval: no linear certificate for",
