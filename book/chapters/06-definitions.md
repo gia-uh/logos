@@ -49,9 +49,9 @@ def prove_divides_self(p, d):
 
 `p.ring(d == d * 1)` proves the equation by polynomial normalization. `p.witness(1, one)` closes the existential that the definition unfolds to. The proof never unfolds `divides` by hand; the checker does it when it compares the witness evidence with the definitional body.
 
-## Three lemmas worth keeping
+## Build reusable lemmas {#three-lemmas-worth-keeping}
 
-The next three lemmas are the ones the rest of the theory reuses. Each has a short proof, and each is stated as a theorem with a name.
+Transitivity lets a later proof connect two divisibility facts through a common middle term.
 
 Divisibility is transitive. If $a$ divides $b$ with quotient $k$, and $b$ divides $c$ with quotient $j$, then $c = bj = (ak)j = a(kj)$. The witness for $a \mid c$ is the product $kj$.
 
@@ -71,7 +71,9 @@ def prove_divides_trans(p, a, b, c):
     return p.witness(k * j, ac)
 ```
 
-A multiple of $b$ is still a multiple of any divisor of $b$. If $b = ak$, then $cb = c(ak) = a(kc)$. The quotient changes from $k$ to $kc$.
+A multiple of $b$ is still a multiple of any divisor of $b$. Suppose $b = ak$ and your goal is $a \mid cb$. Write the equation the witness must satisfy. What expression in $k$ and $c$ fills the blank in $cb = a(\,?\,)$? Predict the witness before reading the proof.
+
+Substitute $b = ak$ to get $cb = c(ak) = a(kc)$. The quotient changes from $k$ to $kc$.
 
 ```python {run continue}
 @logos.theorem
@@ -88,31 +90,13 @@ def prove_divides_mul(p, a, b, c):
     return p.witness(k * c, scaled)
 ```
 
-The product of divisors divides the product of dividends. If $b = ai$ and $d = cj$, then $bd = (ac)(ij)$.
-
-```python {run continue}
-@logos.theorem
-def divides_product(a: Int, b: Int, c: Int, d: Int):
-    """The product of divisors divides the product of dividends."""
-    return (divides(a, b) & divides(c, d)) >> divides(a * c, b * d)
-
-@divides_product.proof
-def prove_divides_product(p, a, b, c, d):
-    """Multiply the two quotient equations."""
-    both = p.assume(divides(a, b) & divides(c, d))
-    i, ab = p.obtain(both.left())
-    j, cd = p.obtain(both.right())
-    product = p.ring(b * d == (a * c) * (i * j), using=[ab, cd])
-    return p.witness(i * j, product)
-```
-
-Each proof follows the same pattern: open the existential hypotheses, derive the equation the new witness must satisfy, and close the goal with that witness. The mathematics is in the choice of witness; the checker verifies that the choice works.
-
 ## Apply a lemma by name
 
 A checked theorem can be used in a later proof. `p.apply` walks the lemma's statement from the outside in. A term argument instantiates a universal binder. A fact argument discharges an implication premise. The result is a fact for whatever remains.
 
-The square of an integer is a multiple of that integer. The proof applies `divides_mul` with $b = a$ and $c = a$ to the trivial divisor from `divides_self`.
+The goal is `divides(a, a * a)`. Look at the conclusion of `divides_mul(x, y, z)`, which is `divides(x, z * y)`. Match the divisor first, then the two factors. Which arguments make the conclusions agree, and what premise will you still need?
+
+Set `x = a`, `y = a`, and `z = a`. The remaining premise is `divides(a, a)`, the conclusion of `divides_self(a)`. Write down the proposition carried by `scaled` before reading the final application.
 
 ```python {run continue}
 @logos.theorem
@@ -134,11 +118,11 @@ $$\operatorname{divides}(a, a) \Rightarrow \operatorname{divides}(a, a \cdot a).
 
 `trivial` is a fact for the antecedent. The final `p.apply(scaled, trivial)` discharges the implication and returns a fact for the consequent, which is exactly the goal.
 
-`p.apply` does not search for a proof of the antecedent. It matches the fact you give it against the premise, allowing equality to be used in either direction. If the fact proves something else, the diagnostic names both statements and the lemma argument that failed.
+`p.apply` does not search for a proof of the antecedent. It matches the fact you give it against the premise, allowing equality to be used in either direction. If the fact proves something else, the diagnostic shows the required premise and the proposition you passed.
 
 ## Compose two lemmas
 
-The next theorem combines the square lemma with transitivity. If $a$ divides $b$, then $a$ divides $b^2$.
+Suppose $a \mid b$ and the goal is $a \mid b^2$. Transitivity can connect them through $b$. Its conclusion fixes the first and last arguments, and the hypothesis fixes the middle one. The remaining fact is $b \mid b^2$, which the square lemma gives at $b$.
 
 ```python {run continue}
 @logos.theorem
@@ -166,18 +150,20 @@ for theorem in (
     divides_self,
     divides_trans,
     divides_mul,
-    divides_product,
     divides_square,
     divides_square_of_multiple,
 ):
     theorem.check()
     print(f"{theorem.name}: {theorem.certified}")
-
-reading = divides_square_of_multiple.inspect()
-print("zero custom axioms:", "Uses zero custom axioms." in reading)
 ```
 
-`inspect()` returns the checker's own Markdown reading of the receipt. The reading names the checked lemmas and reports the custom-axiom count. Here the count is zero: the definition is transparent, the lemmas are checked theorems, and no author-declared assumption was used.
+In **Proof**, look for the citation of the checked square lemma. The receipt identifies checked lemmas by their propositions. Step 67 cites the square lemma and points back to its derivation at step 60. Follow the references from that derivation to step 53, where the square proof cites the scaling lemma. Which of those citations is direct in the final theorem, and which is transitive? In **Custom axioms**, look for the count. The divisibility body belongs under **Domains and definitions**.
+
+::: proof
+```python {run continue echo=false}
+print(divides_square_of_multiple.inspect())
+```
+:::
 
 ## When a step fails
 
@@ -187,24 +173,76 @@ Suppose the last line of `divides_square_of_multiple` passes the conjunction in 
 return p.apply(chain, p.and_intro(square, multiple))
 ```
 
-The facts are individually correct, but the antecedent of `chain` expects $a \mid b$ first. The diagnostic is:
+The facts are individually correct, but the antecedent of `chain` expects $a \mid b$ first. The diagnostic compares the whole antecedent, with some definitions unfolded:
 
 ```text
-the fact does not prove the antecedent needed by divides_trans
-  expected: divides(a, b)
-  got: divides(b, b * b)
+the fact does not prove the antecedent needed by fact
+  expected: exists k:Int. b = a * k & exists k:Int. b * b = b * k
+  got: exists k:Int. b * b = b * k & divides(a, b)
 ```
 
-The message names the lemma and the argument position. It does not say that `divides_trans` is false or that the conjunction is malformed; it says that the first component is the wrong proposition. Reorder the arguments to `p.and_intro`.
+The word `fact` refers to the instantiated implication `chain`. Compare the first component on each line: the premise starts with $a \mid b$, while the supplied conjunction starts with $b \mid b^2$. Restore the order of the arguments to `p.and_intro`.
 
 A second mistake is to stop after `chain` and return it. `chain` still proves an implication, while the goal is the consequent. The final `p.apply(chain, ...)` is what performs the elimination. Read the statement carried by each named fact before the return.
 
+## Guided practice
+
+Prove $a \mid a \cdot (a \cdot a)$. Match the conclusion of `divides_mul` to the goal and use `divides_square` for its remaining premise. Write the instantiated implication before applying it.
+
 ## Exit exercise
 
-Prove
+Given $a \mid b$ and $b \mid c$, prove $a \mid c \cdot c$. Use checked lemmas from this chapter. Before writing Python, name the lemmas you choose and write their instantiated premises and conclusions. Identify the fact that supplies each premise.
 
-$$\operatorname{divides}(a,\; a \cdot (a \cdot a)).$$
+As optional witness practice, prove that $a \mid b$ and $c \mid d$ imply $(ac) \mid (bd)$. Write the equation your witness must satisfy.
 
-Use `divides_square` to obtain $a \mid a^2$, then use `divides_mul` with $b = a^2$ and $c = a$ to scale it. The final witness is the product of the two quotients. Check the theorem and confirm that the reading reports zero custom axioms.
+## Instructor solutions
 
-As a second exercise, prove that if $a \mid b$ and $b \mid c$, then $a \mid c \cdot c$. Use `divides_trans` once to obtain $a \mid c$, then `divides_mul` once to scale it. Write down the intermediate fact each application produces before you write the code.
+For the cube, choose the square as the dividend and $a$ as the scale. For the exit exercise, transitivity supplies $a \mid c$, the premise of scaling the dividend $c$ by $c$.
+
+```python {run continue}
+@logos.theorem
+def divides_cube(a: Int):
+    return divides(a, a * (a * a))
+
+@divides_cube.proof
+def prove_divides_cube(p, a):
+    square = p.apply(divides_square, a)
+    return p.apply(divides_mul, a, a * a, a, square)
+```
+
+```python {run continue}
+@logos.theorem
+def divides_square_through(a: Int, b: Int, c: Int):
+    return (divides(a, b) & divides(b, c)) >> divides(a, c * c)
+
+@divides_square_through.proof
+def prove_divides_square_through(p, a, b, c):
+    both = p.assume(divides(a, b) & divides(b, c))
+    ac = p.apply(divides_trans, a, b, c, both)
+    return p.apply(divides_mul, a, c, c, ac)
+
+for exercise in (divides_cube, divides_square_through):
+    exercise.check()
+    print(f"{exercise.name}: {exercise.certified}")
+```
+
+For the optional product exercise, multiply $b = ai$ by $d = cj$ and regroup to get $bd = (ac)(ij)$.
+
+```python {run continue}
+@logos.theorem
+def divides_product(a: Int, b: Int, c: Int, d: Int):
+    """The product of divisors divides the product of dividends."""
+    return (divides(a, b) & divides(c, d)) >> divides(a * c, b * d)
+
+@divides_product.proof
+def prove_divides_product(p, a, b, c, d):
+    """Multiply the two quotient equations."""
+    both = p.assume(divides(a, b) & divides(c, d))
+    i, ab = p.obtain(both.left())
+    j, cd = p.obtain(both.right())
+    product = p.ring(b * d == (a * c) * (i * j), using=[ab, cd])
+    return p.witness(i * j, product)
+
+divides_product.check()
+print(f"{divides_product.name}: {divides_product.certified}")
+```

@@ -60,12 +60,29 @@ EXPECTED = {
         "zero_not_positive: True",
     ],
     "05-witnesses.md": ["even_sum: True", "even_multiple: True", "pair_witness: True"],
-    "06-definitions.md": ["zero custom axioms: True"],
-    "07-parity.md": ["even_sum: True", "odd_successor: True", "divides_mul: True"],
+    "06-definitions.md": [
+        '<section class="proof">',
+        "Uses zero custom axioms.",
+        "This uses the earlier checked lemma.",
+        "The conclusion follows from (73).",
+        "divides_cube: True",
+        "divides_square_through: True",
+        "divides_product: True",
+    ],
+    "07-parity.md": [
+        "even_sum: True",
+        "odd_successor: True",
+        "divides_mul: True",
+        "even_triple: True",
+        "even_times_integer: True",
+        "even_plus_odd: True",
+    ],
     "08-neighbours.md": [
         "common_divisor: True",
         "not_dvd_one: True",
         "common_divisor_not_above_one: True",
+        "divides_difference: True",
+        "no_common_divisor_above_one: True",
     ],
     "09-factorial.md": [
         "factorial_positive: True",
@@ -244,6 +261,10 @@ def test_witnesses_report_the_instantiated_predicate(tmp_path):
     assert "the evidence does not prove the instantiated existential predicate" in html
 
 
+def execution_errors(html: str) -> str:
+    return unescape("\n".join(re.findall(r'<span class="stderr">(.*?)</span>', html, re.S)))
+
+
 def test_definitions_report_the_lemma_premise(tmp_path):
     source = (CHAPTERS / "06-definitions.md").read_text(encoding="utf-8")
     broken = source.replace(
@@ -252,8 +273,10 @@ def test_definitions_report_the_lemma_premise(tmp_path):
         1,
     )
     _, html = render(tmp_path, "06-definitions.md", broken)
-    assert "does not prove the antecedent needed by divides_trans" in html
-    assert "expected: divides(a, b)" in html
+    errors = execution_errors(html)
+    assert "does not prove the antecedent needed by fact" in errors
+    assert "expected: exists k:Int. b = a * k & exists k:Int. b * b = b * k" in errors
+    assert "got: exists k:Int. b * b = b * k & divides(a, b)" in errors
 
 
 SOURCE_REF = re.compile(
@@ -354,6 +377,9 @@ def test_parity_reports_the_wrong_witness(tmp_path):
     assert source.count("    return p.witness(i + j, total)") == 1
     broken = source.replace("    return p.witness(i + j, total)", "    return p.witness(i, total)", 1)
     _, html = render(tmp_path, "07-parity.md", broken)
-    assert "the evidence does not prove the instantiated existential predicate" in html
-    assert "expected: a + b = 2 * i" in html
-    assert "got: a + b = 2 * (i + j)" in html
+    errors = execution_errors(html)
+    assert "the evidence does not prove the instantiated existential predicate" in errors
+    assert "expected: a + b = 2 * k" in errors
+    assert "got: a + b = 2 * (k + k1)" in errors
+    assert "obtained: a = 2 * k" in errors
+    assert "obtained: b = 2 * k1" in errors
