@@ -47,16 +47,16 @@ is carried to the new page rather than dropped.
 ## Reference content
 
 The old reference material was split between the Quarto API page and the tactic
-pages. The generated `Public API Reference` chapter now owns the public class,
-function and method inventory; the lessons own the tactic explanations.
+pages. The generated `Public API Reference` chapter documents public imports and call contracts. The lessons supply complete proofs
+that use those operations.
 
 | Old content | New home |
 |---|---|
 | Top-level `logos` functions, `@logos.theorem`, `check`, `prove`, `define`, `extern`, `cases` | `Public API Reference` |
-| `logos.expr` classes and operator tables | `Public API Reference#classes`; expression conventions in `Introduction#conventions` |
+| `logos.expr` classes and operator tables | `Public API Reference#expressions`; expression conventions in `Introduction#conventions` |
 | Structural, arithmetic, rewriting and combinator tactics | The lessons that use them, plus the Developer Guide's tactic protocol |
-| Kernel proof terms and helpers | `Public API Reference#classes` and `#functions-and-methods` |
-| Exceptions | `Public API Reference#classes` |
+| Kernel proof terms and helpers | `Public API Reference#tactic-extensions` |
+| Exceptions | `Public API Reference#logoslogosprooferror` |
 | Number theory examples | `Even, Odd, and What Divides Means` through `One More Prime, Always` |
 | Infinitely many primes | `One More Prime, Always` |
 | Knights and Knaves | `Extend the Checked Language with a Domain`, which teaches the domain and tactic protocol; the runnable example remains in the checker's `logos example knights-knaves` |

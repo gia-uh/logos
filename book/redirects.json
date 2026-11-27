@@ -215,19 +215,19 @@
       "from": "reference/api.html",
       "to": "public-api-reference.html",
       "anchors": {
-        "top-level-logos": "functions-and-methods",
-        "domains-logosdomains": "classes",
-        "expressions-logosexpr": "classes",
-        "tactics-logostactics": "functions-and-methods",
-        "structural": "functions-and-methods",
-        "arithmetic": "functions-and-methods",
-        "rewriting": "functions-and-methods",
-        "combinators": "functions-and-methods",
-        "kernel-logoskernel": "classes",
-        "proof-terms": "classes",
-        "kernel-functions": "functions-and-methods",
-        "helpers-logoshelpers": "functions-and-methods",
-        "exceptions": "classes"
+        "top-level-logos": "theorems-and-evidence",
+        "domains-logosdomains": "definitions",
+        "expressions-logosexpr": "expressions",
+        "tactics-logostactics": "tactics",
+        "structural": "tactics",
+        "arithmetic": "logostacticsring",
+        "rewriting": "logostacticsrewrite",
+        "combinators": "logostacticsthen",
+        "kernel-logoskernel": "tactic-extensions",
+        "proof-terms": "logoskernelproofterm",
+        "kernel-functions": "tactic-extensions",
+        "helpers-logoshelpers": "tactic-extensions",
+        "exceptions": "logoslogosprooferror"
       }
     }
   ]
