@@ -6,6 +6,7 @@ certificate and regenerates the API reference in memory.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -15,6 +16,10 @@ import textwrap
 from pathlib import Path
 
 import pytest
+
+import logos
+from logos import Int, tactics as t
+from logos.domains.intervals import overlaps
 
 ROOT = Path(__file__).resolve().parents[1]
 CHAPTERS = ROOT / "book" / "chapters"
@@ -97,12 +102,18 @@ def test_the_guide_renders_and_replays_its_certificate(tmp_path):
         "compose: Rust replay verified and the checked reading includes the note",
         "overlap_self: True",
         "common_point_by_tactic: True",
-        "interval: no linear certificate for",
-        "interval: expected an overlap after unfolding",
+        "diagnostic: Theorem 'impossible': interval: no linear certificate for a_lo &lt;= b_hi",
+        "diagnostic: Theorem 'wrong_shape': interval: expected an overlap after unfolding",
+        "construction diagnostic: Theorem 'common_point_by_tactic': "
+        "linear arithmetic could not derive the goal from these facts",
+        "expected goal: b_lo &lt;= a_hi",
+        "From (5) and (17).",
+        "The conclusion follows from (50).",
         "zero custom axioms: True",
         "certificate: intervals.logos",
     ):
         assert marker in html, marker
+    assert html.count('<section class="proof">') == 2
     assert (tmp_path / "intervals.logos").exists()
     checked = subprocess.run(
         [CHECKER, "check", "--strict", "intervals.logos"],
@@ -121,6 +132,115 @@ def test_the_guide_renders_and_replays_its_certificate(tmp_path):
     )
     assert markdown.stdout.startswith("# Checked proof\n")
     assert "## Conclusion" in markdown.stdout
+
+    artifact = json.loads((tmp_path / "intervals.logos").read_bytes())
+    proof = artifact["proof"]
+    while proof["tag"] in {"forall_intro", "implies_intro"}:
+        proof = proof["body"]
+    assert proof["tag"] == "and_intro"
+    first = proof["left"]
+    for suffix in ("ll", "lr", "rl", "rr"):
+        assert first["tag"] == "have"
+        assert first["binder"] == f"__interval_5{suffix}"
+        first = first["body"]
+    assert first["tag"] == "linear"
+    assert {item["binder"]: item["coefficient"] for item in first["terms"]} == {
+        "__interval_5ll": "1",
+        "__interval_5rr": "1",
+    }
+
+    first["terms"][0]["coefficient"] = "0"
+    forged = tmp_path / "forged.logos"
+    forged.write_text(json.dumps(artifact), encoding="utf-8")
+    rejected = subprocess.run(
+        [CHECKER, "check", "--strict", forged],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert rejected.returncode != 0
+    assert "linear: the certified combination is not contradictory" in rejected.stderr
+
+
+def test_instructor_interval_solutions(tmp_path):
+    """Solutions for the Chapter 14 exit exercise."""
+
+    @logos.definition
+    def touches(a_lo: Int, a_hi: Int, b_lo: Int, b_hi: Int):
+        return (a_hi == b_lo) | (b_hi == a_lo)
+
+    @logos.theorem
+    def touches_symmetric(a_lo: Int, a_hi: Int, b_lo: Int, b_hi: Int):
+        return touches(a_lo, a_hi, b_lo, b_hi) >> touches(b_lo, b_hi, a_lo, a_hi)
+
+    # Swapping the intervals swaps the two disjuncts. In each branch,
+    # the original equality closes the opposite side of the new goal.
+    touches_symmetric.proof(t.unfold(touches), t.intro(), t.auto())
+
+    @logos.theorem
+    def singleton_touches(x: Int):
+        return touches(x, x, x, x)
+
+    # Both endpoint equalities reduce to x == x. Either disjunct suffices.
+    singleton_touches.proof(t.unfold(touches), t.intro(), t.auto())
+
+    @logos.definition
+    def inside(a_lo: Int, a_hi: Int, b_lo: Int, b_hi: Int):
+        return (b_lo <= a_lo) & (a_hi <= b_hi)
+
+    @logos.theorem
+    def inner_overlap_extends(a_lo: Int, a_hi: Int, b_lo: Int, b_hi: Int,
+                              c_lo: Int, c_hi: Int):
+        return (
+            inside(a_lo, a_hi, b_lo, b_hi) & overlaps(a_lo, a_hi, c_lo, c_hi)
+        ) >> overlaps(b_lo, b_hi, c_lo, c_hi)
+
+    @inner_overlap_extends.proof
+    def prove_inner_overlap_extends(p, a_lo, a_hi, b_lo, b_hi, c_lo, c_hi):
+        premises = p.assume(inside(a_lo, a_hi, b_lo, b_hi) &
+                            overlaps(a_lo, a_hi, c_lo, c_hi))
+        containment, inner_overlap = premises.left(), premises.right()
+        # b_lo <= a_lo <= c_hi
+        first = p.linear(b_lo <= c_hi, using=[containment.left(), inner_overlap.left()])
+        # c_lo <= a_hi <= b_hi
+        second = p.linear(c_lo <= b_hi, using=[inner_overlap.right(), containment.right()])
+        return p.and_intro(first, second)
+
+    # These definitions and certificates use existing equality and order rules.
+    for theorem in (touches_symmetric, singleton_touches, inner_overlap_extends):
+        theorem.check()
+        target = tmp_path / f"{theorem.name}.logos"
+        logos.export_proof(theorem, target)
+        checked = subprocess.run(
+            [CHECKER, "check", "--strict", target], capture_output=True, text=True, check=True,
+        )
+        assert "Verified with 0 custom axioms" in checked.stdout
+
+
+def test_instructor_interval_counterexamples():
+    def endpoint_contact(a, b):
+        return a[1] == b[0] or b[1] == a[0]
+
+    def cross_bounds(a, b):
+        return a[0] <= b[1] and b[0] <= a[1]
+
+    separated_a, separated_b = (0, 1), (2, 3)
+    assert separated_a[1] < separated_b[0]
+    assert not endpoint_contact(separated_a, separated_b)
+    assert not cross_bounds(separated_a, separated_b)
+
+    nonempty = (0, 2)
+    assert nonempty[0] < nonempty[1]
+    assert not endpoint_contact(nonempty, nonempty)
+
+    inner, outer, third = (0, 1), (0, 10), (9, 10)
+    assert outer[0] <= inner[0] <= inner[1] <= outer[1]
+    assert cross_bounds(outer, third)
+    assert not cross_bounds(inner, third)
+
+    invalid, valid = (3, 1), (0, 4)
+    assert cross_bounds(invalid, valid)
+    assert not set(range(invalid[0], invalid[1] + 1))
 
 
 def test_the_reference_renders_and_names_every_public_entry(tmp_path):
