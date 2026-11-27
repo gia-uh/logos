@@ -91,9 +91,14 @@ jobs:
       - name: Build the wheel that carries the offline reading
         run: |
           python tools/package_reading.py
-          uv build --wheel --out-dir "$RUNNER_TEMP/final-wheels"
+          uv build --out-dir "$RUNNER_TEMP/final-wheels"
           uv venv --python 3.12 "$RUNNER_TEMP/reader"
           uv pip install --python "$RUNNER_TEMP/reader/bin/python" "$RUNNER_TEMP"/final-wheels/*.whl
+
+      - name: Validate the release metadata
+        run: |
+          uvx twine check "$RUNNER_TEMP"/final-wheels/* | tee "$RUNNER_TEMP/twine.txt"
+          ! grep -q WARNING "$RUNNER_TEMP/twine.txt"
 
       - name: Check the offline entry from the installed wheel
         working-directory: ${{ runner.temp }}
