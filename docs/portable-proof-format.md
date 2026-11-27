@@ -258,29 +258,92 @@ error is a failed replay. Integer results are exact within the limits.
 
 A `Program` describes one source-bound executable function. Expressions use
 declaration IDs for its parameters, locals, ghost variant variable and result.
-Its `body` is a list of `assign`, `if`, `while` and `return` statements. A
-`while` carries its `invariant` and `variant`.
+Its `body` is a list of `assign`, `if`, `while`, `call` and `return`
+statements. A `while` carries its `invariant` and `variant`, plus optional
+`invariants: [{name, proposition}]` and `decreases_name`. A program may also
+carry `requires_clauses` and `ensures_clauses` in the same named form, and a
+`calls` table.
+
+Named clauses are labels over the proposition they denote, not extra axioms.
+When `requires_clauses` is non-empty, the checker recomputes their
+right-associated conjunction and requires it to equal `requires` exactly. The
+same rule applies to `ensures_clauses` and to a loop's `invariants` against its
+`invariant`. A missing, reordered or forged label therefore fails closed.
 
 `program_ref` recomputes these closed obligations and requires exactly one
 checked proof for each ID:
 
 - `main`: the precondition implies the weakest precondition of the body and
   the postcondition;
-- `loopN.preserve`: invariant and guard imply the body's weakest precondition
-  of the invariant;
+- `loopN.preserve` (or `loopN.preserve.CLAUSE` for each named invariant): the
+  conjoined invariant and guard imply the body's weakest precondition of the
+  invariant (or of that clause);
 - `loopN.exit`: invariant and negated guard imply the continuation;
-- `loopN.variant_nonnegative`: invariant implies `0 <= variant`;
-- `loopN.variant_decreases`: with the ghost equal to the old variant, invariant
-  and guard imply the body either leaves the guard or strictly decreases the
-  variant;
+- `loopN.variant_nonnegative` (suffix `.NAME` when the variant is named):
+  invariant implies `0 <= variant`;
+- `loopN.variant_decreases` (same suffix): with the ghost equal to the old
+  variant, invariant and guard imply the body either leaves the guard or
+  strictly decreases the variant;
+- `callK.requires` (or `callK.requires.CLAUSE`): the path condition implies the
+  callee's precondition with the call's actual arguments substituted for its
+  formal parameters;
 - `readN`: every evaluated `nth` index is inside `[0, len(seq))` on its path.
 
 The function declaration used by a program must be opaque, so the program is
 its only definition. The contract is
-`pre -> (result = f(params) -> post)`. The source-to-program translation and
-the imported code-object match are the trust boundary; Rust checks the
-program's obligations and never trusts a proposed loop summary.
+`pre -> (result = f(params) -> post)`.
 
+#### Checked calls
+
+A `call` statement names a call-site ID and a target local. Its `args` are
+expressions in the caller's scope. The program's `calls` table maps the ID to a
+callee program `id`, the source line, and the callee's `requires`, `ensures`
+and named clauses, all written over the callee's formal symbols. The checker:
+
+1. verifies every program in the bundle, callees before callers, from a
+   topological order of the `calls` graph; a self-call or any cycle is
+   rejected, so recursion and mutual recursion are outside the fragment;
+2. rejects an unknown, missing or duplicate callee program ID, a call-site ID
+   with no call statement, a call statement with no call site, an arity
+   mismatch, or a target that is not a declared local;
+3. recomputes the callee's contract from the callee program and requires the
+   call-site copy to equal it exactly, including the named clauses;
+4. substitutes the actual arguments for the callee's formals and the
+   callee's result for `App(callee, actuals)` in the weakest-precondition rule
+   `R[a] and (E[a, App] -> Q[target := App])`, and adds the per-clause
+   `callK.requires` obligations under the path condition.
+
+The callee's postcondition is used only after the callee program's obligations
+have been checked in the same artifact. A caller cannot introduce a callee by
+naming an opaque function: without a matching verified program, the call site
+is rejected. The artifact is self-contained; the Rust checker verifies the
+program identities and contracts it finds there, not the Python module they
+were extracted from.
+
+#### Trust boundary and restrictions
+
+The Python decorators translate the module source and propose clauses, programs
+and proof terms. The Rust checker trusts none of those proposals: it
+recomputes every condition from the program bytes and checks every proof term
+with the core rules. The source binding is Python's responsibility. On every
+`check`, `inspect` and `export` the authoring layer re-reads the defining
+module, recompiles it, compares the imported code object and source segment
+with the declaration, re-evaluates every clause, and revisits every transitive
+callee. A changed source, clause or callee binding refuses with a redeclaration
+diagnostic before any artifact is produced. The recipient of a verified `.logos`
+file trusts the artifact's function definitions as given; the checker verifies
+their internal consistency and every proof, and `inspect` shows the names and
+clauses the author supplied.
+
+The supported fragment is `int` and `list[int]`, straight-line assignments,
+one `if`/`else` tree, one `while` loop with a final return, direct calls to
+module-level functions declared with `@logos.function`, and the integer and
+sequence operations described in this manual. Recursion, calls through values
+or arbitrary globals, list mutation, early returns inside a loop, nested loops
+and unchecked declarations used as axioms are outside it. Unsupported syntax is
+refused at its source line when `@logos.function` is applied, before any clause
+is declared. Contracts never run: the decorated object is the original Python
+function, with no wrapper and no runtime check.
 ## Results and policy
 
 `logos check FILE` verifies the proof. Exit 0 includes conditional proofs.

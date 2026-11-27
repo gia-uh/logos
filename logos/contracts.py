@@ -1689,6 +1689,12 @@ def _decl_statement(node, context, initialized, *, top, in_loop):
         return [*emitted, Return(value)], True
     if isinstance(node, ast.Pass):
         return [], False
+    if (
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    ):
+        return [], False
     raise LogosContractError(
         f"{context.path}:{getattr(node, 'lineno', '?')}: unsupported statement "
         f"{type(node).__name__} in {context.fn.__name__!r} at @logos.function; use "

@@ -59,8 +59,8 @@ def test_binary_search_shifted_midpoint_is_refused(tmp_path):
         "mid = (low + high) // 2", "mid = (low + high + 1) // 2", 1
     )
     _, html = render(tmp_path, "12-binary-search.md", broken)
-    assert "loop0.preserve" in html
-    assert "cannot prove disjunction" in html
+    assert "loop0.preserve.bounds" in html
+    assert "cannot prove order atom" in html
     assert not (tmp_path / "binary_search.logos").exists()
 
 
@@ -69,6 +69,7 @@ def test_binary_search_weakened_invariant_is_refused(tmp_path):
     assert source.count("& (low <= high)") == 1
     broken = source.replace("& (low <= high)", "& (low < high)", 1)
     _, html = render(tmp_path, "12-binary-search.md", broken)
+    assert "loop0.preserve.bounds" in html
     assert "cannot prove order atom high &lt; high" in html
     assert not (tmp_path / "binary_search.logos").exists()
 
@@ -76,7 +77,9 @@ def test_binary_search_weakened_invariant_is_refused(tmp_path):
 def test_binary_search_missing_precondition_needs_a_counterexample(tmp_path):
     source = (CHAPTERS / "12-binary-search.md").read_text(encoding="utf-8")
     broken = source.replace(
-        "requires=logos.sorted(xs),", "requires=logos.lit(True),", 1
+        "def ordered(xs):\n    return logos.sorted(xs)",
+        "def ordered(xs):\n    return 0 <= logos.length(xs)",
+        1,
     )
     _, html = render(tmp_path, "12-binary-search.md", broken)
     assert "main: no proof found for sorted(xs)" in html
@@ -201,6 +204,7 @@ def test_production_source_drift_is_refused(tmp_path):
     "name,path",
     [
         ("12-binary-search.md", "examples/binary_search.py"),
+        ("12-binary-search.md", "examples/declarative_calls.py"),
         ("13-production-contract.md", "examples/punycode_adapt.py"),
     ],
 )
@@ -214,6 +218,8 @@ def test_book_examples_are_imported_normally():
     punycode = (CHAPTERS / "13-production-contract.md").read_text(encoding="utf-8")
     assert "from examples.binary_search import binary_search" in binary
     assert "from examples.binary_search import main" in binary
+    assert "from examples.declarative_calls import main" in binary
+    assert "from examples.declarative_calls import first" in binary
     assert "from examples.punycode_adapt import adapt" in punycode
     for text in (binary, punycode):
         assert "importlib" not in text
