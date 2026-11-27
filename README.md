@@ -2,6 +2,8 @@
 
 Logos lets people and AI agents prove claims about symbolic models in Python and send the proof to someone else to check. A domain can discover a solution, or an author can guide the search with tactics written in Python. The result is a portable `.logos` file. A recipient needs only the Rust executable to verify it offline, inspect its assumptions, or read the derivation as mathematics.
 
+The [English book](book/) is the guided path from the first checked proof to transparent definitions and reusable lemmas. Its chapters are executable Scriptorium sources.
+
 ## Install from source
 
 Install a Rust toolchain with Cargo and Python 3.12 or newer. From a shell on Linux or macOS:

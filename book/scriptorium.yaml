@@ -1,0 +1,28 @@
+# The English book. Every code block runs from this directory when the book is
+# built; the installed `logos` executable must be on PATH. The Spanish pages in
+# book/ are legacy material until the editorial map says otherwise.
+theme: book
+execute: {timeout: 120, freeze: file}
+
+vars:
+  title: "Logos"
+  subtitle: "Proofs a machine can check"
+
+files:
+  - chapters/00-introduction.md
+  - chapters/01-quick-start.md
+  - chapters/02-first-proof.md
+  - chapters/03-conjunction.md
+  - chapters/04-cases.md
+  - chapters/05-witnesses.md
+  - chapters/06-definitions.md
+
+outputs:
+  site:
+    format: docs
+    dir: site
+    repo-url: https://github.com/gia-uh/logos
+    edit-path: book
+  print:
+    format: pdf
+    file: book.pdf

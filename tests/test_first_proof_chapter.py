@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 BOOK = Path(__file__).resolve().parents[1] / "book"
-SOURCE = BOOK / "first-proof.md"
+SOURCE = BOOK / "chapters" / "02-first-proof.md"
 SCRIPTORIUM = shutil.which("scriptorium")
 CHECKER = shutil.which("logos")
 
