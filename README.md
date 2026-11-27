@@ -2,7 +2,7 @@
 
 Logos lets people and AI agents prove claims about symbolic models in Python and send the proof to someone else to check. A domain can discover a solution, or an author can guide the search with tactics written in Python. The result is a portable `.logos` file. A recipient needs only the Rust executable to verify it offline, inspect its assumptions, or read the derivation as mathematics.
 
-The [English book](book/) is the guided path from the first checked proof through number theory to Euclid's theorem. Its chapters are executable Scriptorium sources.
+The [English book](book/) is the guided path from the first checked proof through number theory to Euclid's theorem, followed by a Developer Guide for extending the checked language and a generated Public API Reference. Its chapters are executable Scriptorium sources.
 
 ## Install from source
 

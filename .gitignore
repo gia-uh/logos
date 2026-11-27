@@ -46,6 +46,11 @@ htmlcov/
 /book/vecinos.logos
 /book/euclides.py
 /book/euclides.logos
+/book/*.logos
+/book/intervals.logos
+/book/intervals.md
+/book/chapters/.scriptorium/
+/book/chapters/intervals.logos
 /book/.scriptorium/
 
 # English book outputs

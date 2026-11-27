@@ -44,6 +44,8 @@ ORDER = [
     "12-finite-graph.md",
     "13-binary-search.md",
     "14-production-contract.md",
+    "15-developer-guide.md",
+    "16-api-reference.md",
 ]
 
 EXPECTED = {
@@ -89,9 +91,22 @@ EXPECTED = {
         "certificate: adapt.logos",
         "obligations: loop0.preserve",
     ],
+    "15-developer-guide.md": [
+        "overlap_self: True",
+        "common_point_by_tactic: True",
+        "interval: no linear certificate for",
+        "zero custom axioms: True",
+        "certificate: intervals.logos",
+    ],
+    "16-api-reference.md": [
+        "Classes",
+        "Functions and methods",
+        "Theorem",
+        "export_proof",
+    ],
 }
 
-LESSONS = ORDER[3:]
+LESSONS = ORDER[3:-1]
 
 
 def environment() -> dict[str, str]:
@@ -244,7 +259,7 @@ def domain_snippets() -> dict[str, str]:
     return {name: "\n".join(body).strip("\n") for name, body in found.items()}
 
 
-@pytest.mark.parametrize("name", ORDER)
+@pytest.mark.parametrize("name", [chapter for chapter in ORDER if chapter < "15"])
 def test_quoted_number_theory_snippets_match_the_module(name):
     source = (CHAPTERS / name).read_text(encoding="utf-8")
     quoted = SOURCE_REF.findall(source)

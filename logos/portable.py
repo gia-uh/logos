@@ -47,22 +47,34 @@ class ProofReceipt:
 
 def statement_declarations(statement: Expr) -> tuple[Var, ...]:
     """Collect free symbol objects in occurrence order in the supported fragment."""
+    import dataclasses
+
     declarations = {}
 
     def visit(expr, bound):
-        match expr:
-            case Var() if id(expr) not in bound:
+        if isinstance(expr, Var):
+            if id(expr) not in bound:
                 declarations.setdefault(id(expr), expr)
-            case ForallNode(var, body) | ExistsNode(var, body):
-                visit(body, bound | {id(var)})
-            case App(_, args):
-                for arg in args:
-                    visit(arg, bound)
-            case Add(left, right) | Sub(left, right) | Mul(left, right) | Eq(left, right) | Lt(left, right) | And(left, right) | Or(left, right) | Implies(left, right) | Pow(left, right):
-                visit(left, bound)
-                visit(right, bound)
-            case Neg(operand) | Not(operand):
-                visit(operand, bound)
+            return
+        if isinstance(expr, Lit):
+            return
+        if isinstance(expr, (ForallNode, ExistsNode)):
+            visit(expr.body, bound | {id(expr.var)})
+            return
+        if not dataclasses.is_dataclass(expr):
+            return
+        for field in dataclasses.fields(expr):
+            value = getattr(expr, field.name)
+            if isinstance(value, Expr):
+                visit(value, bound)
+            elif isinstance(value, (list, tuple)):
+                for item in value:
+                    if isinstance(item, Expr):
+                        visit(item, bound)
+                    elif isinstance(item, (list, tuple)):
+                        for nested in item:
+                            if isinstance(nested, Expr):
+                                visit(nested, bound)
 
     visit(statement, set())
     return tuple(declarations.values())

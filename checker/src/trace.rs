@@ -130,6 +130,9 @@ pub fn rule_explanation(rule: &str, reference: Option<&str>) -> &'static str {
             Some("eq_of_not_lt_not_lt") => {
                 "Two integers that are not strictly ordered either way are equal."
             }
+            Some("lt_dne") => {
+                "A doubly negated strict integer inequality holds: the comparison is decidable."
+            }
             Some("lt_decidable") => {
                 "Strict integer order is decidable: two integers are ordered one way or not at all."
             }
@@ -196,5 +199,19 @@ pub fn rule_explanation(rule: &str, reference: Option<&str>) -> &'static str {
         "block" => "Take the selected conclusion from the block of shared steps.",
         "step_ref" => "Reuse the indicated earlier checked step in this block.",
         _ => unreachable!("checked rule"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::syntax::CORE_LAWS;
+
+    #[test]
+    fn every_core_law_has_a_checked_reading() {
+        for law in CORE_LAWS {
+            let text = rule_explanation("core_law", Some(law.id));
+            assert!(!text.is_empty(), "{} has no explanation", law.id);
+        }
     }
 }

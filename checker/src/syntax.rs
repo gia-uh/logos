@@ -665,56 +665,244 @@ fn forall_int(body: Proposition) -> Proposition {
     }
 }
 
-pub fn law_formals(id: &str) -> Option<&'static [&'static str]> {
-    Some(match id {
-        "add_assoc" | "mul_assoc" | "distrib" => &["a", "b", "c"],
-        "add_comm"
-        | "mul_comm"
-        | "lt_neq"
-        | "le_antisymm"
-        | "le_total"
-        | "lt_trichotomy"
-        | "lt_to_le"
-        | "not_lt_le"
-        | "eq_symm"
-        | "mul_pos"
-        | "mul_eq_one"
-        | "lt_succ_fwd"
-        | "lt_succ_rev"
-        | "eq_of_not_lt_not_lt"
-        | "lt_dne"
-        | "lt_decidable" => &["a", "b"],
-        "add_zero" | "lt_irrefl" | "le_refl" => &["a"],
-        "add_inverse" | "mul_one" => &["a"],
-        "lt_trans" | "lt_add" | "le_trans" | "le_lt_trans" | "lt_le_trans" | "le_add" => {
-            &["a", "b", "c"]
-        }
-        "lt_succ_le" | "lt_add_one_le" => &["a", "b"],
-        "half_lower" | "half_upper" | "mul_nonneg" | "div_nonneg" | "div_lt" => &["a", "b"],
-        "length_nonneg" => &["xs"],
-        "sorted_elim" => &["xs", "i", "j"],
-        "sorted_lower" | "sorted_upper" | "sorted_gap" => &["xs", "a", "b", "t"],
-        _ => return None,
-    })
+/// One checker-owned law and the sorts of its ordered substitution.
+#[derive(Debug)]
+pub struct LawSpec {
+    pub id: &'static str,
+    pub formals: &'static [&'static str],
+    pub sorts: &'static [Sort],
 }
 
-pub fn law_sorts(id: &str) -> Option<&'static [Sort]> {
-    Some(match id {
-        "sorted_elim" => &[Sort::Seq, Sort::Int, Sort::Int],
-        "length_nonneg" => &[Sort::Seq],
-        "sorted_lower" | "sorted_upper" | "sorted_gap" => {
-            &[Sort::Seq, Sort::Int, Sort::Int, Sort::Int]
-        }
-        _ => &[],
-    })
+/// Every law the verifier accepts, in the order `logos commands --json` lists it.
+/// This table is the source of truth for the published inventory; the
+/// `the_published_inventory_is_the_checker_table` test compares it with the
+/// embedded command description.
+pub const CORE_LAWS: &[LawSpec] = &[
+    LawSpec {
+        id: "add_assoc",
+        formals: &["a", "b", "c"],
+        sorts: &[Sort::Int, Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "add_comm",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "add_zero",
+        formals: &["a"],
+        sorts: &[Sort::Int],
+    },
+    LawSpec {
+        id: "add_inverse",
+        formals: &["a"],
+        sorts: &[Sort::Int],
+    },
+    LawSpec {
+        id: "mul_assoc",
+        formals: &["a", "b", "c"],
+        sorts: &[Sort::Int, Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "mul_comm",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "mul_one",
+        formals: &["a"],
+        sorts: &[Sort::Int],
+    },
+    LawSpec {
+        id: "distrib",
+        formals: &["a", "b", "c"],
+        sorts: &[Sort::Int, Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "lt_irrefl",
+        formals: &["a"],
+        sorts: &[Sort::Int],
+    },
+    LawSpec {
+        id: "lt_trans",
+        formals: &["a", "b", "c"],
+        sorts: &[Sort::Int, Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "lt_add",
+        formals: &["a", "b", "c"],
+        sorts: &[Sort::Int, Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "lt_neq",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "mul_pos",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "mul_eq_one",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "lt_succ_fwd",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "lt_succ_rev",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "eq_of_not_lt_not_lt",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "lt_dne",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "lt_decidable",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "le_refl",
+        formals: &["a"],
+        sorts: &[Sort::Int],
+    },
+    LawSpec {
+        id: "le_trans",
+        formals: &["a", "b", "c"],
+        sorts: &[Sort::Int, Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "le_antisymm",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "le_lt_trans",
+        formals: &["a", "b", "c"],
+        sorts: &[Sort::Int, Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "lt_le_trans",
+        formals: &["a", "b", "c"],
+        sorts: &[Sort::Int, Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "le_total",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "lt_trichotomy",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "lt_to_le",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "lt_succ_le",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "lt_add_one_le",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "le_add",
+        formals: &["a", "b", "c"],
+        sorts: &[Sort::Int, Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "not_lt_le",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "eq_symm",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "half_lower",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "half_upper",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "mul_nonneg",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "div_nonneg",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "div_lt",
+        formals: &["a", "b"],
+        sorts: &[Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "length_nonneg",
+        formals: &["xs"],
+        sorts: &[Sort::Seq],
+    },
+    LawSpec {
+        id: "sorted_elim",
+        formals: &["xs", "i", "j"],
+        sorts: &[Sort::Seq, Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "sorted_lower",
+        formals: &["xs", "a", "b", "t"],
+        sorts: &[Sort::Seq, Sort::Int, Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "sorted_upper",
+        formals: &["xs", "a", "b", "t"],
+        sorts: &[Sort::Seq, Sort::Int, Sort::Int, Sort::Int],
+    },
+    LawSpec {
+        id: "sorted_gap",
+        formals: &["xs", "a", "b", "t"],
+        sorts: &[Sort::Seq, Sort::Int, Sort::Int, Sort::Int],
+    },
+];
+
+pub fn law_formals(id: &str) -> Option<&'static [&'static str]> {
+    CORE_LAWS
+        .iter()
+        .find(|law| law.id == id)
+        .map(|law| law.formals)
 }
 
 pub fn law_arg_sorts(id: &str) -> Vec<Sort> {
-    let arity = law_formals(id).map(|names| names.len()).unwrap_or(0);
-    let sequence = law_sorts(id).unwrap_or(&[]);
-    (0..arity)
-        .map(|index| sequence.get(index).copied().unwrap_or(Sort::Int))
-        .collect()
+    CORE_LAWS
+        .iter()
+        .find(|law| law.id == id)
+        .map(|law| law.sorts.to_vec())
+        .unwrap_or_default()
 }
 
 pub fn instantiate_law(id: &str, args: &[Proposition]) -> Option<Proposition> {
@@ -945,4 +1133,51 @@ pub fn instantiate_law(id: &str, args: &[Proposition]) -> Option<Proposition> {
 
 fn prop_bound(index: usize) -> Proposition {
     Bound { index }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_published_inventory_is_the_checker_table() {
+        let commands: serde_json::Value =
+            serde_json::from_str(include_str!("commands.json")).expect("commands.json parses");
+        let published: Vec<&str> = commands["proof_format"]["core_laws"]
+            .as_array()
+            .expect("core_laws is a list")
+            .iter()
+            .map(|id| id.as_str().expect("law IDs are strings"))
+            .collect();
+        let checker: Vec<&str> = CORE_LAWS.iter().map(|law| law.id).collect();
+        assert_eq!(published, checker);
+    }
+
+    #[test]
+    fn every_law_instantiates_from_its_own_formals_and_sorts() {
+        let mut seen = std::collections::HashSet::new();
+        for law in CORE_LAWS {
+            assert!(seen.insert(law.id), "duplicate law ID {}", law.id);
+            assert_eq!(
+                law.formals.len(),
+                law.sorts.len(),
+                "{} has a formal without a sort",
+                law.id
+            );
+            let args: Vec<Proposition> = law
+                .formals
+                .iter()
+                .zip(law.sorts)
+                .map(|(name, sort)| Proposition::Symbol {
+                    id: format!("{name}:{}", sort.name()),
+                })
+                .collect();
+            assert!(
+                instantiate_law(law.id, &args).is_some(),
+                "{} has no builder",
+                law.id
+            );
+            assert_eq!(law_arg_sorts(law.id), law.sorts.to_vec(), "{}", law.id);
+        }
+    }
 }
