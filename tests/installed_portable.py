@@ -1255,6 +1255,123 @@ print(json.dumps(kinds, ensure_ascii=False))
 """
 
 
+def laws(cold, recipient, evidence, env, offline):
+    """Every published law verifies, and a forged instance fails closed."""
+    import logos
+    from logos.core_laws import LAWS, law_statement
+    from logos.expr import Var
+    from logos.kernel import CoreLaw
+    from logos.sequence import seq_var
+
+    contract = json.loads(run(
+        ["logos", "commands", "--json"], cold, env=env, show_output=False
+    ).stdout)
+    published = contract["proof_format"]["core_laws"]
+    assert contract["protocol_version"] == 1
+    assert contract["proof_formats"] == ["logos-proof-v1"]
+    assert len(published) == len(set(published)) == len(LAWS)
+    assert set(published) == set(LAWS)
+
+    def arguments(sorts):
+        return tuple(
+            seq_var(f"xs{index}") if sort == "seq" else Var(f"a{index}", int)
+            for index, sort in enumerate(sorts)
+        )
+
+    instances = {}
+    for law, (sorts, _) in LAWS.items():
+        args = arguments(sorts)
+        theorem = logos.Theorem(law_statement(law, args), name=f"{law}_instance")
+        logos.check(theorem.proof(lambda goal, law=law, args=args: CoreLaw(law, args)))
+        logos.export_proof(theorem, cold / f"law-{law}.logos")
+        instances[law] = theorem
+
+    for law in LAWS:
+        shutil.move(cold / f"law-{law}.logos", recipient / f"law-{law}.logos")
+        checked = replay(
+            recipient, "check", "--json", "--strict", f"law-{law}.logos",
+            offline=offline, show_output=False,
+        )
+        data = json.loads(checked.stdout)
+        assert data["status"] == "verified" and data["custom_axioms"] == []
+
+    a = Var("a", int)
+    forged = logos.Theorem(a == a, name="forged_law")
+    try:
+        logos.check(forged.proof(lambda goal: CoreLaw("lt_dne", (a,))))
+    except logos.LogosProofError as error:
+        assert "requires 2 substitutions" in str(error)
+        print(error)
+    else:
+        raise AssertionError("Python accepted a law instance with the wrong arity")
+
+    summary = {"published": published, "count": len(published)}
+    (evidence / "laws.json").write_text(json.dumps(summary, indent=2) + "\n")
+    print(f"laws: {len(published)} published IDs, every instance verified, forged arity rejected")
+
+
+def intervals(cold, recipient, evidence, env, offline):
+    """Author the interval domain from the wheel, replay it, then forge it."""
+    author = cold / "intervals_author.py"
+    author.write_text("""\
+import logos
+from logos.domains import intervals
+
+for theorem in intervals.check_all():
+    print(theorem.name, theorem.certified)
+logos.export_proof(intervals.common_point_overlaps, "common_point.logos")
+print("certificate written")
+""")
+    result = run(["python", "-I", author.name], cold, env=env)
+    assert "certificate written" in result.stdout
+    author.unlink()
+    source = recipient / "common_point.logos"
+    shutil.move(cold / source.name, source)
+
+    checked = replay(recipient, "check", "--strict", source.name, offline=offline)
+    assert "Verified with 0 custom axioms" in checked.stdout
+    inspected = replay(
+        recipient, "inspect", "--json", "--strict", source.name,
+        offline=offline, show_output=False,
+    )
+    trace = json.loads(inspected.stdout)
+    assert trace["status"] == "verified" and trace["custom_axioms"] == []
+    assert any(step["rule"] == "linear" for step in trace["steps"])
+    rendered = replay(
+        recipient, "inspect", "--markdown", "--strict", source.name,
+        offline=offline, show_output=False,
+    )
+    assert rendered.stdout.startswith("# Checked proof\n")
+    assert "## Conclusion" in rendered.stdout
+
+    data = json.loads(source.read_text())
+    def walk(node):
+        if isinstance(node, dict):
+            if node.get("tag") == "linear":
+                node["terms"][0]["coefficient"] = "2"
+                return True
+            return any(walk(value) for value in node.values())
+        if isinstance(node, list):
+            return any(walk(value) for value in node)
+        return False
+    assert walk(data), "the interval proof has no linear certificate"
+    forged = recipient / "common_point-forged.logos"
+    forged.write_text(json.dumps(data) + "\n")
+    rejected = replay(
+        recipient, "check", "--json", "--strict", forged.name,
+        offline=offline, code=1, show_output=False,
+    )
+    assert "linear: the certified combination is not contradictory" in json.loads(
+        rejected.stderr
+    )["error"]
+
+    for artifact in (source, forged):
+        shutil.copy2(artifact, evidence / artifact.name)
+    (evidence / "common_point.inspect.json").write_text(inspected.stdout)
+    (evidence / "common_point.md").write_text(rendered.stdout)
+    print("intervals: four lemmas, one checked certificate, tempered linear evidence rejected")
+
+
 def book(python, cold, recipient, evidence, env, offline):
     """Tangle the Spanish page and run it from the installed wheel."""
     scriptorium = python.parent / "scriptorium"
@@ -1599,6 +1716,12 @@ def main():
         print(f"Binary search · prove total correctness, then {isolation}")
         binary_search_contract(python, cold, recipient, evidence, env, options.offline)
 
+        print(f"Laws · verify every published ID, then reject a forged arity from {isolation}")
+        laws(cold, recipient, evidence, env, options.offline)
+
+        print(f"Intervals · author a domain, replay its certificate, then {isolation}")
+        intervals(cold, recipient, evidence, env, options.offline)
+
         print(f"Primes · check Euclid's theorem and rebuild it, then {isolation}")
         primes(python, cold, recipient, evidence, env, options.offline)
 
@@ -1608,7 +1731,7 @@ def main():
         print(f"Euclid book lesson · tangle the full chapter, then {isolation}")
         book_euclid(python, cold, recipient, evidence, env, options.offline)
 
-    print("16 acceptance stages exercised")
+    print("18 acceptance stages exercised")
 
 
 if __name__ == "__main__":
