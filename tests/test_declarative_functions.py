@@ -271,6 +271,29 @@ def test_rebinding_the_callee_is_refused(tmp_path):
 
 
 @requires_checker
+def test_a_literal_true_clause_is_a_real_trivial_precondition(tmp_path):
+    text = (
+        "import logos\n"
+        "\n"
+        "@logos.function\n"
+        "def identity(x: int) -> int:\n"
+        "    return x\n"
+        "\n"
+        "@identity.requires\n"
+        "def anything(x):\n"
+        "    return True\n"
+        "\n"
+        "@identity.ensures\n"
+        "def same(x, *, result):\n"
+        "    return result == x\n"
+    )
+    module, _ = write_module(tmp_path, text)
+    module.identity.check()
+    assert module.identity.certified
+    assert "read0" not in module.identity.program.obligations
+
+
+@requires_checker
 def test_binary_search_named_clauses_and_runtime_counterexample(tmp_path):
     module = load(BINARY)
     module.binary_search.check()

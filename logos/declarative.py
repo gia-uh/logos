@@ -200,12 +200,16 @@ class FunctionDeclaration:
                 f"{path}:{line}: clause {clause_fn.__name__!r} of {self.name!r} could not "
                 f"be evaluated symbolically: {type(error).__name__}: {error}"
             ) from error
+        if expression is True and kind != "decreases":
+            expression = _trivial()
         if not isinstance(expression, Expr):
             raise LogosContractError(
                 f"{path}:{line}: clause {clause_fn.__name__!r} of {self.name!r} must return "
                 f"a Logos expression, got {type(expression).__name__}"
             )
         expression = _normalize(expression)
+        if kind != "decreases" and isinstance(expression, Lit) and expression.value is True:
+            expression = _trivial()
         sort = _sort(expression)
         expected = int if kind == "decreases" else bool
         if sort is not expected:
@@ -440,7 +444,10 @@ class FunctionDeclaration:
                         kwargs[parameter.name] = value
                     else:
                         args.append(value)
-                fresh = _normalize(clause.function(*args, **kwargs))
+                fresh = clause.function(*args, **kwargs)
+                if fresh is True and clause.kind != "decreases":
+                    fresh = _trivial()
+                fresh = _normalize(fresh)
                 if not structural_eq(fresh, clause.expression):
                     raise LogosContractError(
                         f"clause {clause.name!r} of {self.name!r} no longer evaluates to the "
