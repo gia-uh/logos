@@ -113,7 +113,7 @@ def prove_no_contradiction(p, P):
 
 ## A counterexample is a checked instance
 
-A failed `check()` does not prove that a statement is false. The proof may be wrong, the automation may be incomplete, or the statement may be true and hard. To refute a universal statement you need a value and a proof that the instance fails.
+A failed `check()` does not prove that a statement is false. The proof may be wrong, the automation may be incomplete, or the statement may be true and hard. To refute a universal statement by counterexample, supply a value and a proof that the instance fails.
 
 Consider the claim that every integer is positive. Which integer would make $0 < n$ fail? Try zero. Substituting it for $n$ leaves the instance $\neg(0 < 0)$ to prove.
 
