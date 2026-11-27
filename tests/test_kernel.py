@@ -79,3 +79,54 @@ def test_and_intro(x, y):
     term = AndIntro(Axiom("hx"), Axiom("hy"))
     result = infer(term, ctx)
     assert structural_eq(result, (x > Lit(0)) & (y > Lit(0)))
+
+
+def test_exists_elim(x):
+    from logos.expr import Exists
+    from logos.kernel import ExistsElim, ExistsIntro
+
+    goal = Exists(x, x == x)
+    witness_proof = ExistsIntro(Lit(0), Refl(Lit(0)), goal)
+    c = Var("c", int)
+    term = ExistsElim(witness_proof, c, "h", Refl(Lit(0)))
+    result = infer(term, Context({}, {}))
+    assert structural_eq(result, Lit(0) == Lit(0))
+
+
+def test_exists_elim_rejects_escaping_witness(x):
+    from logos.expr import Exists
+    from logos.kernel import ExistsElim, ExistsIntro
+
+    goal = Exists(x, x == x)
+    witness_proof = ExistsIntro(Lit(0), Refl(Lit(0)), goal)
+    c = Var("c", int)
+    term = ExistsElim(witness_proof, c, "h", Refl(c))
+    with pytest.raises(KernelError, match="escapes"):
+        infer(term, Context({}, {}))
+
+
+def test_exists_elim_rejects_non_existential(x):
+    from logos.kernel import ExistsElim
+
+    c = Var("c", int)
+    term = ExistsElim(Refl(x), c, "h", Refl(Lit(0)))
+    with pytest.raises(KernelError, match="existential"):
+        infer(term, Context({}, {}))
+
+
+def test_eq_subst(x, y):
+    from logos.kernel import EqSubst
+
+    ctx = Context({"h": x == y}, {})
+    term = EqSubst(HypRef("h"), x, x == x, Refl(x))
+    result = infer(term, ctx)
+    assert structural_eq(result, y == y)
+
+
+def test_eq_subst_rejects_wrong_premise(x, y):
+    from logos.kernel import EqSubst
+
+    ctx = Context({"h": x == y}, {})
+    term = EqSubst(HypRef("h"), x, x == x, Refl(y))
+    with pytest.raises(KernelError):
+        infer(term, ctx)
