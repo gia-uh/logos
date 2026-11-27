@@ -235,6 +235,9 @@ class _GroundProof(_Proof):
 
 def check(thm):
     """Run the tactics and certify their actual evidence with the Rust checker."""
+    declaration = getattr(thm, "__logos_function__", None)
+    if declaration is not None:
+        return declaration.check()
     if not isinstance(thm, _Proof):
         raise TypeError(
             f"logos.check: expected Theorem or _GroundProof, got {type(thm).__name__!r}"

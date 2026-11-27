@@ -140,6 +140,27 @@ def artifact_bytes(
                     raise LogosProofError(f"portable annotation {key!r} must be a string")
                 if text:
                     authored[key] = text
+    if annotations is not None and annotations.get("contract") is not None:
+        contract = annotations["contract"]
+        if not isinstance(contract, (list, tuple)):
+            raise LogosProofError("portable annotation 'contract' must be a list")
+        clauses = []
+        for item in contract:
+            if not isinstance(item, dict):
+                raise LogosProofError("each contract annotation must be an object")
+            kind = item.get("kind")
+            name = item.get("name")
+            line = item.get("line")
+            if not isinstance(kind, str) or not isinstance(name, str):
+                raise LogosProofError("contract annotations need string kind and name")
+            clause = {"kind": kind, "name": name}
+            if line is not None:
+                if type(line) is not int or line < 1:
+                    raise LogosProofError("contract annotation line must be a positive integer")
+                clause["line"] = line
+            clauses.append(clause)
+        if clauses:
+            authored["contract"] = clauses
 
     symbol_ids = {}
     declared = []
@@ -152,7 +173,8 @@ def artifact_bytes(
     function_ids = {}
     programs = []
     program_ids = {}
-    pending_programs = []
+    program_scopes = {}
+    encoding_programs = set()
 
     def declare(symbols):
         scope = set()
@@ -213,7 +235,7 @@ def artifact_bytes(
         return function_ids[key]
 
     def encode_statement(statement, scope, names):
-        from logos.programs import Assign, If, Return, While
+        from logos.programs import Assign, Call, If, Return, While
         if isinstance(statement, Assign):
             if statement.name not in names:
                 raise LogosProofError(f"unknown program assignment target {statement.name!r}")
@@ -227,22 +249,67 @@ def artifact_bytes(
             return {"tag": "while", "condition": proposition(statement.condition, scope),
                     "body": [encode_statement(item, scope, names) for item in statement.body],
                     "invariant": proposition(statement.invariant, scope),
-                    "variant": proposition(statement.variant, scope)}
+                    "variant": proposition(statement.variant, scope),
+                    **({"invariants": [
+                        {"name": clause.name, "proposition": proposition(clause.expr, scope)}
+                        for clause in statement.invariants
+                    ]} if statement.invariants else {}),
+                    **({"decreases_name": statement.decreases_name}
+                       if statement.decreases_name else {})}
+        if isinstance(statement, Call):
+            if statement.target not in names:
+                raise LogosProofError(f"unknown call target {statement.target!r}")
+            return {"tag": "call", "target": names[statement.target],
+                    "call": statement.id,
+                    "args": [proposition(arg, scope) for arg in statement.args]}
         if isinstance(statement, Return):
             return {"tag": "return", "value": proposition(statement.value, scope)}
         raise LogosProofError(f"unsupported program statement {type(statement).__name__}")
 
     def encode_program(program, scope):
-        # Every program variable and its function symbol becomes a declaration.
+        from logos.programs import call_statements
+        key = id(program)
+        if key in program_scopes:
+            return
+        if key in encoding_programs:
+            raise LogosProofError(
+                f"cyclic call dependency through program {program.name!r}"
+            )
+        encoding_programs.add(key)
+        for call in call_statements(program):
+            encode_program(call.callee.program, None)
         scope = declare(tuple(item.var for item in program.variables))
+        program_scopes[key] = scope
         names = {item.name: symbol_ids[id(item.var)] for item in program.variables}
         function = function_id(program.function)
         body = [encode_statement(statement, scope, names) for statement in program.body]
         obligations = []
         for name, evidence in program.obligations.items():
             obligations.append({"id": name, "proof": proof(evidence, scope)})
-        return {
-            "id": program_ids[id(program)],
+        calls = []
+        for call in call_statements(program):
+            callee = call.callee.program
+            callee_scope = program_scopes[id(callee)]
+            calls.append({
+                "id": call.id,
+                "callee": program_ids[id(callee)],
+                "line": call.line,
+                "requires": proposition(callee.requires, callee_scope),
+                "requires_clauses": [
+                    {"name": clause.name, "proposition": proposition(clause.expr, callee_scope)}
+                    for clause in callee.requires_clauses
+                ],
+                "ensures": proposition(callee.ensures, callee_scope),
+                "ensures_clauses": [
+                    {"name": clause.name, "proposition": proposition(clause.expr, callee_scope)}
+                    for clause in callee.ensures_clauses
+                ],
+            })
+        id_ = f"g{len(program_ids) + 1}"
+        register(id_)
+        program_ids[key] = id_
+        programs.append({
+            "id": id_,
             "function": function,
             "params": [symbol_ids[id(item.var)] for item in program.params],
             "locals": [symbol_ids[id(item.var)] for item in program.locals],
@@ -250,9 +317,19 @@ def artifact_bytes(
             "result": symbol_ids[id(program.result.var)],
             "requires": proposition(program.requires, scope),
             "ensures": proposition(program.ensures, scope),
+            "requires_clauses": [
+                {"name": clause.name, "proposition": proposition(clause.expr, scope)}
+                for clause in program.requires_clauses
+            ],
+            "ensures_clauses": [
+                {"name": clause.name, "proposition": proposition(clause.expr, scope)}
+                for clause in program.ensures_clauses
+            ],
             "body": body,
+            "calls": calls,
             "obligations": obligations,
-        }
+        })
+        encoding_programs.discard(key)
 
     def proposition(expr, scope, bound=()):
         def encode(child):
@@ -352,13 +429,8 @@ def artifact_bytes(
                     raise LogosProofError("proof notes must be nonempty strings")
                 return {"tag": "note", "text": text, "body": derive(child)}
             case ProgramRef(program, _conclusion):
-                key = id(program)
-                if key not in program_ids:
-                    id_ = f"g{len(program_ids) + 1}"
-                    register(id_)
-                    program_ids[key] = id_
-                    pending_programs.append(program)
-                return {"tag": "program_ref", "id": program_ids[key]}
+                encode_program(program, scope)
+                return {"tag": "program_ref", "id": program_ids[id(program)]}
             case Block(steps, result):
                 return {"tag": "block", "steps": [derive(step) for step in steps], "result": result}
             case StepRef(index):
@@ -405,8 +477,6 @@ def artifact_bytes(
         target_proof = proof(evidence, scope)
         # References retain their live objects. Serializing each once lets Rust
         # detect cycles and check shared dependencies without trusting receipts.
-        for program in pending_programs:
-            programs.append(encode_program(program, scope))
         for ref, id_ in pending:
             if isinstance(ref, Axiom):
                 scope = declare(statement_declarations(ref.statement))
@@ -519,8 +589,11 @@ def export_proof(theorem, path: str | Path) -> ProofReceipt:
     """Write the current checked artifact for a named or anonymous proof."""
     from logos.theorem import _Proof
 
+    declaration = getattr(theorem, "__logos_function__", None)
+    if declaration is not None:
+        return declaration.export(path)
     if not isinstance(theorem, _Proof):
-        raise TypeError("logos.export_proof expects a theorem or anonymous proof")
+        raise TypeError("logos.export_proof expects a theorem, anonymous proof or @logos.function")
     theorem._revalidate()
     receipt = theorem.receipt
     if receipt is None:

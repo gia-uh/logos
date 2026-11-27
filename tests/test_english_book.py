@@ -74,7 +74,9 @@ EXPECTED = {
     "10-least-prime.md": ["least_prime_divisor: True", "least: 7"],
     "11-euclid.md": ["euclid: True", "certificate: euclid.logos"],
     "12-binary-search.md": [
-        "binary_search_correct: True",
+        "binary_search: True",
+        "call0.requires.nonempty",
+        "certificate: first_or_zero.logos",
         "certificate: binary_search.logos",
         "result: -1",
         "postcondition holds: False",

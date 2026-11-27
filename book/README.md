@@ -22,7 +22,7 @@ The project is [`scriptorium.yaml`](scriptorium.yaml). The chapters are under
 | `09-factorial.md` | User Guide | Primitive recursion, induction, factorial divisibility |
 | `10-least-prime.md` | User Guide | A negated definition, `p.least`, the least prime divisor |
 | `11-euclid.md` | User Guide | Euclid's theorem composed from named lemmas |
-| `12-binary-search.md` | User Guide | Total correctness, bounds, variant, duplicates and a precondition counterexample |
+| `12-binary-search.md` | User Guide | Declarative clauses, a checked caller, named invariants, bounds, variant and a precondition counterexample |
 | `13-production-contract.md` | User Guide | A standard-library function, source binding, mutation and strict verification |
 | `14-developer-guide.md` | Developer Guide | A checked interval domain, the tactic protocol and the portable encoding |
 | `15-api-reference.md` | Reference | Generated public class, function and method inventory |
@@ -123,7 +123,7 @@ material becomes useful:
 | Number theory | Divisibility, least divisors, Euclid's theorem | Chapters 7 to 11, with the reusable domain in `logos/domains/number_theory.py` | Drafted |
 | Logic puzzles | Finite models, `KnightsKnaves`, guided and automatic search | Shows a domain that searches for a model instead of a proof, and a diagnostic that reports a counterexample | Not drafted |
 | Finite graphs | A concrete relation as a table, an order invariant, paths and cycles | Needs a reusable graph domain and a standalone fixture first; see backlog issue #60 | Deferred |
-| Contracts | Function contracts, branch selection, loop invariants, binary search | The engineering half of the project; assumes quantifiers and definitions | Drafted |
+| Contracts | `@logos.function` with named clauses, checked calls, loop invariants, binary search | The engineering half of the project; assumes quantifiers and definitions | Drafted |
 | Developer Guide | Kernel terms, portable encoding, the Rust checker, the authoring API | Explains how to extend the checker without weakening it | Drafted |
 | Embedding | Serve the built book from the CLI and the API; search over its sections | Needs the site and the PDF to be stable first | Shipped |
 

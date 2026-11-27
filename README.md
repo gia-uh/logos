@@ -84,6 +84,49 @@ logos.export_proof(square_of_sum, "square.logos")
 
 A custom tactic can inspect the current goal and return evidence, or split it into subgoals and combine their proofs. Rust checks the resulting derivation independently of the tactic.
 
+## Declare a contract beside the function
+
+`@logos.function` reads the function's source and either translates the body or refuses at the first construct it cannot represent, before any clause is declared. Clauses are separate Python functions named by their function names. Their parameters are symbolic and bound by name; `result` is bound only in a postcondition. The decorator returns the original function, so there is no wrapper and no runtime check.
+
+```python
+import logos
+
+
+@logos.function
+def first(xs: list[int]) -> int:
+    return xs[0]
+
+
+@first.requires
+def nonempty(xs):
+    return 0 < logos.length(xs)
+
+
+@first.ensures
+def returns_first(xs, *, result):
+    return result == logos.nth(xs, 0)
+
+
+first.check()
+logos.export_proof(first, "first.logos")
+```
+
+A caller owes the callee's precondition at the call, using the facts available on that path. The callee's postcondition is usable only after its program has been verified.
+
+```python
+@logos.function
+def first_or_zero(xs: list[int]) -> int:
+    if len(xs) == 0:
+        return 0
+    else:
+        return first(xs)
+
+
+first_or_zero.check()
+```
+
+Checking the caller proves `call0.requires.nonempty` for the `else` branch. Removing the guard is refused with the call line, the callee, the clause and the needed proposition. The certificate carries the callee program and the call site, so the Rust checker replays the dependency without Python. Run the [declarative example](https://github.com/gia-uh/logos/blob/main/book/examples/declarative_calls.py) and read the [binary-search chapter](https://github.com/gia-uh/logos/blob/main/book/chapters/12-binary-search.md) for named invariants and a guarded caller.
+
 ## Prove a contract about an ordinary function
 
 `@logos.theorem(about=fn)` binds the theorem to `fn`'s own source. The decorated body returns `logos.contract`, whose `ensures` is a postcondition over the parameters and the keyword-only `result`. Logos reads the function's module, recompiles it, and refuses to continue if the imported code object disagrees with the source. Every check, certification and export repeats that binding and compares the fresh signature and translation with the ones the statement was built from, so replacing `__code__`, reordering parameters or editing the source after decoration cannot certify stale mathematics.
@@ -178,11 +221,10 @@ Run the [branch example](https://github.com/gia-uh/logos/blob/main/examples/bran
 
 ## Prove a loop program: binary search
 
-The next fragment binds a real Python function with one `while` loop and proves
-its contract over every input. The example uses half-open bounds `[low, high)`
-and returns any valid occurrence, or `-1` exactly when the target is absent.
+The same declarative form binds a real Python function with one `while` loop and proves its contract over every input. The example uses half-open bounds `[low, high)` and returns any valid occurrence, or `-1` exactly when the target is absent.
 
 ```python
+@logos.function
 def binary_search(xs: list[int], target: int) -> int:
     low = 0
     high = len(xs)
@@ -197,74 +239,51 @@ def binary_search(xs: list[int], target: int) -> int:
         else:
             high = mid
     return answer
-```
 
-The theorem supplies the loop invariant and the interval variant. The Rust
-checker recomputes every verification condition from the exported program and
-checks the proof supplied for each one; no loop summary is trusted.
 
-```python
-@logos.theorem(about=binary_search)
-def binary_search_correct(xs, target, *, result):
-    # ... invariant over low, high, answer and the two strict cuts ...
-    return logos.program_contract(
-        requires=logos.sorted(xs),
-        ensures=((result == -1) & logos.absent(xs, target))
-        | ((0 <= result) & (result < logos.length(xs))
-           & (logos.nth(xs, result) == target)),
-        invariant=invariant,
-        variant=high - low,
+@binary_search.requires
+def ordered(xs):
+    return logos.sorted(xs)
+
+
+@binary_search.invariant
+def bounds(xs, *, low, high):
+    return (0 <= low) & (low <= high) & (high <= logos.length(xs))
+
+
+@binary_search.invariant
+def below_cut(xs, target, *, low, answer):
+    return (answer == -1) >> logos.forall(
+        int, lambda i: (0 <= i) >> ((i < low) >> (logos.nth(xs, i) < target))
     )
+
+
+@binary_search.invariant
+def answer_or_searching(xs, target, *, low, high, answer):
+    # ... found | (answer == -1 and both cuts) ...
+
+
+@binary_search.decreases
+def remaining(*, low, high):
+    return high - low
+
+
+@binary_search.ensures
+def finds_or_absent(xs, target, *, result):
+    n = logos.length(xs)
+    return ((result == -1) & logos.absent(xs, target)) | (
+        (0 <= result) & (result < n) & (logos.nth(xs, result) == target)
+    )
+
+
+binary_search.check()
 ```
 
-Run the [full example](https://github.com/gia-uh/logos/blob/main/book/examples/binary_search.py) with
-`python book/examples/binary_search.py`, then `logos check --strict
-binary_search.logos`. The contract covers the empty sequence, duplicates and an
-absent target. A mutated midpoint or invariant, a changed program body, and a
-missing or forged obligation are rejected.
+The checker assumes the named invariants together at the loop head and proves each one after every iteration, so a failure names `loop0.preserve.bounds`, `loop0.preserve.answer_or_searching`, or the variant `loop0.variant_decreases.remaining`. It recomputes every verification condition from the exported program and checks the proof supplied for each one; no loop summary is trusted.
 
-The supported fragment is deliberately small. A function is either an undecorated module-level function whose body is a single `return` of parameters, integer literals and `+`, or one `if`/`else` over a single `<`, `==` or `!=` comparison of such integer expressions with one `return` per branch. Every parameter and the return are annotated with the built-in `int`. The decorated theorem takes the same input names in the same order plus exactly one keyword-only result. Its `ensures` must be one equality between integer terms over the parameters and the result, with the result on exactly one side; `requires`, when present, is a proposition over the parameters built from integer equalities, strict order and `&`, `|`, `~`, `>>`. A branching function needs a `requires=` that selects a path; for `<`, the complement is `~(x < y)`, not `y < x`. Loops, `elif`, nested branches, missing `else`, `<=`, `>`, `>=`, chained comparisons, calls, globals, closures, wrappers, missing or ambiguous source, postponed annotations and a stale source/code match all raise `logos.LogosContractError` with the file and line. Revalidation binds the whole fragment, so changing the guard, either branch, the parameter binding, the source or the imported code object invalidates every theorem for that function. Verification never executes the function with symbolic arguments. Interpreting
-Python's source and compiling the supported fragment is the trust boundary. For
-a loop program, that extraction is the exported statement list and its loop
-invariant; Rust recomputes every verification condition from it and checks each
-proof, so Python only proposes evidence. For a branch or single-return
-function, Rust checks the proof about the extracted integer expression.
+Run the [full example](https://github.com/gia-uh/logos/blob/main/book/examples/binary_search.py) with `python book/examples/binary_search.py`, then `logos check --strict binary_search.logos`. The contract covers the empty sequence, duplicates and an absent target. A mutated midpoint, a weakened bound, a missing sortedness premise, a changed source and a forged or missing obligation are rejected.
 
-<details>
-<summary>Choose a witness for an existential claim</summary>
-
-To prove that every integer has a successor, use the current arbitrary
-integer from the proof goal when choosing the witness.
-
-```python
-import logos
-import logos.tactics as t
-
-
-@logos.theorem
-def integer_successor(x: int):
-    return logos.exists(int, lambda y: y == x + 1)
-
-
-def choose_successor(goal):
-    return t.witness(goal.context["x"] + 1)(goal)
-
-
-logos.check(integer_successor.proof(t.intro("x"), choose_successor, t.refl()))
-logos.export_proof(integer_successor, "successor.logos")
-```
-
-The witness `x + 1` leaves the equality `x + 1 == x + 1` to prove.
-Rust checks that the witness has the binder's sort and that the evidence
-establishes the instantiated predicate in the surrounding scope.
-
-```bash
-logos check --strict successor.logos
-logos inspect --markdown --strict successor.logos
-logos inspect --json --strict successor.logos
-```
-
-</details>
+The supported fragment is `int` and `list[int]`, straight-line assignments, one `if`/`else` tree, one `while` loop with a final return, direct calls to module-level functions declared with `@logos.function`, and integer and sequence operations. Recursion, calls through values or arbitrary globals, list mutation, early returns inside a loop, nested loops and unchecked declarations used as axioms are outside it. Unsupported syntax is refused at its source line when the decorator is applied. The authoring layer re-reads the module and every callee on each check, inspect and export; the Rust checker verifies the artifact's programs and proofs as given. The older `@logos.theorem(about=...)` form and `logos.program_contract` remain available for the single-return, branch and loop fragments documented below.
 
 ## Prove infinitely many primes
 

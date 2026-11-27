@@ -1,8 +1,9 @@
 import logos
-from logos.expr import Lit, Var
 
 
+@logos.function
 def binary_search(xs: list[int], target: int) -> int:
+    """Return an index holding target in a sorted sequence, or -1 if absent."""
     low = 0
     high = len(xs)
     answer = -1
@@ -18,52 +19,71 @@ def binary_search(xs: list[int], target: int) -> int:
     return answer
 
 
-@logos.theorem(about=binary_search)
-def binary_search_correct(xs, target, *, result):
-    low = Var("low", int)
-    high = Var("high", int)
-    answer = Var("answer", int)
-    n = logos.length(xs)
+@binary_search.requires
+def ordered(xs):
+    return logos.sorted(xs)
 
-    lower_cut = logos.forall(
-        int, lambda i: (Lit(0) <= i) >> ((i < low) >> (logos.nth(xs, i) < target))
+
+@binary_search.invariant
+def bounds(xs, *, low, high):
+    return (0 <= low) & (low <= high) & (high <= logos.length(xs))
+
+
+@binary_search.invariant
+def keeps_order(xs):
+    return logos.sorted(xs)
+
+
+@binary_search.invariant
+def below_cut(xs, target, *, low, answer):
+    return (answer == -1) >> logos.forall(
+        int, lambda i: (0 <= i) >> ((i < low) >> (logos.nth(xs, i) < target))
     )
-    upper_cut = logos.forall(
+
+
+@binary_search.invariant
+def above_cut(xs, target, *, high, answer):
+    n = logos.length(xs)
+    return (answer == -1) >> logos.forall(
+        int, lambda i: (high <= i) >> ((i < n) >> (target < logos.nth(xs, i)))
+    )
+
+
+@binary_search.invariant
+def answer_or_searching(xs, target, *, low, high, answer):
+    n = logos.length(xs)
+    lower = logos.forall(
+        int, lambda i: (0 <= i) >> ((i < low) >> (logos.nth(xs, i) < target))
+    )
+    upper = logos.forall(
         int, lambda i: (high <= i) >> ((i < n) >> (target < logos.nth(xs, i)))
     )
     found = (
-        (Lit(0) <= answer)
-        & (answer < n)
-        & (logos.nth(xs, answer) == target)
-        & ~(answer == -1)
+        (0 <= answer) & (answer < n)
+        & (logos.nth(xs, answer) == target) & ~(answer == -1)
     )
-    searching = (answer == -1) & lower_cut & upper_cut
-    invariant = (
-        logos.sorted(xs)
-        & (Lit(0) <= low)
-        & (low <= high)
-        & (high <= n)
-        & (found | searching)
-    )
-    ensures = (
-        ((result == -1) & logos.absent(xs, target))
-        | ((Lit(0) <= result)
-           & (result < n)
-           & (logos.nth(xs, result) == target))
-    )
-    return logos.program_contract(
-        requires=logos.sorted(xs),
-        ensures=ensures,
-        invariant=invariant,
-        variant=high - low,
+    searching = (answer == -1) & lower & upper
+    return found | searching
+
+
+@binary_search.decreases
+def remaining(*, low, high):
+    return high - low
+
+
+@binary_search.ensures
+def finds_or_absent(xs, target, *, result):
+    n = logos.length(xs)
+    return ((result == -1) & logos.absent(xs, target)) | (
+        (0 <= result) & (result < n) & (logos.nth(xs, result) == target)
     )
 
 
 def main() -> None:
-    binary_search_correct.check()
-    print("binary_search_correct:", binary_search_correct.certified)
-    print("obligations:", ", ".join(binary_search_correct.program.obligations))
-    logos.export_proof(binary_search_correct, "binary_search.logos")
+    binary_search.check()
+    print("binary_search:", binary_search.certified)
+    print("obligations:", ", ".join(binary_search.program.obligations))
+    logos.export_proof(binary_search, "binary_search.logos")
     print("certificate: binary_search.logos")
 
 

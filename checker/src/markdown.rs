@@ -50,7 +50,10 @@ pub fn render(checked: &Verified) -> String {
     };
     writeln!(out, "{verdict}\n").unwrap();
     writeln!(out, "- Theory: `{}`", judgment.theory).unwrap();
-    if checked.annotations.claim.is_some() || checked.annotations.strategy.is_some() {
+    if checked.annotations.claim.is_some()
+        || checked.annotations.strategy.is_some()
+        || !checked.annotations.contract.is_empty()
+    {
         writeln!(out, "\n## Author's commentary (not checked)").unwrap();
         if let Some(claim) = &checked.annotations.claim {
             writeln!(out, "\n**Claim.**").unwrap();
@@ -59,6 +62,20 @@ pub fn render(checked: &Verified) -> String {
         if let Some(strategy) = &checked.annotations.strategy {
             writeln!(out, "\n**Strategy.**").unwrap();
             commentary(&mut out, strategy);
+        }
+        if !checked.annotations.contract.is_empty() {
+            writeln!(
+                out,
+                "\n**Contract.** The author named these clauses; the labels and lines are authored, the obligations are checked."
+            )
+            .unwrap();
+            for clause in &checked.annotations.contract {
+                let location = clause
+                    .line
+                    .map(|line| format!(" (line {line})"))
+                    .unwrap_or_default();
+                writeln!(out, "- `{}` **{}**{}", clause.kind, clause.name, location).unwrap();
+            }
         }
     }
     writeln!(out, "\n## Theorem").unwrap();

@@ -16,14 +16,15 @@ from __future__ import annotations
 import ast
 import inspect
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from hashlib import sha256
 from pathlib import Path
-from types import CodeType, FunctionType
+from types import CodeType, FunctionType, ModuleType
 
 from logos.define import Function
 from logos.programs import (
-    Assign, If, Program, ProgramContract, ProgramVariable, Return, While,
-    program_contract,
+    Assign, Call, If, NamedClause, Program, ProgramContract, ProgramVariable,
+    Return, While, program_contract,
 )
 from logos.sequence import Seq, SeqType
 from logos.expr import (
@@ -558,17 +559,8 @@ def _imported_sort(annotation):
     return None
 
 
-def _fragment(definition, fn, path):
-    if isinstance(definition, ast.AsyncFunctionDef):
-        raise LogosContractError(
-            f"{path}:{definition.lineno}: {fn.__name__!r} is async; only a synchronous "
-            "function is supported"
-        )
-    if definition.decorator_list:
-        raise LogosContractError(
-            f"{path}:{definition.lineno}: {fn.__name__!r} is decorated; only an undecorated "
-            "function is supported"
-        )
+def _signature(definition, fn, path):
+    """Validate the source signature and return (names, symbolic variables)."""
     arguments = definition.args
     if arguments.vararg or arguments.kwarg or arguments.kwonlyargs:
         raise LogosContractError(
@@ -609,6 +601,21 @@ def _fragment(definition, fn, path):
             f"the imported {fn.__name__!r} must carry the built-in int return annotation; "
             "postponed annotations are not supported"
         )
+    return names, variables
+
+
+def _fragment(definition, fn, path, *, allow_decorators=False):
+    if isinstance(definition, ast.AsyncFunctionDef):
+        raise LogosContractError(
+            f"{path}:{definition.lineno}: {fn.__name__!r} is async; only a synchronous "
+            "function is supported"
+        )
+    if definition.decorator_list and not allow_decorators:
+        raise LogosContractError(
+            f"{path}:{definition.lineno}: {fn.__name__!r} is decorated; only an undecorated "
+            "function is supported"
+        )
+    names, variables = _signature(definition, fn, path)
     body = definition.body
     if any(isinstance(node, (ast.While, ast.For, ast.AsyncFor)) for node in body):
         return _program_fragment(definition, fn, path, names, variables)
@@ -984,7 +991,7 @@ def _normalize(expr):
     return expr
 
 
-def _term(node, variables, fn, path):
+def _term(node, variables, fn, path, *, context=None):
     if isinstance(node, ast.Name):
         if node.id not in variables:
             raise LogosContractError(
@@ -995,8 +1002,8 @@ def _term(node, variables, fn, path):
     if isinstance(node, ast.Constant) and type(node.value) is int:
         return Lit(node.value)
     if isinstance(node, ast.BinOp):
-        left = _term(node.left, variables, fn, path)
-        right = _term(node.right, variables, fn, path)
+        left = _term(node.left, variables, fn, path, context=context)
+        right = _term(node.right, variables, fn, path, context=context)
         if isinstance(node.op, ast.Add):
             return Add(left, right)
         if isinstance(node.op, ast.Sub):
@@ -1009,7 +1016,7 @@ def _term(node, variables, fn, path):
             f"{path}:{node.lineno}: unsupported operator in {fn.__name__!r}; use +, -, *, //"
         )
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
-        return Neg(_term(node.operand, variables, fn, path))
+        return Neg(_term(node.operand, variables, fn, path, context=context))
     if isinstance(node, ast.Call):
         if (
             isinstance(node.func, ast.Name)
@@ -1017,7 +1024,9 @@ def _term(node, variables, fn, path):
             and len(node.args) == 1
             and not node.keywords
         ):
-            return Len(_term(node.args[0], variables, fn, path))
+            return Len(_term(node.args[0], variables, fn, path, context=context))
+        if context is not None:
+            return context.translate_call(node)
         raise LogosContractError(
             f"{path}:{node.lineno}: only len(xs) calls are supported in {fn.__name__!r}"
         )
@@ -1027,8 +1036,8 @@ def _term(node, variables, fn, path):
                 f"{path}:{node.lineno}: slices are not supported in {fn.__name__!r}"
             )
         return Nth(
-            _term(node.value, variables, fn, path),
-            _term(node.slice, variables, fn, path),
+            _term(node.value, variables, fn, path, context=context),
+            _term(node.slice, variables, fn, path, context=context),
         )
     raise LogosContractError(
         f"{path}:{getattr(node, 'lineno', '?')}: unsupported expression "
@@ -1257,6 +1266,17 @@ def _sort(expr):
         if _sort(expr.operand) is not bool:
             raise LogosContractError("logos.contract: ~ expects a proposition")
         return bool
+    if isinstance(expr, App):
+        if expr.symbol is None or expr.symbol.result_type is None:
+            raise LogosContractError(
+                f"logos.contract: call {expr.func_name!r} has no declared result type"
+            )
+        for argument, parameter in zip(expr.args, expr.symbol.params):
+            if _sort(argument) is not parameter.type:
+                raise LogosContractError(
+                    f"logos.contract: argument of {expr.func_name!r} has the wrong sort"
+                )
+        return expr.symbol.result_type
     raise LogosContractError(
         f"logos.contract: unsupported expression {type(expr).__name__}; the portable format "
         "supports integer +, -, *, ** with literal exponents, equality, <, &, |, ~ and >>"
@@ -1363,3 +1383,418 @@ def _ring(left, right, symbol):
         raise LogosContractError(
             f"contract for {symbol.name!r} does not follow from its source body: {error}"
         ) from error
+
+
+# ── Declarative functions ───────────────────────────────────────────────────
+
+
+def _trivial():
+    """A proposition the checker proves by reflexivity, used for empty clauses."""
+    return Eq(Lit(0), Lit(0))
+
+
+def _and_all(expressions):
+    expressions = list(expressions)
+    if not expressions:
+        return _trivial()
+    result = expressions[-1]
+    for expression in reversed(expressions[:-1]):
+        result = And(expression, result)
+    return result
+
+
+def _source_digest(text, node):
+    segment = ast.get_source_segment(text, node)
+    if segment is None:
+        segment = ast.dump(node)
+    return sha256(segment.encode("utf-8")).hexdigest()
+
+
+@dataclass
+class TranslatedFunction:
+    """The source-bound executable program of one declarative function."""
+
+    path: Path
+    source: bytes
+    code: CodeType
+    definition: ast.FunctionDef
+    names: list[str]
+    variables: dict[str, Var]
+    program: Program
+    entry_locals: tuple[str, ...]
+    source_digest: str
+    calls: tuple[Call, ...]
+
+
+def _logos_function_decorator(node):
+    """True when the decorator is spelled ``logos.function`` or ``function``."""
+    if isinstance(node, ast.Name):
+        return node.id == "function"
+    if isinstance(node, ast.Attribute):
+        return (
+            node.attr == "function"
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "logos"
+        )
+    return False
+
+
+def _check_decorators(definition, fn, path):
+    if isinstance(definition, ast.AsyncFunctionDef):
+        raise LogosContractError(
+            f"{path}:{definition.lineno}: {fn.__name__!r} is async; only a synchronous "
+            "function is supported"
+        )
+    for decorator in definition.decorator_list:
+        if not _logos_function_decorator(decorator):
+            raise LogosContractError(
+                f"{path}:{getattr(decorator, 'lineno', definition.lineno)}: "
+                f"{fn.__name__!r} carries a decorator other than @logos.function; "
+                "only the declarative decorator is supported on a checked function"
+            )
+    if not definition.decorator_list:
+        raise LogosContractError(
+            f"{path}:{definition.lineno}: {fn.__name__!r} is not decorated with "
+            "@logos.function"
+        )
+
+
+class _DeclContext:
+    """Translate one function body, collecting call sites as it goes."""
+
+    def __init__(self, fn, path, module, variables, names):
+        self.fn = fn
+        self.path = path
+        self.module = module
+        self.variables = variables
+        self.names = list(names)
+        self.local_order: list[str] = []
+        self.calls: list[Call] = []
+        self.entry_locals: tuple[str, ...] = ()
+        self.loop_seen = False
+        self.emit = None
+
+    def _fresh(self, base):
+        name = base
+        suffix = 2
+        while name in self.variables:
+            name = f"{base}_{suffix}"
+            suffix += 1
+        self.variables[name] = Var(name, int)
+        self.local_order.append(name)
+        return name
+
+    def translate_call(self, node):
+        line = node.lineno
+        if not isinstance(node.func, ast.Name):
+            raise LogosContractError(
+                f"{self.path}:{line}: {self.fn.__name__!r} may only call a function by "
+                "its module-level name"
+            )
+        name = node.func.id
+        if name in self.variables:
+            raise LogosContractError(
+                f"{self.path}:{line}: {self.fn.__name__!r} tries to call {name!r}, which is "
+                "a parameter or local; calls to values are not supported"
+            )
+        value = self.module.__dict__.get(name)
+        callee = getattr(value, "__logos_function__", None)
+        if callee is None:
+            raise LogosContractError(
+                f"{self.path}:{line}: {self.fn.__name__!r} calls {name!r}, which is not "
+                "declared with @logos.function; only checked functions can be called"
+            )
+        if node.keywords:
+            raise LogosContractError(
+                f"{self.path}:{line}: the call to {name!r} uses keyword arguments; "
+                "only positional arguments are supported"
+            )
+        args = tuple(
+            _term(arg, self.variables, self.fn, self.path, context=self)
+            for arg in node.args
+        )
+        params = callee.params
+        if len(args) != len(params):
+            raise LogosContractError(
+                f"{self.path}:{line}: {name!r} takes {len(params)} argument(s) but the "
+                f"call passes {len(args)}"
+            )
+        for index, (arg, param) in enumerate(zip(args, params)):
+            if _sort(arg) is not param.type:
+                raise LogosContractError(
+                    f"{self.path}:{line}: argument {index + 1} of {name!r} must have sort "
+                    f"{param.type!r}, got {arg!r}"
+                )
+        target = self._fresh(f"{name}_result")
+        call = Call(
+            id=f"call{len(self.calls)}",
+            target=target,
+            callee=callee,
+            function=callee.function,
+            args=args,
+            line=line,
+            fingerprint=callee.fingerprint(),
+        )
+        self.calls.append(call)
+        if self.emit is None:
+            raise LogosContractError(
+                f"{self.path}:{line}: a call to {name!r} is only supported in an "
+                "assignment or a return statement"
+            )
+        self.emit(call)
+        return self.variables[target]
+
+
+def _decl_statement(node, context, initialized, *, top, in_loop):
+    if isinstance(node, ast.Assign):
+        if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: assignments in {context.fn.__name__!r} "
+                "must name one local"
+            )
+        name = node.targets[0].id
+        if name.startswith("_"):
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: local {name!r} starts with an underscore; "
+                "use a plain name"
+            )
+        emitted = []
+        context.emit = emitted.append
+        value = _term(node.value, context.variables, context.fn, context.path, context=context)
+        context.emit = None
+        if name not in context.variables:
+            context.variables[name] = Var(name, int)
+            context.local_order.append(name)
+        for used in _used_names(node.value):
+            if used in context.variables and used not in initialized:
+                raise LogosContractError(
+                    f"{context.path}:{node.lineno}: {used!r} is read before assignment in "
+                    f"{context.fn.__name__!r}"
+                )
+        initialized.add(name)
+        return [*emitted, Assign(name, value)], False
+    if isinstance(node, ast.AugAssign):
+        if not isinstance(node.target, ast.Name):
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: augmented assignments in "
+                f"{context.fn.__name__!r} must name one local"
+            )
+        name = node.target.id
+        if name not in context.variables:
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: {name!r} is assigned before it is declared "
+                f"in {context.fn.__name__!r}"
+            )
+        if name not in initialized:
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: {name!r} is read before assignment in "
+                f"{context.fn.__name__!r}"
+            )
+        emitted = []
+        context.emit = emitted.append
+        right = _term(node.value, context.variables, context.fn, context.path, context=context)
+        context.emit = None
+        left = context.variables[name]
+        if isinstance(node.op, ast.Add):
+            value = Add(left, right)
+        elif isinstance(node.op, ast.Sub):
+            value = Sub(left, right)
+        elif isinstance(node.op, ast.Mult):
+            value = Mul(left, right)
+        elif isinstance(node.op, ast.FloorDiv):
+            value = Div(left, right)
+        else:
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: unsupported augmented operator in "
+                f"{context.fn.__name__!r}; use +=, -=, *= or //="
+            )
+        return [*emitted, Assign(name, value)], False
+    if isinstance(node, ast.If):
+        if not node.orelse:
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: the if in {context.fn.__name__!r} needs an "
+                "else branch; every path must be explicit"
+            )
+        condition = _condition(node.test, context.variables, context.fn, context.path, ordered=True)
+        then_initialized = set(initialized)
+        else_initialized = set(initialized)
+        then_statements, then_returns = _decl_statement_list(
+            node.body, context, then_initialized, top=False, in_loop=in_loop
+        )
+        else_statements, else_returns = _decl_statement_list(
+            node.orelse, context, else_initialized, top=False, in_loop=in_loop
+        )
+        if then_returns != else_returns:
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: in {context.fn.__name__!r} both branches of "
+                "an if must return or neither may return"
+            )
+        if not then_returns:
+            if then_initialized != initialized or else_initialized != initialized:
+                raise LogosContractError(
+                    f"{context.path}:{node.lineno}: each branch of the if in "
+                    f"{context.fn.__name__!r} must assign exactly the same locals; this "
+                    "fragment keeps every local initialized before the branch"
+                )
+        return [If(condition, tuple(then_statements), tuple(else_statements))], then_returns
+    if isinstance(node, ast.While):
+        if in_loop:
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: nested loops are not supported in "
+                f"{context.fn.__name__!r}"
+            )
+        if not top:
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: the while loop in {context.fn.__name__!r} "
+                "must be a direct statement of the function body, not inside an if"
+            )
+        if context.loop_seen:
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: {context.fn.__name__!r} must contain "
+                "exactly one while loop"
+            )
+        if node.orelse:
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: while/else is not supported"
+            )
+        condition = _condition(node.test, context.variables, context.fn, context.path, ordered=True)
+        context.loop_seen = True
+        context.entry_locals = tuple(
+            name for name in context.local_order if name in initialized
+        )
+        body_initialized = set(initialized)
+        body, body_returns = _decl_statement_list(
+            node.body, context, body_initialized, top=False, in_loop=True
+        )
+        if body_returns:
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: returns inside the loop are not supported; "
+                "keep one return after the loop and carry the answer in a local"
+            )
+        return [While(condition, tuple(body), _trivial(), Lit(0))], False
+    if isinstance(node, ast.Return):
+        if in_loop:
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: returns inside the loop are not supported; "
+                "keep one return after the loop and carry the answer in a local"
+            )
+        if node.value is None:
+            raise LogosContractError(
+                f"{context.path}:{node.lineno}: {context.fn.__name__!r} must return a value"
+            )
+        emitted = []
+        context.emit = emitted.append
+        value = _term(node.value, context.variables, context.fn, context.path, context=context)
+        context.emit = None
+        return [*emitted, Return(value)], True
+    if isinstance(node, ast.Pass):
+        return [], False
+    if (
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    ):
+        return [], False
+    raise LogosContractError(
+        f"{context.path}:{getattr(node, 'lineno', '?')}: unsupported statement "
+        f"{type(node).__name__} in {context.fn.__name__!r} at @logos.function; use "
+        "assignments, one if/else tree, one while loop and returns of integer expressions"
+    )
+
+
+def _decl_statement_list(statements, context, initialized, *, top, in_loop):
+    result = []
+    returned = False
+    for node in statements:
+        if returned:
+            raise LogosContractError(
+                f"{context.path}:{getattr(node, 'lineno', '?')}: unreachable statement after "
+                f"a return in {context.fn.__name__!r}"
+            )
+        emitted, returned = _decl_statement(
+            node, context, initialized, top=top, in_loop=in_loop
+        )
+        result.extend(emitted)
+    return result, returned
+
+
+def translate_declarative(fn, function):
+    """Translate a ``@logos.function`` body, rejecting unsupported syntax now."""
+    _require_ordinary(fn)
+    path = _module_path(fn)
+    source = _read_source(path, fn)
+    compiled = _compile(source, path, fn)
+    tree = _parse(source, path, fn)
+    definitions = [
+        node for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == fn.__name__
+    ]
+    if not definitions:
+        raise LogosContractError(
+            f"logos.function: {path} has no top-level definition of {fn.__name__!r}"
+        )
+    if len(definitions) > 1:
+        raise LogosContractError(
+            f"logos.function: {path} defines {fn.__name__!r} {len(definitions)} times at "
+            "module level; keep exactly one definition"
+        )
+    definition = definitions[0]
+    _check_decorators(definition, fn, path)
+    expected = _module_code(compiled, fn.__name__)
+    if expected is None or not _same_code(expected, fn.__code__):
+        raise LogosContractError(
+            f"source of {fn.__name__!r} in {path} does not match the imported code object; "
+            "the module is stale or the file changed after import; reimport it before "
+            "declaring the function"
+        )
+    names, variables = _signature(definition, fn, path)
+    if "result" in variables:
+        raise LogosContractError(
+            f"{path}:{definition.lineno}: {fn.__name__!r} must not name a parameter "
+            "'result'; that name is reserved for the postcondition"
+        )
+    module = inspect.getmodule(fn)
+    context = _DeclContext(fn, path, module, variables, names)
+    initialized = set(names)
+    statements, returned = _decl_statement_list(
+        definition.body, context, initialized, top=True, in_loop=False
+    )
+    if not returned:
+        raise LogosContractError(
+            f"{path}:{definition.lineno}: {fn.__name__!r} must return a value on every path"
+        )
+    parameters = tuple(
+        ProgramVariable(name, variables[name].type, variables[name]) for name in names
+    )
+    locals_ = tuple(
+        ProgramVariable(name, int, variables[name]) for name in context.local_order
+    )
+    result = ProgramVariable("result", int, Var("result", int))
+    ghosts = (
+        (ProgramVariable("__variant", int, Var("__variant", int)),)
+        if context.loop_seen else ()
+    )
+    program = Program(
+        name=fn.__name__,
+        function=function,
+        params=parameters,
+        result=result,
+        locals=locals_,
+        requires=_trivial(),
+        ensures=_trivial(),
+        body=tuple(statements),
+        ghosts=ghosts,
+    )
+    text = source.decode("utf-8")
+    return TranslatedFunction(
+        path=path,
+        source=source,
+        code=fn.__code__,
+        definition=definition,
+        names=names,
+        variables=variables,
+        program=program,
+        entry_locals=context.entry_locals,
+        source_digest=_source_digest(text, definition),
+        calls=tuple(context.calls),
+    )

@@ -34,8 +34,16 @@ First public release. The Python distribution is `logos-ai`, imported as
   portable core.
 - Source-bound loop programs with `program_ref`, recomputed loop obligations,
   read bounds and a termination variant.
+- Named `requires`, `ensures`, `invariant` and `decreases` clauses in the
+  portable program, with the checker recomputing their conjunction against the
+  single proposition it checks.
+- Checked direct calls: the artifact carries the callee program, its clauses,
+  the actual arguments and the call-site contract. The checker verifies callees
+  before callers, rejects cycles, and uses a callee postcondition only after
+  replaying its program.
 - Mutation tests for wrong midpoints, wrong invariants, forged program bodies
-  and missing obligations.
+  and missing obligations, plus forged, missing, mismatched, stale and cyclic
+  callee artifacts.
 
 ### Authoring
 
@@ -55,9 +63,12 @@ First public release. The Python distribution is `logos-ai`, imported as
 
 ### Domains and programs
 
-- `logos.contract` / `@logos.theorem(about=...)` — prove a contract about an
-  ordinary function from its source, including one-path branches with the
-  guard or its negation as `requires`.
+- `@logos.function` with `@f.requires`, `@f.ensures`, `@f.invariant` and
+  `@f.decreases` — declare a contract beside an ordinary function, with
+  immediate source-lined syntax rejection and no runtime checks or wrapper.
+  Clauses bind parameters, the result and loop-head locals by name.
+- `logos.contract` / `@logos.theorem(about=...)` — the original contract form,
+  retained for the single-return, branch and loop fragments.
 - `logos.program_contract`, sequence helpers and the total-correctness binary
   search example.
 - `logos.domains.logic_puzzles` with Knights and Knaves, and the guided proof
@@ -73,8 +84,10 @@ First public release. The Python distribution is `logos-ai`, imported as
 
 - One English Scriptorium book, executable end to end, from the first checked
   proof through number theory to Euclid's theorem.
-- The English binary-search and production-contract chapters, with a strict
-  certificate for the standard-library `punycode.adapt`.
+- The English binary-search chapter now starts with `first`, then a guarded
+  caller and its refusal, then binary search with named invariants, a named
+  variant and the three mutation controls. The production-contract chapter and
+  its strict `punycode.adapt` certificate remain.
 - The English Developer Guide and a generated Public API Reference, with a rift
   gate over every public class, function and method.
 - The finite-graph chapter was removed until the library grows a graph domain;
