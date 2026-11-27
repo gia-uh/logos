@@ -67,7 +67,7 @@ def adapt_bias_nonnegative(delta, first, numchars, *, result):
     )
 ```
 
-## The arithmetic behind the obligations
+## The floor-division laws
 
 | Checker law | What it gives | Where to use it |
 | --- | --- | --- |
