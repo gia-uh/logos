@@ -8,7 +8,10 @@ on:
       - 'checker/**'
       - 'tests/test_english_book.py'
       - 'tests/test_first_proof_chapter.py'
+      - 'tests/test_developer_guide.py'
       - '.github/workflows/book.yml'
+      - '.rift.yaml'
+      - 'tools/**'
       - 'pyproject.toml'
   push:
     branches: [main]
@@ -18,7 +21,10 @@ on:
       - 'checker/**'
       - 'tests/test_english_book.py'
       - 'tests/test_first_proof_chapter.py'
+      - 'tests/test_developer_guide.py'
       - '.github/workflows/book.yml'
+      - '.rift.yaml'
+      - 'tools/**'
       - 'pyproject.toml'
   workflow_dispatch:
 
@@ -54,10 +60,15 @@ jobs:
           uv pip install --python "$RUNNER_TEMP/author/bin/python" \
             "scriptorium[pdf] @ git+https://github.com/gia-uh/scriptorium@9325898877e714b4f12f12c4e88650ab65c4fe09"
 
+      - name: Check the public API inventory
+        run: |
+          python tools/generate_api_reference.py
+          uvx --from git+https://github.com/apiad/rift@v0.9.0 rift check .
+
       - name: Test the chapters from the installed wheel
         run: |
           export PATH="$RUNNER_TEMP/portable/bin:$RUNNER_TEMP/author/bin:$PATH"
-          python -m pytest -q tests/test_english_book.py tests/test_first_proof_chapter.py
+          python -m pytest -q tests/test_english_book.py tests/test_first_proof_chapter.py tests/test_developer_guide.py
 
       - name: Render the site and the PDF
         run: |
