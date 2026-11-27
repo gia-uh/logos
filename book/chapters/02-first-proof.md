@@ -6,6 +6,8 @@ stem: first-proof
 
 # Writing Your First Proof
 
+*Prerequisites: Python functions and decorators, and the idea of implication. Outcomes: state a theorem, attach a proof, run the checker, and read a compact verified derivation.*
+
 Logos is a Python library for writing arguments that a computer can check. Suppose you know that $P$ implies $Q$ and that $Q$ implies $R$. On paper, you could prove that $P$ implies $R$ in one line: “Assume $P$. Then $Q$, and hence $R$.” The words *then* and *hence* do most of the work. When we write the argument in Logos, we say which implication justifies each step.
 
 ## State what you intend to prove

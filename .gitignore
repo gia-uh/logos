@@ -47,3 +47,8 @@ htmlcov/
 /book/euclides.py
 /book/euclides.logos
 /book/.scriptorium/
+
+# English book outputs
+/book/site/
+/book/build/
+/book/book.pdf
