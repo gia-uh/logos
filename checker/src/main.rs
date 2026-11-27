@@ -1,6 +1,8 @@
 mod markdown;
 
-use logos_checker::{Judgment, MAX_ARTIFACT_BYTES, PROTOCOL_VERSION, Step, TraceContext, verify};
+use logos_checker::{
+    Annotations, Judgment, MAX_ARTIFACT_BYTES, PROTOCOL_VERSION, Step, TraceContext, verify,
+};
 use serde::Serialize;
 use std::{
     env, fs,
@@ -28,6 +30,7 @@ struct Inspection<'a> {
     judgment: &'a Judgment,
     steps: &'a [Step],
     contexts: &'a [TraceContext],
+    annotations: &'a Annotations,
     claim: Claim,
 }
 
@@ -171,6 +174,7 @@ fn check_command(args: &[String], inspect: bool) -> Result<(), Failure> {
                 judgment,
                 steps: &checked.steps,
                 contexts: &checked.contexts,
+                annotations: &checked.annotations,
                 claim: Claim {
                     statement_field: "statement",
                     proof_step: "proof",
@@ -202,9 +206,18 @@ fn check_command(args: &[String], inspect: bool) -> Result<(), Failure> {
             println!("Path        {}", axiom.path.join(" → "));
         }
         if inspect {
+            if let Some(claim) = &checked.annotations.claim {
+                println!("Author's claim (authored, not checked) {claim}");
+            }
+            if let Some(strategy) = &checked.annotations.strategy {
+                println!("Author's strategy (authored, not checked) {strategy}");
+            }
             for step in checked.steps {
                 println!("{} {}: {}", step.id, step.rule, step.conclusion_text);
                 println!("  {}", step.explanation);
+                for note in &step.commentary {
+                    println!("  Author's note (authored, not checked) {note}");
+                }
                 if !step.premises.is_empty() {
                     println!("  Premises: {}", step.premises.join(", "));
                 }

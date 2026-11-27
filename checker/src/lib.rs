@@ -163,6 +163,10 @@ pub(crate) enum Evidence {
         proof: Box<Self>,
         body: Box<Self>,
     },
+    Note {
+        text: String,
+        body: Box<Self>,
+    },
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -191,7 +195,8 @@ impl Evidence {
             | Self::Least {
                 nonempty: proof, ..
             }
-            | Self::RecursorStep { proof, .. } => [Some(proof), None, None],
+            | Self::RecursorStep { proof, .. }
+            | Self::Note { body: proof, .. } => [Some(proof), None, None],
             Self::Have { proof, body, .. } => [Some(proof), Some(body), None],
             Self::AndIntro { left, right }
             | Self::Trans { left, right }
@@ -352,8 +357,20 @@ struct Bundle {
     programs: Vec<program::Program>,
     custom_axioms: Vec<CustomAxiom>,
     lemmas: Vec<Lemma>,
+    #[serde(default)]
+    annotations: Annotations,
     target: Proposition,
     proof: Evidence,
+}
+
+/// Authored prose carried with the evidence. It is never a checked fact.
+#[derive(Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Annotations {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claim: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strategy: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -419,6 +436,8 @@ pub struct Step {
     pub context: Option<Proposition>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub binder_sort: Option<Sort>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub commentary: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub introduced_variable: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -437,6 +456,7 @@ pub struct Verified {
     pub judgment: Judgment,
     pub steps: Vec<Step>,
     pub contexts: Vec<TraceContext>,
+    pub annotations: Annotations,
 }
 
 type Declarations<'a> = HashMap<&'a str, &'a Declaration>;
@@ -575,6 +595,7 @@ pub fn verify(bytes: &[u8]) -> Result<Verified, String> {
         },
         steps,
         contexts,
+        annotations: bundle.annotations,
     })
 }
 
@@ -1177,6 +1198,7 @@ impl<'a> Checker<'a> {
             law: None,
             premise_conversion: None,
             conclusion_conversion: None,
+            commentary: Vec::new(),
         });
         let result = self.infer(body, scope, path);
         scope.hyps.pop();
@@ -1270,6 +1292,7 @@ impl<'a> Checker<'a> {
             law: None,
             premise_conversion: None,
             conclusion_conversion: None,
+            commentary: Vec::new(),
         });
         let result = self.infer(body, scope, path);
         scope.hyps.pop();
@@ -1284,6 +1307,18 @@ impl<'a> Checker<'a> {
         scope: &mut Scope<'a>,
         path: &str,
     ) -> Result<Proposition, String> {
+        if let Evidence::Note { text, body } = evidence {
+            if text.trim().is_empty() {
+                return Err(format!("{path}: note text is empty"));
+            }
+            let conclusion = self.infer(body, scope, path)?;
+            let step = self
+                .steps
+                .last_mut()
+                .ok_or_else(|| format!("{path}: note has no checked step to follow"))?;
+            step.commentary.push(text.clone());
+            return Ok(conclusion);
+        }
         if self.steps.len() >= MAX_STEPS {
             return Err("proof steps exceed resource limit".into());
         }
@@ -1298,6 +1333,7 @@ impl<'a> Checker<'a> {
         let mut law = None;
         let mut premise_conversion = None;
         let (rule, premises, conclusion, binder, discharged) = match evidence {
+            Evidence::Note { .. } => unreachable!("note handled before inference"),
             Evidence::ImpliesIntro {
                 binder,
                 premise,
@@ -2184,6 +2220,7 @@ impl<'a> Checker<'a> {
             law,
             premise_conversion,
             conclusion_conversion: None,
+            commentary: Vec::new(),
         });
         Ok(conclusion)
     }

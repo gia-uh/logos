@@ -96,6 +96,19 @@ logos.check(refl_thm.proof(t.intro("x"), t.refl()))
 print(refl_thm.certified)   # True
 ```
 
+### `thm.inspect() → str`
+
+Return the installed checker's Markdown reading for the current receipt. The
+bytes sent to the checker are exactly the receipt's artifact; a missing or stale
+receipt raises `LogosProofError`. The theorem docstring, proof docstring and
+`p.note(...)` commentary travel inside the artifact and appear as labelled
+commentary, separate from the checked steps.
+
+```python
+compose.check()
+reading = compose.inspect()
+```
+
 ### `logos.prove(statement, proof_list) → _GroundProof`
 
 Create a one-shot anonymous proof. Pass to `logos.check()` to validate.

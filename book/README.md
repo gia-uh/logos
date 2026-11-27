@@ -1,5 +1,25 @@
 # Book lessons
 
+## English User Guide
+
+Chapter 1 is [`first-proof.md`](first-proof.md), *Writing Your First Proof*. It
+is a native Scriptorium chapter: the page runs from top to bottom, calls
+`compose.check()` and `compose.inspect()`, and quotes a compact checked reading
+without tangling a Python file. `compose.inspect()` returns the Rust checker's
+Markdown for the current receipt. The theorem docstring, proof docstring and
+`p.note(...)` travel inside the evidence and appear as labelled commentary.
+
+Render it with the installed wheel and the `logos` checker on `PATH`:
+
+```bash
+scriptorium render first-proof.md            # PDF
+scriptorium render first-proof.md --html     # HTML
+```
+
+The chapter needs no `scriptorium tangle` step.
+
+## Spanish checked chapters
+
 The Spanish Logos book has two runnable chapters. Each is a Scriptorium source,
 not a copy of Python. The chapters are Spanish; this note and every other public
 text in the repository are English.
@@ -35,7 +55,13 @@ The first lesson follows the same three commands with `vecinos.md`,
 
 ## What the acceptance tests check
 
-`tests/test_book.py` tangles both pages with the real Scriptorium and runs the
+`tests/test_first_proof_chapter.py` renders `first-proof.md` with the real
+Scriptorium and the installed wheel, without tangling. It requires one semantic
+blockquote with the authored claim and strategy, the checked statement, step 7
+with its note, steps 8 and 9, and zero custom axioms. It rejects any inspector
+heading inside the quote and checks that a broken application fails the render.
+
+`tests/test_book.py` tangles both Spanish pages with the real Scriptorium and runs the
 generated modules. `tests/installed_portable.py` repeats the runs from the
 installed wheel and replays each certificate with the Rust checker.
 

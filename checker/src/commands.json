@@ -61,13 +61,14 @@
         "--markdown": "Emit the checked proof as standalone GitHub Markdown with LaTeX math. Mutually exclusive with --json.",
         "--strict": "Require zero used custom axioms after verifying the proof."
       },
-      "success": "All check fields plus claim, shared contexts and checked steps in premise-first order.",
+      "success": "All check fields plus annotations, claim, shared contexts and checked steps in premise-first order.",
       "steps": {
         "id": "structural path",
         "rule": "checker rule tag or local_assumption",
         "premises": "array of earlier step IDs",
         "conclusion": "typed proposition tree interpreted in the checked scope",
         "conclusion_text": "human-readable proposition",
+        "commentary": "authored note strings attached after this checked step; never premises or conclusions",
         "reference_id": "custom axiom, checked lemma or core law ID, when applicable",
         "binder": "variable display name or hypothesis binder, when applicable",
         "discharged": "local assumption step ID, when applicable",
@@ -105,7 +106,8 @@
   },
   "proof_format": {
     "encoding": "UTF-8 JSON, unknown fields and tags rejected",
-    "bundle": "{format, theory, name?, declarations, functions?, programs?, custom_axioms, lemmas, target, proof}",
+    "bundle": "{format, theory, name?, declarations, functions?, programs?, annotations?, custom_axioms, lemmas, target, proof}",
+    "annotations": "{claim?, strategy?}; authored prose carried with the evidence, never a checked fact",
     "declaration": "{id, name, sort}, sort is prop, int or seq",
     "ids": "Nonempty strings, unique across declarations, functions, programs, custom axioms and lemmas; core law IDs are reserved",
     "custom_axiom": "{id, statement}",
@@ -160,6 +162,7 @@
       "recursor_step": "{tag: recursor_step, id, argument, proof}; proof establishes argument >= 0; derives f(argument + 1) = step(argument, f(argument))",
       "linear": "{tag: linear, conclusion, terms: [{binder, coefficient}]}; a Farkas combination of order hypotheses and the negated conclusion",
       "have": "{tag: have, binder, statement, proof, body}; bind a checked intermediate conclusion for the body",
+      "note": "{tag: note, text, body}; transparent authored commentary rendered after the body's checked steps",
       "program_ref": "{tag: program_ref, id}; check every program obligation and derive the program contract"
     },
     "function": "{id, name, params: [sort], result: sort, body?: expression, recursor?: {base: expression, step: expression}}; transparent bodies can refer to earlier functions; a recursor defines one integer function on the naturals and stays opaque to conversion",

@@ -37,6 +37,7 @@ fn renders_typed_commutativity_and_named_substitution() {
     assert!(markdown.contains("Uses zero custom axioms."));
     assert!(markdown.contains("The conclusion follows from (4)."));
     assert!(markdown.contains("be arbitrary."));
+    assert!(!markdown.contains("Author's commentary"));
     assert!(!markdown.contains("proof.body"));
     assert!(!markdown.contains("earlier checked step in this block"));
     assert!(markdown.contains("\n$$\n"));
@@ -61,6 +62,64 @@ fn renders_scoped_hypotheses_and_checked_lemma_provenance() {
     assert!(markdown.contains("**Assumption 1.**"));
     assert!(markdown.contains("This uses the earlier checked lemma."));
     assert!(markdown.contains("under the listed custom axioms."));
+}
+
+#[test]
+fn renders_authored_commentary_and_notes_in_order() {
+    let mut proof: Value =
+        serde_json::from_str(include_str!("fixtures/portable/authorization.logos")).unwrap();
+    proof["annotations"] = json!({
+        "claim": "Compose $P$ with <script>alert(1)</script>.",
+        "strategy": "Use `Q` as the intermediate step."
+    });
+    let body = proof["proof"]["body"].clone();
+    proof["proof"]["body"] = json!({
+        "tag": "note", "text": "first note with $x$ and # forged", "body": body
+    });
+    let body = proof["proof"]["body"].clone();
+    proof["proof"]["body"] = json!({"tag": "note", "text": "second note", "body": body});
+
+    let output = inspect(&["--markdown"], &proof.to_string());
+    assert!(output.status.success());
+    let markdown = String::from_utf8(output.stdout).unwrap();
+    assert!(markdown.contains("## Author's commentary (not checked)"));
+    assert!(markdown.contains("\\$P\\$"));
+    assert!(markdown.contains("&lt;script&gt;"));
+    assert!(!markdown.contains("<script>"));
+    assert!(!markdown.contains("\n# forged"));
+    assert!(markdown.contains("> **Author's note (authored, not checked).**"));
+
+    let first = markdown.find("first note").unwrap();
+    let second = markdown.find("second note").unwrap();
+    let step_three = markdown.find("**(3)**").unwrap();
+    assert!(step_three < first && first < second);
+
+    let output = inspect(&["--json"], &proof.to_string());
+    assert!(output.status.success());
+    let inspected: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        inspected["annotations"]["claim"],
+        proof["annotations"]["claim"]
+    );
+    assert!(inspected["steps"].as_array().unwrap().iter().any(
+        |step| step["commentary"] == json!(["first note with $x$ and # forged", "second note"])
+    ));
+}
+
+#[test]
+fn notes_are_transparent_to_verification() {
+    let mut proof: Value =
+        serde_json::from_str(include_str!("fixtures/portable/wrong-projection.logos")).unwrap();
+    let body = proof["proof"].clone();
+    proof["proof"] = json!({"tag": "note", "text": "This cannot rescue the proof.", "body": body});
+    let output = inspect(&["--markdown"], &proof.to_string());
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert!(
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .contains("proof conclusion mismatch")
+    );
 }
 
 #[test]
