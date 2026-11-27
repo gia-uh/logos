@@ -366,11 +366,22 @@ struct Bundle {
 /// Authored prose carried with the evidence. It is never a checked fact.
 #[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct ContractClause {
+    pub kind: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<usize>,
+}
+
+#[derive(Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Annotations {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub claim: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub strategy: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub contract: Vec<ContractClause>,
 }
 
 #[derive(Deserialize)]
@@ -476,6 +487,57 @@ struct BlockScope {
 pub const MAX_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
 const MAX_STEPS: usize = 25_000;
 const MAX_TRACE_WEIGHT: usize = 32 * 1024 * 1024;
+const MAX_PROGRAMS: usize = 256;
+
+fn program_order(programs: &[program::Program]) -> Result<Vec<&program::Program>, String> {
+    let by_id: HashMap<&str, &program::Program> = programs
+        .iter()
+        .map(|program| (program.id.as_str(), program))
+        .collect();
+    let mut state: HashMap<&str, u8> = HashMap::new();
+    let mut order = Vec::new();
+    for program in programs {
+        visit_program(program, &by_id, &mut state, &mut order)?;
+    }
+    Ok(order)
+}
+
+fn visit_program<'a>(
+    program: &'a program::Program,
+    by_id: &HashMap<&str, &'a program::Program>,
+    state: &mut HashMap<&'a str, u8>,
+    order: &mut Vec<&'a program::Program>,
+) -> Result<(), String> {
+    match state.get(program.id.as_str()) {
+        Some(1) => {
+            return Err(format!(
+                "cyclic call dependency at program {:?}; recursive functions are not supported",
+                program.id
+            ));
+        }
+        Some(2) => return Ok(()),
+        _ => {}
+    }
+    state.insert(program.id.as_str(), 1);
+    for site in &program.calls {
+        if site.callee == program.id {
+            return Err(format!(
+                "program {:?} calls itself; recursive functions are not supported",
+                program.id
+            ));
+        }
+        let callee = by_id.get(site.callee.as_str()).ok_or_else(|| {
+            format!(
+                "program {:?} call {} names unknown callee program {:?}",
+                program.id, site.id, site.callee
+            )
+        })?;
+        visit_program(callee, by_id, state, order)?;
+    }
+    state.insert(program.id.as_str(), 2);
+    order.push(program);
+    Ok(())
+}
 
 pub fn verify(bytes: &[u8]) -> Result<Verified, String> {
     if bytes.len() > MAX_ARTIFACT_BYTES {
@@ -549,6 +611,21 @@ pub fn verify(bytes: &[u8]) -> Result<Verified, String> {
         register(&program.id, "program")?;
         checker.programs.insert(program.id.as_str(), program);
     }
+    if bundle.programs.len() > MAX_PROGRAMS {
+        return Err("proof file has too many programs".into());
+    }
+    // Verify callees before callers. A call graph cycle is rejected here, so
+    // no caller can ever use a contract that has not been independently
+    // established by the same artifact.
+    let order = program_order(&bundle.programs)?;
+    for program in order {
+        let path = format!("program:{}", program.id);
+        let result = checker.verify_program(program, &path)?;
+        checker.program_results.insert(program.id.clone(), result);
+        checker
+            .callee_info
+            .insert(program.id.clone(), program.callee_info());
+    }
     for axiom in &bundle.custom_axioms {
         register(&axiom.id, "axiom")?;
         checker.check_proposition(&axiom.statement)?;
@@ -610,6 +687,8 @@ struct Checker<'a> {
     axioms: HashMap<&'a str, &'a CustomAxiom>,
     checked_lemmas: HashMap<&'a str, &'a Lemma>,
     programs: HashMap<&'a str, &'a program::Program>,
+    program_results: HashMap<String, (Proposition, Vec<String>)>,
+    callee_info: HashMap<String, program::CalleeInfo>,
 }
 
 impl<'a> Checker<'a> {
@@ -631,6 +710,8 @@ impl<'a> Checker<'a> {
             axioms: HashMap::new(),
             checked_lemmas: HashMap::new(),
             programs: HashMap::new(),
+            program_results: HashMap::new(),
+            callee_info: HashMap::new(),
         }
     }
 
@@ -775,6 +856,7 @@ impl<'a> Checker<'a> {
                 program.function
             ));
         }
+        let callees = self.callee_info.clone();
         let mut sorts = std::collections::BTreeMap::new();
         let mut seen = std::collections::HashSet::new();
         for id in program.variables() {
@@ -806,7 +888,13 @@ impl<'a> Checker<'a> {
         }
         self.check_proposition(&program.requires)?;
         self.check_proposition(&program.ensures)?;
-        fn check_statements(checker: &Checker<'_>, statements: &[Statement]) -> Result<(), String> {
+        fn check_statements(
+            checker: &Checker<'_>,
+            program: &program::Program,
+            callees: &HashMap<String, program::CalleeInfo>,
+            path: &str,
+            statements: &[Statement],
+        ) -> Result<(), String> {
             for statement in statements {
                 match statement {
                     Statement::Assign { value, .. } => {
@@ -818,29 +906,66 @@ impl<'a> Checker<'a> {
                         else_body,
                     } => {
                         checker.sort(condition, &[])?.expect(Sort::Prop)?;
-                        check_statements(checker, then_body)?;
-                        check_statements(checker, else_body)?;
+                        check_statements(checker, program, callees, path, then_body)?;
+                        check_statements(checker, program, callees, path, else_body)?;
                     }
                     Statement::While {
                         condition,
                         body,
                         invariant,
                         variant,
+                        ..
                     } => {
                         checker.sort(condition, &[])?.expect(Sort::Prop)?;
                         checker.sort(invariant, &[])?.expect(Sort::Prop)?;
                         checker.sort(variant, &[])?.expect(Sort::Int)?;
-                        check_statements(checker, body)?;
+                        check_statements(checker, program, callees, path, body)?;
                     }
                     Statement::Return { value } => {
                         checker.sort(value, &[])?.expect(Sort::Int)?;
+                    }
+                    Statement::Call { target, args, call } => {
+                        let site = program
+                            .calls
+                            .iter()
+                            .find(|site| site.id == *call)
+                            .ok_or_else(|| format!("{path}: call {call:?} has no call site"))?;
+                        let callee = callees.get(&site.callee).ok_or_else(|| {
+                            format!("{path}: call {call:?} names an unverified callee")
+                        })?;
+                        checker
+                            .sort(&Proposition::Symbol { id: target.clone() }, &[])?
+                            .expect(Sort::Int)?;
+                        if args.len() != callee.params.len() {
+                            return Err(format!(
+                                "{path}: call {call:?} has the wrong number of arguments"
+                            ));
+                        }
+                        for (index, argument) in args.iter().enumerate() {
+                            let sort = checker.sort(argument, &[])?;
+                            let expected = checker
+                                .declarations
+                                .get(callee.params[index].as_str())
+                                .map(|declaration| declaration.sort)
+                                .ok_or_else(|| format!("{path}: callee parameter is undeclared"))?;
+                            if sort != expected {
+                                return Err(format!(
+                                    "{path}: argument {} of call {call:?} has sort {}, expected {}",
+                                    index + 1,
+                                    sort.name(),
+                                    expected.name()
+                                ));
+                            }
+                        }
                     }
                 }
             }
             Ok(())
         }
-        check_statements(self, &program.body)?;
+        check_statements(self, program, &callees, path, &program.body)?;
         program::check_definite_assignment(program)?;
+        program::check_clauses(program)?;
+        program::check_calls(program, &callees)?;
         let variables = program.variables();
         let mut proofs: HashMap<&str, &Evidence> = HashMap::new();
         for obligation in &program.obligations {
@@ -855,7 +980,7 @@ impl<'a> Checker<'a> {
             }
         }
         let mut premises = Vec::new();
-        for (id, raw) in program::conditions(program)? {
+        for (id, raw) in program::conditions(program, &callees)? {
             let goal = program::close(raw, &variables, &sorts);
             let proof = proofs
                 .remove(id.as_str())
@@ -2148,11 +2273,10 @@ impl<'a> Checker<'a> {
                 )
             }
             Evidence::ProgramRef { id } => {
-                let program = self
-                    .programs
-                    .get(id.as_str())
-                    .ok_or_else(|| format!("{path}: unknown program reference {id:?}"))?;
-                let (target, obligations) = self.verify_program(program, path)?;
+                let (target, obligations) =
+                    self.program_results.get(id).cloned().ok_or_else(|| {
+                        format!("{path}: unknown or unverified program reference {id:?}")
+                    })?;
                 ("program_ref", obligations, target, None, None)
             }
             Evidence::AndIntro { left, right } => {

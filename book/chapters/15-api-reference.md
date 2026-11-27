@@ -28,6 +28,9 @@ underscore are implementation details, even when another module imports them.
 | `Contract` | `logos.contracts` | The two halves of a function contract, written with signature names. |
 | `ProgramTheorem` | `logos.contracts` | A contract theorem whose executable body is a checked loop program. |
 | `ContractTheorem` | `logos.contracts` | A theorem whose statement comes from a source-bound function contract. |
+| `TranslatedFunction` | `logos.contracts` | The source-bound executable program of one declarative function. |
+| `Clause` | `logos.declarative` | One named clause bound to a declarative function. |
+| `FunctionDeclaration` | `logos.declarative` | The source-bound declaration behind one ``@logos.function``. |
 | `Function` | `logos.define` | A logos-defined function. Callable (builds App nodes) and carries its definition. |
 | `Entity` | `logos.domains` | Base class for a domain entity. |
 | `Domain` | `logos.domains` | Abstract base for constraint domains over typed entities. |
@@ -106,10 +109,12 @@ underscore are implementation details, even when another module imports them.
 | `LogosProofError` | `logos.portable` | A rejected proof. |
 | `ProofReceipt` | `logos.portable` | A verification result for the exact immutable artifact bytes. |
 | `ProgramVariable` | `logos.programs` | — |
+| `NamedClause` | `logos.programs` | One authored contract clause, kept beside the proposition it denotes. |
 | `Assign` | `logos.programs` | — |
 | `If` | `logos.programs` | — |
 | `While` | `logos.programs` | — |
 | `Return` | `logos.programs` | — |
+| `Call` | `logos.programs` | A direct call to another checked function. |
 | `Program` | `logos.programs` | — |
 | `ProgramContract` | `logos.programs` | — |
 | `ProofSearchError` | `logos.proofs` | — |
@@ -185,8 +190,27 @@ underscore are implementation details, even when another module imports them.
 | `contract` | `logos.contracts` | Describe a postcondition and an optional explicit precondition. |
 | `selected` | `logos.contracts._Fragment` | — |
 | `theorem_about` | `logos.contracts` | Build the contract theorem for an ordinary function. |
+| `translate_call` | `logos.contracts._DeclContext` | — |
+| `translate_declarative` | `logos.contracts` | Translate a ``@logos.function`` body, rejecting unsupported syntax now. |
 | `law_sorts` | `logos.core_laws` | — |
 | `law_statement` | `logos.core_laws` | — |
+| `add_clause` | `logos.declarative.FunctionDeclaration` | — |
+| `clause_decorator` | `logos.declarative.FunctionDeclaration` | — |
+| `clauses` | `logos.declarative.FunctionDeclaration` | — |
+| `rebuild` | `logos.declarative.FunctionDeclaration` | — |
+| `annotations` | `logos.declarative.FunctionDeclaration` | — |
+| `fingerprint` | `logos.declarative.FunctionDeclaration` | — |
+| `invalidate` | `logos.declarative.FunctionDeclaration` | — |
+| `revalidate` | `logos.declarative.FunctionDeclaration` | Re-read every source binding, then every transitive callee. |
+| `ensure_proved` | `logos.declarative.FunctionDeclaration` | Build and prove this program and every callee, callees first. |
+| `artifact` | `logos.declarative.FunctionDeclaration` | — |
+| `receipt` | `logos.declarative.FunctionDeclaration` | — |
+| `certified` | `logos.declarative.FunctionDeclaration` | — |
+| `check` | `logos.declarative.FunctionDeclaration` | — |
+| `inspect` | `logos.declarative.FunctionDeclaration` | — |
+| `export` | `logos.declarative.FunctionDeclaration` | — |
+| `program_statement` | `logos.declarative` | The portable statement a checked function's program establishes. |
+| `function` | `logos.declarative` | ``@logos.function``: bind a Python function to a checkable program. |
 | `get_definition` | `logos.define` | — |
 | `define` | `logos.define` | @logos.define decorator — creates a Function object. |
 | `recursor` | `logos.define` | Declare a primitive-recursive integer function on the naturals. |
@@ -280,6 +304,7 @@ underscore are implementation details, even when another module imports them.
 | `export_proof` | `logos.portable` | Write the current checked artifact for a named or anonymous proof. |
 | `variables` | `logos.programs.Program` | — |
 | `program_contract` | `logos.programs` | — |
+| `call_statements` | `logos.programs` | Every call in the program body, in source order. |
 | `wp` | `logos.proofs._Generator` | — |
 | `reads_in` | `logos.proofs._Generator` | — |
 | `verification_conditions` | `logos.proofs` | — |

@@ -10,7 +10,7 @@ from fractions import Fraction
 
 from logos.core_laws import law_statement
 from logos.expr import (
-    Add, And, Div, Eq, Expr, ExistsNode, ForallNode, Implies, Le, Len, Lit, Lt,
+    Add, And, App, Div, Eq, Expr, ExistsNode, ForallNode, Implies, Le, Len, Lit, Lt,
     Mul, Neg, Not, Nth, Or, Pow, Sorted, Sub, Var,
 )
 from logos.helpers import structural_eq, substitute_symbols
@@ -19,7 +19,7 @@ from logos.kernel import (
     ForallIntro, Have, HypRef, ImpliesElim, ImpliesIntro, Linear, NotElim,
     NotIntro, OrIntroL, OrIntroR, Refl, Symm,
 )
-from logos.programs import Assign, If, Program, Return, While
+from logos.programs import Assign, Call, If, NamedClause, Program, Return, While
 from logos.sequence import length, nth
 
 
@@ -91,11 +91,33 @@ class _Generator:
                     ),
                 )
                 prefix = f"loop{index}"
-                self.obligations[f"{prefix}.preserve"] = preserve
+                clauses = statement.invariants or (
+                    NamedClause("", invariant),
+                )
+                suffix = f".{statement.decreases_name}" if statement.decreases_name else ""
+                if statement.invariants:
+                    for clause in clauses:
+                        self.obligations[f"{prefix}.preserve.{clause.name}"] = Implies(
+                            And(invariant, statement.condition),
+                            self.wp(statement.body, clause.expr),
+                        )
+                else:
+                    self.obligations[f"{prefix}.preserve"] = preserve
                 self.obligations[f"{prefix}.exit"] = exit_
-                self.obligations[f"{prefix}.variant_nonnegative"] = nonnegative
-                self.obligations[f"{prefix}.variant_decreases"] = decreases
+                self.obligations[f"{prefix}.variant_nonnegative{suffix}"] = nonnegative
+                self.obligations[f"{prefix}.variant_decreases{suffix}"] = decreases
                 q = invariant
+            elif isinstance(statement, Call):
+                callee = statement.callee.program
+                value = App(statement.callee.name, list(statement.args), statement.function)
+                mapping = {id(parameter.var): argument
+                           for parameter, argument in zip(callee.params, statement.args)}
+                mapping[id(callee.result.var)] = value
+                target = self._variable(statement.target)
+                q = _subst(q, {id(target): value})
+                requirement = _subst(callee.requires, mapping)
+                guarantee = _subst(callee.ensures, mapping)
+                q = And(requirement, Implies(guarantee, q))
             else:
                 raise ProofSearchError(f"unsupported statement {type(statement).__name__}")
         return q
@@ -128,6 +150,26 @@ class _Generator:
                     {},
                 )
                 state = {}
+            elif isinstance(statement, Call):
+                callee = statement.callee.program
+                actuals = [_subst(argument, state) for argument in statement.args]
+                for argument in actuals:
+                    self._read_obligations(argument, path)
+                value = App(statement.callee.name, actuals, statement.function)
+                mapping = {id(parameter.var): argument
+                           for parameter, argument in zip(callee.params, actuals)}
+                mapping[id(callee.result.var)] = value
+                clauses = callee.requires_clauses or (NamedClause("", callee.requires),)
+                for clause in clauses:
+                    requirement = _subst(clause.expr, mapping)
+                    if callee.requires_clauses:
+                        name = f"{statement.id}.requires.{clause.name}"
+                    else:
+                        name = f"{statement.id}.requires"
+                    self.obligations[name] = Implies(path, requirement)
+                state = dict(state)
+                state[id(self._variable(statement.target))] = value
+                path = And(path, _subst(callee.ensures, mapping))
             elif isinstance(statement, Return):
                 self._read_obligations(_subst(statement.value, state), path)
 
@@ -599,7 +641,7 @@ class _Search:
         def visit(expr):
             if not isinstance(expr, Expr):
                 return
-            if isinstance(expr, (Div, Mul)) and not any(structural_eq(expr, item) for item in terms):
+            if isinstance(expr, (Div, Mul, Len)) and not any(structural_eq(expr, item) for item in terms):
                 terms.append(expr)
             for field in getattr(expr, "__dataclass_fields__", ()):
                 value = getattr(expr, field)
@@ -1112,6 +1154,21 @@ class _Search:
             return None
         return _apply_law("sorted_gap", (xs, low, high, target), premises, proofs, goal)
 
+    def _not_lt_from_le(self, a, b, lower, not_eq):
+        """Refute b < a from a <= b and a != b."""
+        name = self.fresh("nlt")
+        assumed = HypRef(name)
+        b_le_a = ImpliesElim(CoreLaw("lt_to_le", (b, a)), assumed)
+        a_eq_b = ImpliesElim(
+            ImpliesElim(CoreLaw("le_antisymm", (a, b)), lower.proof), b_le_a
+        )
+        if structural_eq(not_eq.expr.operand, Eq(a, b)):
+            neq = not_eq.proof
+        else:
+            neq = _transport_neq(b, a, not_eq.proof)
+        falsehood = NotElim(neq, a_eq_b)
+        return NotIntro(ImpliesIntro(Lt(b, a), name, falsehood))
+
     def _trichotomy(self, goal, facts, depth):
         if not isinstance(goal, Lt):
             return None
@@ -1129,6 +1186,17 @@ class _Search:
                     not_eq = fact
                 elif structural_eq(operand.left, b) and structural_eq(operand.right, a):
                     not_eq = _Fact("_eq_sym", Not(Eq(a, b)), _transport_neq(b, a, fact.proof))
+        if not_lt is None and not_eq is not None:
+            for fact in facts:
+                if (
+                    isinstance(fact.expr, Le)
+                    and structural_eq(fact.expr.left, a)
+                    and structural_eq(fact.expr.right, b)
+                ):
+                    not_lt = _Fact(
+                        "_nlt", Not(Lt(b, a)), self._not_lt_from_le(a, b, fact, not_eq)
+                    )
+                    break
         if not_lt is None or not_eq is None:
             return None
         outer = CoreLaw("lt_trichotomy", (a, b))
@@ -1218,12 +1286,44 @@ def prove_condition(goal: Expr):
     return search.prove(goal, [])
 
 
+def _strip_foralls(goal):
+    while isinstance(goal, ForallNode):
+        goal = goal.body
+    return goal
+
+
+def _calls_by_obligation(statements):
+    found = {}
+    for statement in statements:
+        if isinstance(statement, Call):
+            found[statement.id] = statement
+        elif isinstance(statement, If):
+            found.update(_calls_by_obligation(statement.then_body))
+            found.update(_calls_by_obligation(statement.else_body))
+        elif isinstance(statement, While):
+            found.update(_calls_by_obligation(statement.body))
+    return found
+
+
 def build_program_obligations(program: Program) -> dict:
     conditions = verification_conditions(program)
+    calls = {}
+    for statement in program.body:
+        calls.update(_calls_by_obligation((statement,)))
     result = {}
     for name, goal in conditions.items():
         try:
             result[name] = prove_condition(goal)
         except ProofSearchError as error:
+            call = calls.get(name.split(".", 1)[0])
+            if call is not None and ".requires" in name:
+                clause = name.rsplit(".", 1)[-1]
+                needed = _strip_foralls(goal)
+                if isinstance(needed, Implies):
+                    needed = needed.consequent
+                raise ProofSearchError(
+                    f"line {call.line} calls {call.callee.name!r}; clause {clause!r} "
+                    f"needs {_show(needed)} ({error})"
+                ) from error
             raise ProofSearchError(f"{name}: {error}") from error
     return result

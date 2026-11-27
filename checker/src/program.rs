@@ -4,9 +4,42 @@
 //! conditions below are closed over those variables before they are checked.
 
 use serde::Deserialize;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::Proposition;
+
+#[derive(Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct NamedClause {
+    pub name: String,
+    pub proposition: Proposition,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CallSite {
+    pub id: String,
+    pub callee: String,
+    pub line: usize,
+    pub requires: Proposition,
+    #[serde(default)]
+    pub requires_clauses: Vec<NamedClause>,
+    pub ensures: Proposition,
+    #[serde(default)]
+    pub ensures_clauses: Vec<NamedClause>,
+}
+
+/// The contract of an already verified callee program.
+#[derive(Clone)]
+pub struct CalleeInfo {
+    pub function: String,
+    pub params: Vec<String>,
+    pub result: String,
+    pub requires: Proposition,
+    pub ensures: Proposition,
+    pub requires_clauses: Vec<NamedClause>,
+    pub ensures_clauses: Vec<NamedClause>,
+}
 
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -20,7 +53,13 @@ pub struct Program {
     pub result: String,
     pub requires: Proposition,
     pub ensures: Proposition,
+    #[serde(default)]
+    pub requires_clauses: Vec<NamedClause>,
+    #[serde(default)]
+    pub ensures_clauses: Vec<NamedClause>,
     pub body: Vec<Statement>,
+    #[serde(default)]
+    pub calls: Vec<CallSite>,
     #[serde(default)]
     pub obligations: Vec<Obligation>,
 }
@@ -42,9 +81,18 @@ pub enum Statement {
         body: Vec<Statement>,
         invariant: Proposition,
         variant: Proposition,
+        #[serde(default)]
+        invariants: Vec<NamedClause>,
+        #[serde(default)]
+        decreases_name: Option<String>,
     },
     Return {
         value: Proposition,
+    },
+    Call {
+        target: String,
+        call: String,
+        args: Vec<Proposition>,
     },
 }
 
@@ -66,6 +114,196 @@ impl Program {
             .map(String::as_str)
             .collect()
     }
+
+    pub fn callee_info(&self) -> CalleeInfo {
+        CalleeInfo {
+            function: self.function.clone(),
+            params: self.params.clone(),
+            result: self.result.clone(),
+            requires: self.requires.clone(),
+            ensures: self.ensures.clone(),
+            requires_clauses: self.requires_clauses.clone(),
+            ensures_clauses: self.ensures_clauses.clone(),
+        }
+    }
+}
+
+fn conjoin(clauses: &[NamedClause]) -> Option<Proposition> {
+    let mut clauses = clauses.iter().rev();
+    let last = clauses.next()?.proposition.clone();
+    Some(clauses.fold(last, |right, clause| and(clause.proposition.clone(), right)))
+}
+
+/// A program's named clauses must denote exactly the proposition they annotate.
+pub fn check_clauses(program: &Program) -> Result<(), String> {
+    if let Some(joined) = conjoin(&program.requires_clauses) {
+        if joined != program.requires {
+            return Err(format!(
+                "program {}: requires clauses do not conjoin to its requires",
+                program.id
+            ));
+        }
+    }
+    if let Some(joined) = conjoin(&program.ensures_clauses) {
+        if joined != program.ensures {
+            return Err(format!(
+                "program {}: ensures clauses do not conjoin to its ensures",
+                program.id
+            ));
+        }
+    }
+    check_statement_clauses(program, &program.body)
+}
+
+fn check_statement_clauses(program: &Program, statements: &[Statement]) -> Result<(), String> {
+    for statement in statements {
+        match statement {
+            Statement::While {
+                invariant,
+                invariants,
+                ..
+            } => {
+                if let Some(joined) = conjoin(invariants) {
+                    if joined != *invariant {
+                        return Err(format!(
+                            "program {}: loop invariant clauses do not conjoin to the invariant",
+                            program.id
+                        ));
+                    }
+                }
+                if let Statement::While { body, .. } = statement {
+                    check_statement_clauses(program, body)?;
+                }
+            }
+            Statement::If {
+                then_body,
+                else_body,
+                ..
+            } => {
+                check_statement_clauses(program, then_body)?;
+                check_statement_clauses(program, else_body)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Check that each call statement has exactly one well-formed call site.
+pub fn check_calls(program: &Program, callees: &HashMap<String, CalleeInfo>) -> Result<(), String> {
+    let mut sites = HashMap::new();
+    for site in &program.calls {
+        if sites.insert(site.id.as_str(), site).is_some() {
+            return Err(format!(
+                "program {}: duplicate call site {:?}",
+                program.id, site.id
+            ));
+        }
+        let callee = callees.get(&site.callee).ok_or_else(|| {
+            format!(
+                "program {}: call {} names unknown or unverified callee program {:?}",
+                program.id, site.id, site.callee
+            )
+        })?;
+        if site.requires != callee.requires {
+            return Err(format!(
+                "program {}: call {} at line {} records a requires that differs from callee {}",
+                program.id, site.id, site.line, callee.function
+            ));
+        }
+        if site.ensures != callee.ensures {
+            return Err(format!(
+                "program {}: call {} at line {} records an ensures that differs from callee {}",
+                program.id, site.id, site.line, callee.function
+            ));
+        }
+        if site.requires_clauses != callee.requires_clauses
+            || site.ensures_clauses != callee.ensures_clauses
+        {
+            return Err(format!(
+                "program {}: call {} at line {} records clauses that differ from callee {}",
+                program.id, site.id, site.line, callee.function
+            ));
+        }
+    }
+    let mut used = HashSet::new();
+    let locals: HashSet<&str> = program
+        .params
+        .iter()
+        .chain(program.locals.iter())
+        .map(String::as_str)
+        .collect();
+    fn walk(
+        program: &Program,
+        sites: &HashMap<&str, &CallSite>,
+        callees: &HashMap<String, CalleeInfo>,
+        locals: &HashSet<&str>,
+        used: &mut HashSet<String>,
+        statements: &[Statement],
+    ) -> Result<(), String> {
+        for statement in statements {
+            match statement {
+                Statement::Call { call, args, target } => {
+                    let site = sites.get(call.as_str()).ok_or_else(|| {
+                        format!("program {}: call {:?} has no call site", program.id, call)
+                    })?;
+                    if !used.insert(call.clone()) {
+                        return Err(format!(
+                            "program {}: call site {:?} is used more than once",
+                            program.id, call
+                        ));
+                    }
+                    if !locals.contains(target.as_str()) {
+                        return Err(format!(
+                            "program {}: call {} targets unknown local {:?}",
+                            program.id, call, target
+                        ));
+                    }
+                    let callee = callees.get(&site.callee).ok_or_else(|| {
+                        format!(
+                            "program {}: call {} names unknown callee program {:?}",
+                            program.id, call, site.callee
+                        )
+                    })?;
+                    if site.callee == program.id && program.id == site.callee {
+                        return Err(format!(
+                            "program {}: recursive call to itself is not supported",
+                            program.id
+                        ));
+                    }
+                    if args.len() != callee.params.len() {
+                        return Err(format!(
+                            "program {}: call {} passes {} argument(s) to {}, which takes {}",
+                            program.id,
+                            call,
+                            args.len(),
+                            callee.function,
+                            callee.params.len()
+                        ));
+                    }
+                }
+                Statement::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
+                    walk(program, sites, callees, locals, used, then_body)?;
+                    walk(program, sites, callees, locals, used, else_body)?;
+                }
+                Statement::While { body, .. } => walk(program, sites, callees, locals, used, body)?,
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+    walk(program, &sites, callees, &locals, &mut used, &program.body)?;
+    if let Some(site) = program.calls.iter().find(|site| !used.contains(&site.id)) {
+        return Err(format!(
+            "program {}: call site {:?} has no call statement",
+            program.id, site.id
+        ));
+    }
+    Ok(())
 }
 
 fn subst(expr: &Proposition, mapping: &BTreeMap<String, Proposition>) -> Proposition {
@@ -226,9 +464,50 @@ fn len(seq: Proposition) -> Proposition {
 
 struct Generator<'a> {
     program: &'a Program,
+    callees: &'a HashMap<String, CalleeInfo>,
+    sites: HashMap<&'a str, &'a CallSite>,
     obligations: Vec<(String, Proposition)>,
     loops: usize,
     reads: usize,
+}
+
+impl<'a> Generator<'a> {
+    fn call_parts(
+        &self,
+        call: &str,
+        args: &[Proposition],
+        target: &str,
+    ) -> Result<(Proposition, Proposition, Proposition), String> {
+        let site = self
+            .sites
+            .get(call)
+            .ok_or_else(|| format!("program {}: unknown call site {call:?}", self.program.id))?;
+        let callee = self.callees.get(&site.callee).ok_or_else(|| {
+            format!(
+                "program {}: call {call} names unknown callee {}",
+                self.program.id, site.callee
+            )
+        })?;
+        if args.len() != callee.params.len() {
+            return Err(format!(
+                "program {}: call {call} has the wrong number of arguments",
+                self.program.id
+            ));
+        }
+        let application = Proposition::App {
+            id: callee.function.clone(),
+            args: args.to_vec(),
+        };
+        let mut mapping = BTreeMap::new();
+        for (formal, actual) in callee.params.iter().zip(args.iter()) {
+            mapping.insert(formal.clone(), actual.clone());
+        }
+        mapping.insert(callee.result.clone(), application.clone());
+        let requires = subst(&callee.requires, &mapping);
+        let ensures = subst(&callee.ensures, &mapping);
+        let _ = target;
+        Ok((requires, ensures, application))
+    }
 }
 
 impl<'a> Generator<'a> {
@@ -258,6 +537,8 @@ impl<'a> Generator<'a> {
                     body,
                     invariant,
                     variant,
+                    invariants,
+                    decreases_name,
                 } => {
                     let index = self.loops;
                     self.loops += 1;
@@ -283,14 +564,34 @@ impl<'a> Generator<'a> {
                         ),
                     );
                     let prefix = format!("loop{index}");
-                    self.obligations
-                        .push((format!("{prefix}.preserve"), preserve));
+                    let suffix = decreases_name
+                        .as_ref()
+                        .map(|name| format!(".{name}"))
+                        .unwrap_or_default();
+                    if invariants.is_empty() {
+                        self.obligations
+                            .push((format!("{prefix}.preserve"), preserve));
+                    } else {
+                        for clause in invariants {
+                            let goal = implies(
+                                and(invariant.clone(), condition.clone()),
+                                self.wp(body, clause.proposition.clone())?,
+                            );
+                            self.obligations
+                                .push((format!("{prefix}.preserve.{}", clause.name), goal));
+                        }
+                    }
                     self.obligations.push((format!("{prefix}.exit"), exit));
                     self.obligations
-                        .push((format!("{prefix}.variant_nonnegative"), nonnegative));
+                        .push((format!("{prefix}.variant_nonnegative{suffix}"), nonnegative));
                     self.obligations
-                        .push((format!("{prefix}.variant_decreases"), decreases));
+                        .push((format!("{prefix}.variant_decreases{suffix}"), decreases));
                     q = invariant.clone();
+                }
+                Statement::Call { target, call, args } => {
+                    let (requires, ensures, application) = self.call_parts(call, args, target)?;
+                    q = substitute_one(&q, target, &application);
+                    q = and(requires, implies(ensures, q));
                 }
             }
         }
@@ -300,7 +601,7 @@ impl<'a> Generator<'a> {
     fn reads_in<'b>(
         &mut self,
         statements: &'b [Statement],
-        path: Proposition,
+        mut path: Proposition,
         mut state: BTreeMap<String, Proposition>,
     ) -> Result<(), String> {
         for statement in statements {
@@ -346,6 +647,49 @@ impl<'a> Generator<'a> {
                 }
                 Statement::Return { value } => {
                     self.read_obligations(&subst(value, &state), &path)?;
+                }
+                Statement::Call { target, call, args } => {
+                    let actuals: Vec<Proposition> =
+                        args.iter().map(|arg| subst(arg, &state)).collect();
+                    for actual in &actuals {
+                        self.read_obligations(actual, &path)?;
+                    }
+                    let (_, ensures, application) = self.call_parts(call, &actuals, target)?;
+                    let site = self.sites.get(call.as_str()).ok_or_else(|| {
+                        format!("program {}: unknown call site {call:?}", self.program.id)
+                    })?;
+                    let callee = self.callees.get(&site.callee).ok_or_else(|| {
+                        format!(
+                            "program {}: call {call} names unknown callee {}",
+                            self.program.id, site.callee
+                        )
+                    })?;
+                    let mut mapping = BTreeMap::new();
+                    for (formal, actual) in callee.params.iter().zip(actuals.iter()) {
+                        mapping.insert(formal.clone(), actual.clone());
+                    }
+                    mapping.insert(callee.result.clone(), application);
+                    if callee.requires_clauses.is_empty() {
+                        self.obligations.push((
+                            format!("{}.requires", site.id),
+                            implies(path.clone(), subst(&callee.requires, &mapping)),
+                        ));
+                    } else {
+                        for clause in &callee.requires_clauses {
+                            self.obligations.push((
+                                format!("{}.requires.{}", site.id, clause.name),
+                                implies(path.clone(), subst(&clause.proposition, &mapping)),
+                            ));
+                        }
+                    }
+                    state.insert(target.clone(), {
+                        let value = Proposition::App {
+                            id: callee.function.clone(),
+                            args: actuals,
+                        };
+                        value
+                    });
+                    path = and(path, ensures);
                 }
             }
         }
@@ -414,9 +758,19 @@ fn collect_reads<'a>(expr: &'a Proposition, result: &mut Vec<&'a Proposition>) {
 }
 
 /// Build the conditions as expressions over program variable symbols.
-pub fn conditions(program: &Program) -> Result<Vec<(String, Proposition)>, String> {
+pub fn conditions(
+    program: &Program,
+    callees: &HashMap<String, CalleeInfo>,
+) -> Result<Vec<(String, Proposition)>, String> {
+    let sites = program
+        .calls
+        .iter()
+        .map(|site| (site.id.as_str(), site))
+        .collect();
     let mut generator = Generator {
         program,
+        callees,
+        sites,
         obligations: Vec::new(),
         loops: 0,
         reads: 0,
@@ -574,8 +928,14 @@ pub fn contract(
     let result = Proposition::Symbol {
         id: program.result.clone(),
     };
-    let mut statement = implies(eq(result, call), program.ensures.clone());
-    statement = implies(program.requires.clone(), statement);
+    let mut statement = if program.ensures == eq(int(0), int(0)) {
+        eq(result, call)
+    } else {
+        implies(eq(result, call), program.ensures.clone())
+    };
+    if program.requires != eq(int(0), int(0)) {
+        statement = implies(program.requires.clone(), statement);
+    }
     let mut variables: Vec<&str> = program.params.iter().map(String::as_str).collect();
     variables.push(&program.result);
     Ok(close(statement, &variables, sorts))
@@ -624,6 +984,18 @@ fn read_names(expr: &Proposition, result: &mut Vec<String>) {
     }
 }
 
+fn block_returns(statements: &[Statement]) -> bool {
+    match statements.last() {
+        Some(Statement::Return { .. }) => true,
+        Some(Statement::If {
+            then_body,
+            else_body,
+            ..
+        }) => block_returns(then_body) && block_returns(else_body),
+        _ => false,
+    }
+}
+
 fn check_list(
     statements: &[Statement],
     initialized: &mut HashSet<String>,
@@ -662,6 +1034,7 @@ fn check_list(
                 }
                 let mut then_initialized = initialized.clone();
                 let mut else_initialized = initialized.clone();
+                let before = initialized.clone();
                 check_list(
                     then_body,
                     &mut then_initialized,
@@ -676,10 +1049,23 @@ fn check_list(
                     locals,
                     inside_loop,
                 )?;
-                if then_initialized != else_initialized {
-                    return Err("program: the two if branches initialize different locals".into());
+                let then_returns = block_returns(then_body);
+                let else_returns = block_returns(else_body);
+                if then_returns != else_returns {
+                    return Err(
+                        "program: both branches of an if must return or neither may return".into(),
+                    );
                 }
-                *initialized = then_initialized;
+                if then_returns {
+                    *initialized = before;
+                } else {
+                    if then_initialized != else_initialized {
+                        return Err(
+                            "program: the two if branches initialize different locals".into()
+                        );
+                    }
+                    *initialized = then_initialized;
+                }
             }
             Statement::While {
                 condition, body, ..
@@ -707,6 +1093,23 @@ fn check_list(
                         return Err(format!("program: local {used:?} is read before assignment"));
                     }
                 }
+            }
+            Statement::Call { target, args, .. } => {
+                if !params.contains(target.as_str()) && !locals.contains(target.as_str()) {
+                    return Err(format!("program: call targets unknown local {target:?}"));
+                }
+                for argument in args {
+                    let mut names = Vec::new();
+                    read_names(argument, &mut names);
+                    for used in names {
+                        if locals.contains(used.as_str()) && !initialized.contains(&used) {
+                            return Err(format!(
+                                "program: local {used:?} is read before assignment"
+                            ));
+                        }
+                    }
+                }
+                initialized.insert(target.clone());
             }
         }
     }

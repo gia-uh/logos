@@ -4,6 +4,11 @@ The source fragment is a straight-line function with one ``while`` loop. Its
 statements and loop assertions are exported in the portable artifact. The Rust
 checker recomputes every verification condition from this program, then checks
 the proofs supplied for those conditions. No loop summary is trusted.
+
+A ``Call`` names another checked function. The callee program travels in the
+same artifact and the Rust checker verifies it before the caller's conditions
+use its contract. The ``Call`` object keeps the declaration, not a snapshot:
+the caller always uses the callee's current, revalidated program.
 """
 from __future__ import annotations
 
@@ -19,6 +24,14 @@ class ProgramVariable:
     name: str
     sort: Any
     var: Var
+
+
+@dataclass(frozen=True)
+class NamedClause:
+    """One authored contract clause, kept beside the proposition it denotes."""
+
+    name: str
+    expr: Expr
 
 
 @dataclass(frozen=True)
@@ -40,6 +53,8 @@ class While:
     body: tuple["Statement", ...]
     invariant: Expr
     variant: Expr
+    invariants: tuple[NamedClause, ...] = ()
+    decreases_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -47,7 +62,24 @@ class Return:
     value: Expr
 
 
-Statement = Assign | If | While | Return
+@dataclass(frozen=True)
+class Call:
+    """A direct call to another checked function.
+
+    ``callee`` is the callee's declaration object. ``function`` is its opaque
+    function symbol. ``target`` is the local that receives the result.
+    """
+
+    id: str
+    target: str
+    callee: Any
+    function: Function
+    args: tuple[Expr, ...]
+    line: int
+    fingerprint: str = ""
+
+
+Statement = Assign | If | While | Return | Call
 
 
 @dataclass
@@ -62,6 +94,8 @@ class Program:
     body: tuple[Statement, ...]
     ghosts: tuple[ProgramVariable, ...] = ()
     obligations: dict[str, Any] = field(default_factory=dict)
+    requires_clauses: tuple[NamedClause, ...] = ()
+    ensures_clauses: tuple[NamedClause, ...] = ()
 
     @property
     def variables(self) -> tuple[ProgramVariable, ...]:
@@ -82,3 +116,21 @@ def program_contract(*, requires: Expr, ensures: Expr, invariant: Expr, variant:
     if not isinstance(invariant, Expr) or not isinstance(variant, Expr):
         raise TypeError("logos.program_contract: invariant and variant must be Logos expressions")
     return ProgramContract(requires, ensures, invariant, variant)
+
+
+def call_statements(program: Program) -> tuple[Call, ...]:
+    """Every call in the program body, in source order."""
+    found: list[Call] = []
+
+    def walk(statements):
+        for statement in statements:
+            if isinstance(statement, Call):
+                found.append(statement)
+            elif isinstance(statement, If):
+                walk(statement.then_body)
+                walk(statement.else_body)
+            elif isinstance(statement, While):
+                walk(statement.body)
+
+    walk(program.body)
+    return tuple(found)

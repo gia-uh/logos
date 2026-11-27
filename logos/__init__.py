@@ -9,6 +9,7 @@ from logos.authoring import format_expr
 Prop = bool
 Int = int
 from logos.contracts import contract, Contract, LogosContractError
+from logos.declarative import function, FunctionDeclaration, Clause
 from logos.programs import program_contract, ProgramContract
 from logos.sequence import Seq, absent, length, nth, occurrence, seq_var, sorted
 from logos.portable import ProofReceipt, export_proof
