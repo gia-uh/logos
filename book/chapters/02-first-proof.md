@@ -8,13 +8,15 @@ stem: first-proof
 
 *Prerequisites: Python functions and decorators, and the idea of implication. Outcomes: state a theorem, attach a proof, run the checker, and read the verifier's whole checked derivation.*
 
-Logos is a Python library for writing arguments that a computer can check. Suppose you know that $P$ implies $Q$ and that $Q$ implies $R$. On paper, you could prove that $P$ implies $R$ in one line: “Assume $P$. Then $Q$, and hence $R$.” The words *then* and *hence* do most of the work. When we write the argument in Logos, we say which implication justifies each step.
+Suppose you know that $P$ implies $Q$ and that $Q$ implies $R$. On paper, you could prove that $P$ implies $R$ in one line: “Assume $P$. Then $Q$, and hence $R$.” The words *then* and *hence* do most of the work. When we write the argument in Logos, we say which implication justifies each step.
 
 ## State what you intend to prove
 
 In mathematics, a theorem is a statement we have proved. In Logos, we give that statement a name **before** we prove it, so we have something to attach our argument to. The decorator `@logos.theorem` creates a Python object for that purpose. In this example we call it `compose` because the claim joins two implications end to end.
 
 The parameters describe what the claim ranges over. `Prop` is the Logos type for a proposition, a statement that can be true or false. Writing `P: Prop` tells Logos to give the function a symbolic proposition called `P`. Inside the function, `P >> Q` builds the statement “if $P$, then $Q$.” The expression returned by the function becomes the claim for **every** choice of the three propositions.
+
+On paper, “given $A$ and $B$, prove $C$” becomes $A \Rightarrow (B \Rightarrow C)$. In Python that is `A >> (B >> C)`. This nesting lets us introduce $A$ and then $B$ before working on $C$. Here $A$ is $P \Rightarrow Q$, $B$ is $Q \Rightarrow R$, and $C$ is $P \Rightarrow R$. Write the nested expression with parentheses before reading the declaration.
 
 ```python {run}
 import logos
@@ -36,6 +38,8 @@ The first parameter, `p`, is the **proof context**. It keeps track of the claim 
 
 We need two operations. When the goal is an implication, `p.assume` introduces its premise as a **local hypothesis** and moves the goal to its conclusion. The returned Python value records that we may use that hypothesis here. Once we have both an implication and evidence for its premise, `p.apply` combines them to obtain evidence for its conclusion.
 
+After introducing the two given implications and $P$, your goal is $R$. To use $Q \Rightarrow R$, what evidence are you missing? Which available implication can produce it from a hypothesis you already have? Pick the two applications in order before reading the proof.
+
 ```python {run continue}
 @compose.proof
 def prove_compose(p, P, Q, R):
@@ -52,7 +56,7 @@ def prove_compose(p, P, Q, R):
     return p.apply(q_to_r, have_q)
 ```
 
-Pause at `have_q`. Could we pass `Q` itself to the last line? The letter `Q` names a proposition. The value `have_q` records **why we are entitled to use it**: we had evidence for $P$, and we applied the implication from $P$ to $Q$. That distinction is what lets another program check the argument. The last line uses that evidence to derive $R$.
+The first application supplies the missing evidence, `have_q`. Could we pass `Q` itself to the last line? The letter `Q` names a proposition. The value `have_q` records **why we are entitled to use it**: we had evidence for $P$, and we applied the implication from $P$ to $Q$. That distinction is what lets another program check the argument. The last line uses that evidence to derive $R$.
 
 The proof function also has a docstring. It states the intended strategy in one sentence. The `p.note` line is different from an ordinary `#` comment. A comment helps you read the source; the note travels inside the checked evidence, so a reader of the certificate sees it too. Here it records the state after `have_q` and before the second implication is applied.
 
@@ -79,15 +83,13 @@ got: P
 
 These two lines describe the attempted **application**, not the theorem's final goal. Logos is still trying to reach $R$. To get there by this arrow it needs evidence for $Q$, and the edit handed it evidence for $P$. Restore `have_q` and check the proof again.
 
-As a final exercise, write the two applications as a single nested Python expression. Both versions prove the same statement. Which one would you give to someone who wanted to know where $Q$ came from?
-
 ## Read what you proved
 
 Look back at the last line of the proof function. It returns evidence for $R$. Would it be correct to tell someone that you have proved $R$? To answer, read the theorem and the derivation that the verifier accepted.
 
 After `compose.check()`, the theorem has a **receipt**, the record of its successful verification. Its `artifact` contains the exact statement and evidence that were checked. `compose.inspect()` sends those exact bytes to the installed Rust checker and returns its Markdown reading. Python does not rebuild the argument; it asks the verifier that accepted the receipt to explain it. If the receipt is missing or the evidence has changed, `inspect()` raises an error instead of showing a stale reading.
 
-The whole reading follows, unchanged. The panel runs the next block and places its Markdown there. Its headings sit below this chapter's headings, so the reading's title does not start a new chapter in the book's contents.
+In the full reading below, start with the theorem and the axiom status. Then find steps 7 and 8, where the applications give $Q$ and $R$. Step 9 **discharges** the local assumption $P$ by putting it on the left of an implication. Steps 10 and 11 discharge the two given implications in the same way. Finally, compare the conclusion with the stated theorem.
 
 ::: proof
 ```python {run continue echo=false}
@@ -95,4 +97,31 @@ print(compose.inspect())
 ```
 :::
 
-Read the steps in order. Step 7 gives us $Q$, the fact we called `have_q`. Step 8 gives us $R$ while the assumption $P$ is still available. Step 9 **discharges** that assumption: what we can carry out of its scope is $P \Rightarrow R$. The next two steps do the same for the other premises. This explains how the reading can report *zero custom axioms* even though our Python used `assume` three times. Each local assumption is accounted for by an arrow in the theorem. The final generalizations tell us that the argument works for every choice of $P$, $Q$ and $R$.
+The reading reports zero custom axioms because the three hypotheses are local and each is accounted for by an arrow in the theorem. The final generalizations tell us the argument works for every choice of $P$, $Q$ and $R$.
+
+## Exit exercise
+
+In a new Python file, prove $P \Rightarrow ((P \Rightarrow Q) \Rightarrow Q)$. Decide which hypotheses to introduce in which order and which one supplies the premise of your application. Run your file as in the Quick Start and check for `checked: True`. What whole statement has been established when the final line of your proof returns evidence for $Q$?
+
+## Solution
+
+Introduce $P$ first and $P \Rightarrow Q$ second. The first hypothesis supplies the premise of the implication. The result is the conditional $P \Rightarrow ((P \Rightarrow Q) \Rightarrow Q)$ for arbitrary $P$ and $Q$. Both hypotheses are discharged.
+
+```python {run}
+import logos
+from logos import Prop
+
+@logos.theorem
+def use_implication(P: Prop, Q: Prop):
+    return P >> ((P >> Q) >> Q)
+
+@use_implication.proof
+def prove_use_implication(p, P, Q):
+    given_p = p.assume(P)
+    p_to_q = p.assume(P >> Q)
+    return p.apply(p_to_q, given_p)
+
+use_implication.check()
+assert use_implication.certified
+print("checked:", use_implication.certified)
+```

@@ -4,76 +4,48 @@ title: Introduction
 stem: introduction
 ---
 
-Logos is a Python library for writing mathematical arguments that another program can check. This book is the guided path from the first checked proof through number theory to Euclid's theorem. The same canonical source renders as this site and as [a single PDF](book.pdf) for offline reading.
+Logos is a Python library for writing mathematical arguments that an independent checker can verify. This book starts with a small proof and builds toward number theory and program contracts. It is also available as [a single PDF](book.pdf).
 
 # Introduction
 
-Logos is a Python library for writing mathematical arguments that another program can check. You state a theorem as a Python function, build evidence for it with a small set of operations, and hand that evidence to an independent Rust executable. The executable either accepts the exact derivation or reports the first step it cannot justify.
-
-This book teaches the library by using it. Every Python block runs when the book is built, against the installed package and the installed checker. If a claim in the prose stops being true, the build fails.
+Suppose your assumptions are $P$ and $P \Rightarrow Q$, and your goal is $Q$. On paper you apply the implication to $P$. In Logos you propose that same step, pointing to where you got each premise. The checker confirms that both premises are available and computes the conclusion $Q$. If you claim that this application yields $R$, the checker rejects the step because the implication concludes $Q$.
 
 ## Two programs, two jobs
 
-A proof has a producer and a judge.
+Python produces the derivation. You can write the steps yourself, call a tactic, or ask a search procedure or language model to propose them. If search stops without a derivation, you still have an open question. Unsuccessful search leaves both the claim and its negation unproved by that search.
 
-The producer is Python: your proof function, a tactic from `logos.tactics`, a search procedure, or a language model that proposes a derivation. The producer is allowed to be clever, incomplete, randomized or wrong. It is not trusted.
-
-The judge is the `logos` executable, built from `checker/`. It owns a fixed set of inference rules. For each rule it reads the rule name and its typed arguments, recomputes the conclusion, and compares that conclusion with the next step of the derivation. It never runs your Python. It never accepts a step because the producer called it `obvious`.
-
-This separation is the central design choice. A model can propose a proof, but only the checker produces a verdict. The model in your head is not the certificate either: the certificate is the artifact the checker read.
+The independent Rust checker reads the proposed derivation. It recomputes what each rule concludes from its inputs and checks that the final conclusion matches the stated theorem. Your Python runs when producing evidence. The checker runs separately on the resulting artifact.
 
 ## What the trusted checker owns
 
-The trusted part is deliberately small:
-
-- The proof terms in `logos.kernel`: reflexivity, transitivity, substitution, implication introduction and elimination, conjunction and disjunction rules, universal and existential rules, induction, and a few arithmetic and order laws.
-- The portable encoding of a statement, its declarations, its evidence and its optional commentary.
-- The Rust checker that replays the evidence and recomputes every conclusion.
-
-The Python authoring layer is not trusted. It chooses useful terms, gives them readable names and produces diagnostics. A bug in that layer can make a proof fail or a message confusing; it cannot make the checker accept an invalid step, because the checker does not consult it.
-
-Some rules are cited by name rather than rebuilt in Python. `p.order("lt_irrefl", a)` cites the checker-owned law that no integer is less than itself. `p.ring(...)` produces an explicit polynomial certificate. `p.linear(...)` produces an exact rational Farkas certificate. In each case the checker parses the certificate and recomputes the result.
+The trusted checker implements a fixed set of rules for logic and arithmetic. Applying an implication is one of those rules. The artifact records the theorem, its declarations, and the steps proposed as evidence. The Rust checker reads that portable record and checks the derivation. Names, comments and tactics in Python help you produce or explain it.
 
 ## What a receipt is
 
-After a successful check, a theorem has a **receipt**. The receipt contains the exact bytes of the artifact and their SHA-256 digest. The artifact contains the statement, its declarations, the evidence and any authored commentary.
+After acceptance, Logos stores a receipt with the exact artifact bytes and their SHA-256 digest. You can inspect the receipt to ask the checker to recheck those saved bytes and explain the accepted derivation. Here is how to read three parts of a result for the argument above, summarized in words.
 
-`theorem.inspect()` does not rebuild the argument in Python. It sends the receipt's bytes to the `logos` executable and returns the checker's Markdown reading. If the receipt is missing or the evidence has changed, `inspect()` raises an error instead of showing a stale reading.
-
-A reading reports the checked statement, the derivation, the authored commentary and whether the derivation used any **custom axioms**. A custom axiom is an assumption an author declares with `@logos.axiom`. A proof with zero custom axioms depends only on the checker's rules and on the definitions in the artifact. That is the strongest claim this book makes, and the reading states it explicitly.
+- **Statement.** For any propositions $P$ and $Q$, if $P$ holds and $P \Rightarrow Q$ holds, then $Q$ follows.
+- **Evidence.** Introduce each premise as a local hypothesis, apply the implication, and account for those hypotheses in the conditional conclusion.
+- **Axiom status.** Zero custom axioms. The two local hypotheses appear as premises of the statement. A custom axiom is a separate, author-declared assumption on which a derivation may rely.
 
 ## Scope
 
-The current checker covers:
-
-- propositional connectives: conjunction `&`, disjunction `|`, negation `~`, implication `>>`;
-- equality, integer arithmetic, and the strict and non-strict order on integers;
-- transparent definitions, whose bodies the checker unfolds during conversion;
-- primitive recursion on the natural numbers;
-- universal and existential quantification over integers;
-- contracts for ordinary Python functions and for loops.
-
-It does not cover sets, real analysis, quotient types, general recursive functions, or a guarantee that a proof search will succeed. A failed search leaves the conjecture open; it does not prove the negation. Chapter 4 makes that distinction precise with a checked counterexample.
-
-## How to read a lesson
-
-The Quick Start installs both programs and checks one theorem. Chapter 1 then explains that theorem line by line.
-
-The User Guide chapters follow the order in which the operations become necessary:
-
-1. conjunction and named intermediate facts;
-2. case splits, contradiction and counterexamples;
-3. universal and existential quantifiers with scoped witnesses;
-4. transparent definitions and reusable lemmas.
-
-Each lesson states its prerequisites and outcomes before the first block, and includes a diagnostic that shows what a specific mistake looks like and an exit exercise that uses only the operations introduced so far. Later chapters assume the earlier ones.
-
-The chapters are not a reference manual. They teach the mechanism: which evidence a step produces, why the checker accepts it, and what the Python name does and does not mean. The generated [Public API Reference](public-api-reference.html) collects the public names, and the checker's `--help` describes the portable commands.
+The checker covers propositional logic, equality, integer arithmetic and order, transparent definitions, primitive recursion on the natural numbers, integer quantifiers, and contracts for supported Python functions and loops. Sets, real analysis, quotient types and general recursion are outside this scope. The chapter on cases shows how a checked counterexample can settle a question that unsuccessful proof search leaves open.
 
 ## Conventions
 
-In the prose, $P$, $Q$ and $R$ are propositions, and $a$, $b$, $c$ and $d$ are integers. In Python, `P`, `Q` and `R` are `Prop` values, which Logos represents as symbolic propositions, and `a`, `b`, `c` and `d` are `Int` values.
+In Python, a Logos proposition is a symbolic expression. For example, `P >> Q` builds an implication from symbolic propositions. Python does not evaluate it to a Boolean truth value. Build and check a theorem in the [Quick Start](quick-start.html). For lookup, use the [Public API Reference](public-api-reference.html) or the checker’s `--help`.
 
-The Python operator `>>` is implication, `&` is conjunction, `|` is disjunction and `~` is negation. They build symbolic expressions; they do not evaluate to Python booleans. Parentheses matter because Python's precedence is not mathematical precedence. When a nested implication is hard to read, build it with `logos.chain(...)` instead of a chain of `>>`.
+## Exit exercise
 
-Every proof function receives a context named `p`. The context records the current goal, the local hypotheses and the evidence already built. Operations such as `p.assume`, `p.apply` and `p.and_intro` return a **fact**: a proposition together with checked evidence for it. A fact is not a string and not a Python boolean. It is the thing the next step consumes.
+Classify each report. What, if anything, has been established?
+
+1. With premises $P$ and $P \Rightarrow Q$, a producer applies the implication and claims $R$.
+2. A search for a proof of $R$ runs out of time. Has it established $\neg R$?
+3. The checker accepts a derivation and reports one custom axiom.
+
+## Answers
+
+1. The proposed application is invalid. The implication yields $Q$.
+2. The search found no proof before it stopped. The status of $R$ is still open on that evidence.
+3. The checker verified the derivation using the declared custom axiom as an assumption.
