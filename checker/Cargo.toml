@@ -2,8 +2,13 @@
 name = "logos-checker"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 description = "Standalone checker for portable Logos proofs"
 license = "MIT"
+repository = "https://github.com/gia-uh/logos"
+homepage = "https://logos.uhgia.org/"
+keywords = ["theorem-prover", "proof-checker", "logic"]
+categories = ["science", "development-tools"]
 
 [[bin]]
 name = "logos"
