@@ -38,7 +38,7 @@ ORDER = [
 EXPECTED = {
     "00-introduction.md": ["trusted", "Rust checker"],
     "01-quick-start.md": ["checked: True"],
-    "02-first-proof.md": ["Author's claim (not checked)."],
+    "02-first-proof.md": ["Checked proof", "Author's commentary (not checked)", "Uses zero custom axioms."],
     "03-conjunction.md": ["and_swap: True", "and_regroup: True"],
     "04-cases.md": [
         "dilemma: True",

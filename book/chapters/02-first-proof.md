@@ -6,7 +6,7 @@ stem: first-proof
 
 # Writing Your First Proof
 
-*Prerequisites: Python functions and decorators, and the idea of implication. Outcomes: state a theorem, attach a proof, run the checker, and read a compact verified derivation.*
+*Prerequisites: Python functions and decorators, and the idea of implication. Outcomes: state a theorem, attach a proof, run the checker, and read the verifier's whole checked derivation.*
 
 Logos is a Python library for writing arguments that a computer can check. Suppose you know that $P$ implies $Q$ and that $Q$ implies $R$. On paper, you could prove that $P$ implies $R$ in one line: “Assume $P$. Then $Q$, and hence $R$.” The words *then* and *hence* do most of the work. When we write the argument in Logos, we say which implication justifies each step.
 
@@ -87,64 +87,12 @@ Look back at the last line of the proof function. It returns evidence for $R$. W
 
 After `compose.check()`, the theorem has a **receipt**, the record of its successful verification. Its `artifact` contains the exact statement and evidence that were checked. `compose.inspect()` sends those exact bytes to the installed Rust checker and returns its Markdown reading. Python does not rebuild the argument; it asks the verifier that accepted the receipt to explain it. If the receipt is missing or the evidence has changed, `inspect()` raises an error instead of showing a stale reading.
 
-```python {run continue}
-reading = compose.inspect()
-```
+The whole reading follows, unchanged. The panel runs the next block and places its Markdown there. Its headings sit below this chapter's headings, so the reading's title does not start a new chapter in the book's contents.
 
-The reading is a complete document with its own headings. To keep this chapter's outline intact and the page short, the next block quotes only the parts that answer the question: the authored claim and strategy, the checked statement, and steps 7, 8 and 9.
-
+::: proof
 ```python {run continue echo=false}
-import re
-
-def _inline_math(text):
-    return re.sub(
-        r"\$\$\n(.*?)\n\$\$",
-        lambda match: "$" + " ".join(match.group(1).split()) + "$",
-        text,
-        flags=re.S,
-    )
-
-def compact_reading(markdown):
-    commentary = markdown.split("## Author's commentary (not checked)", 1)[1]
-    commentary = commentary.split("## Theorem", 1)[0]
-
-    def authored(label):
-        if label not in commentary:
-            return ""
-        part = commentary.split(label, 1)[1]
-        for stop in ("**Claim.**", "**Strategy.**"):
-            if stop in part:
-                part = part.split(stop, 1)[0]
-        lines = [line[2:] if line.startswith("> ") else line for line in part.splitlines()]
-        return " ".join(line.strip() for line in lines if line.strip())
-
-    theorem = markdown.split("## Theorem", 1)[1].split("## Domains", 1)[0]
-    theorem = " ".join(theorem.replace("$$", "").split())
-    if "\\quad" in theorem:
-        quantifiers, statement = theorem.rsplit("\\quad", 1)
-        theorem_lines = [f"${quantifiers}$", f"${statement.strip()}$"]
-    else:
-        theorem_lines = [f"${theorem}$"]
-    proof = markdown.split("## Proof", 1)[1].split("## Conclusion", 1)[0]
-    excerpt = proof[proof.index("**(7)**"):proof.index("**(10)**")]
-    excerpt = _inline_math(excerpt)
-
-    quote = [
-        f"> **Author's claim (not checked).** {authored('**Claim.**')}",
-        ">",
-        f"> **Author's strategy (not checked).** {authored('**Strategy.**')}",
-        ">",
-        "> **Checked statement.**",
-    ]
-    quote += [">", *[f"> {line}" for line in theorem_lines], ">"]
-    quote.append("> **Checked steps 7–9.**")
-    for line in excerpt.splitlines():
-        line = line[2:] if line.startswith("> ") else line
-        quote.append(("> " + line) if line.strip() else ">")
-    quote += [">", "> **Checked result.** Uses zero custom axioms."]
-    return "\n".join(quote)
-
-print(compact_reading(reading))
+print(compose.inspect())
 ```
+:::
 
-Step 7 gives us $Q$, the fact we called `have_q`. Step 8 gives us $R$ while the assumption $P$ is still available. Step 9 **discharges** that assumption: what we can carry out of its scope is $P \Rightarrow R$. The next two steps do the same for the other premises. This explains how the reading can report *zero custom axioms* even though our Python used `assume` three times. Each local assumption is accounted for by an arrow in the theorem. The final generalizations tell us that the argument works for every choice of $P$, $Q$ and $R$.
+Read the steps in order. Step 7 gives us $Q$, the fact we called `have_q`. Step 8 gives us $R$ while the assumption $P$ is still available. Step 9 **discharges** that assumption: what we can carry out of its scope is $P \Rightarrow R$. The next two steps do the same for the other premises. This explains how the reading can report *zero custom axioms* even though our Python used `assume` three times. Each local assumption is accounted for by an arrow in the theorem. The final generalizations tell us that the argument works for every choice of $P$, $Q$ and $R$.
