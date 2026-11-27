@@ -60,3 +60,6 @@ htmlcov/
 
 # Offline reading packaged from the rendered book
 /logos/_book/
+
+# Certificates written when a generated example is run in place
+/book/examples/*.logos

@@ -1122,7 +1122,7 @@ def primes(python, cold, recipient, evidence, env, offline):
 def binary_search_contract(python, cold, recipient, evidence, env, offline):
     application = cold / "binary_search_application"
     application.mkdir()
-    source = (Path(__file__).resolve().parents[1] / "examples/binary_search.py").read_text()
+    source = (Path(__file__).resolve().parents[1] / "book/examples/binary_search.py").read_text()
     (application / "binary_search.py").write_text(source)
     print("Binary search · author the loop contract with the installed wheel")
     run(["python", "binary_search.py"], application, env=env)

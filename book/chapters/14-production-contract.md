@@ -20,18 +20,9 @@ The claim is deliberately modest: for every non-negative `delta` and every posit
 
 CPython 3.12 ships `Lib/encodings/punycode.py`. Its `adapt` function implements the bias adaptation of RFC 3492 §6.1. The call chain is concrete: `encodings.idna.ToASCII` calls `label.encode("punycode")`; the punycode codec calls `punycode_encode`; `punycode_encode` calls `adapt` for each delta it emits.
 
-The installed function has no type annotations. Logos binds statements to annotated parameters, so the book carries a copy with the annotations added and the executable body unchanged. The copy is not a rewrite: CI compares its code object with the one the interpreter installed. The comparison covers the bytecode, constants, names, local names and flags, but not the annotations, which do not affect execution.
+The installed function has no type annotations. Logos binds statements to annotated parameters, so `examples/punycode_adapt.py` carries a copy with the annotations added and the executable body unchanged. The block below is that file; the page writes it and imports it. The copy is not a rewrite: CI compares its code object with the one the interpreter installed. The comparison covers the bytecode, constants, names, local names and flags, but not the annotations, which do not affect execution.
 
-```python {run}
-import importlib.util
-import sys
-import tempfile
-from pathlib import Path
-
-import logos
-from logos.expr import Lit, Var
-
-PUNYCODE_ADAPT = '''\
+```python {export=examples/punycode_adapt.py}
 # Body of encodings.punycode.adapt from CPython 3.12.3, Lib/encodings/punycode.py.
 # Only the type annotations are added; the executable statements are unchanged.
 def adapt(delta: int, first: int, numchars: int) -> int:
@@ -46,17 +37,6 @@ def adapt(delta: int, first: int, numchars: int) -> int:
         divisions += 36
     bias = divisions + (36 * delta // (delta + 38))
     return bias
-'''
-
-directory = Path(tempfile.mkdtemp(prefix="logos-punycode-"))
-module_path = directory / "punycode_adapt.py"
-module_path.write_text(PUNYCODE_ADAPT)
-spec = importlib.util.spec_from_file_location("punycode_adapt", module_path)
-punycode_module = importlib.util.module_from_spec(spec)
-sys.modules["punycode_adapt"] = punycode_module
-spec.loader.exec_module(punycode_module)
-adapt = punycode_module.adapt
-print("bound source:", module_path.name)
 ```
 
 `first` is a truth flag in the original call (`points == 0`). Python treats a nonzero integer as true, so the contract quantifies over every integer and the translation uses `first != 0`. Nothing in the proof depends on `first` being exactly zero or one.
@@ -65,7 +45,11 @@ print("bound source:", module_path.name)
 
 The function assumes two things. `delta` must not be negative, because the divisions and the final numerator are meant to produce a bias. `numchars` must be positive, because the body divides by it. The contract makes both assumptions explicit; it does not hide them in a test.
 
-```python {run continue}
+```python {run}
+import logos
+from logos.expr import Lit, Var
+from examples.punycode_adapt import adapt
+
 @logos.theorem(about=adapt)
 def adapt_bias_nonnegative(delta, first, numchars, *, result):
     divisions = Var("divisions", int)
@@ -130,7 +114,7 @@ The source binding is the point of this chapter. The theorem stores the translat
 
 The CI regression does three things:
 
-1. It writes the same body to a module and compares the code object with `encodings.punycode.adapt` from the interpreter that runs the book. The comparison is bytecode and constants, not the annotations.
+1. It renders the chapter, which writes `examples/punycode_adapt.py`, and compares that module's code object with `encodings.punycode.adapt` from the interpreter that runs the book. The comparison is bytecode and constants, not the annotations.
 2. It checks the exported certificate with `logos check --strict` and requires zero custom axioms.
 3. It mutates the body and requires the proof to fail.
 
@@ -165,7 +149,7 @@ logos.proofs.ProofSearchError: loop0.exit: cannot prove order atom 0 <= division
 
 The message points at the expression that lost its lower bound. It does not say that the function is wrong for every input; it says that the invariant and the loop condition do not establish the postcondition. The repair is either to restore the non-negative expression or to strengthen the invariant with a lower bound on `divisions` that survives the branch, which the original body does not need.
 
-The second failure is the source binding. Edit the module file after the theorem is declared, for example by changing `455` to `456`, and call `adapt_bias_nonnegative.check()` again. The theorem re-reads the module, sees that the fresh code object no longer matches the imported function, and raises `source of 'adapt' in ... does not match the imported code object; the module is stale or the file changed after import`. The certificate is not written. A proof about a body that no longer exists is not a proof about the installed library.
+The second failure is the source binding. Edit `examples/punycode_adapt.py` after the theorem is declared, for example by changing `455` to `456`, and call `adapt_bias_nonnegative.check()` again. The theorem re-reads the module, sees that the fresh code object no longer matches the imported function, and raises `source of 'adapt' in ... does not match the imported code object; the module is stale or the file changed after import`. The certificate is not written. A proof about a body that no longer exists is not a proof about the installed library.
 
 ## Exit exercise
 

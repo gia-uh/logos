@@ -217,8 +217,8 @@ def binary_search_correct(xs, target, *, result):
     )
 ```
 
-Run the [full example](https://github.com/gia-uh/logos/blob/main/examples/binary_search.py) with
-`python examples/binary_search.py`, then `logos check --strict
+Run the [full example](https://github.com/gia-uh/logos/blob/main/book/examples/binary_search.py) with
+`python book/examples/binary_search.py`, then `logos check --strict
 binary_search.logos`. The contract covers the empty sequence, duplicates and an
 absent target. A mutated midpoint or invariant, a changed program body, and a
 missing or forged obligation are rejected.
