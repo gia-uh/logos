@@ -2,7 +2,12 @@
 title: "API Reference"
 ---
 
-Complete reference for the logos public API.
+Reference for the main entry points of the logos public API.
+
+The complete roster, including every public class, function and method, is
+generated from the source and gated by rift in the book's
+[Public API Reference](https://github.com/gia-uh/logos/blob/main/book/chapters/16-api-reference.md).
+This page keeps the runnable examples for the interfaces most authors use.
 
 ```{python}
 #| echo: false
@@ -174,6 +179,24 @@ expr = logos.cases(
 )
 from logos.expr import CaseExpr
 print(type(expr).__name__)   # CaseExpr
+```
+
+---
+
+## Domains (`logos.domains`)
+
+| Object | Description |
+|--------|-------------|
+| `KnightsKnaves` | Finite truth-teller/liar puzzles; `entity`, `says`, `solve`, `prove`, `describe` |
+| `intervals.contains(lo, hi, x)` | Transparent closed-interval containment |
+| `intervals.overlaps(a_lo, a_hi, b_lo, b_hi)` | Transparent closed-interval overlap |
+| `intervals.interval` | Goal tactic that closes an overlap with a checked linear certificate |
+
+```{python}
+from logos.domains import intervals
+
+for theorem in intervals.check_all():
+    print(theorem.name, theorem.certified)
 ```
 
 ---

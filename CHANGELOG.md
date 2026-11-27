@@ -26,6 +26,10 @@
 - Loop programs accept augmented assignments, bare integer truth flags and local rebinding of integer parameters
 - Checker-owned `mul_nonneg`, `div_nonneg` and `div_lt` laws for products and floor division
 - The English finite-graph, binary-search and production-contract chapters, with a strict certificate for the standard-library `punycode.adapt`
+- `logos commands --json` publishes all 42 checker-owned laws, with drift tests against the Rust table and the Python schema
+- A checked interval domain, `logos.domains.intervals`, with transparent definitions, four lemmas and a goal-level linear tactic
+- The English Developer Guide and a generated Public API Reference, with a rift gate over every public class, function and method
+- Markdown readings keep a discharged `have` binder even when the body never uses it
 
 ## [0.1.0] - 2026-06-17
 

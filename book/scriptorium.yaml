@@ -24,6 +24,8 @@ files:
   - chapters/12-finite-graph.md
   - chapters/13-binary-search.md
   - chapters/14-production-contract.md
+  - chapters/15-developer-guide.md
+  - chapters/16-api-reference.md
 
 outputs:
   site:
