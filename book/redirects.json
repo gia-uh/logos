@@ -199,6 +199,19 @@
       }
     },
     {
+      "from": "a-finite-graph-you-can-audit.html",
+      "to": "binary-search-all-the-way-down.html",
+      "anchors": {
+        "before-you-start": "before-you-start",
+        "the-graph-is-a-finite-table": "the-function",
+        "the-order-is-an-invariant": "the-invariant-piece-by-piece",
+        "consequences-of-the-invariant": "the-invariant-piece-by-piece",
+        "the-invariant-composes-along-a-path": "the-invariant-piece-by-piece",
+        "when-a-step-fails": "when-a-step-fails",
+        "exit-exercise": "exit-exercise"
+      }
+    },
+    {
       "from": "reference/api.html",
       "to": "public-api-reference.html",
       "anchors": {

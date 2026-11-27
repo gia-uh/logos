@@ -12,7 +12,7 @@ The claim is deliberately modest: for every non-negative `delta` and every posit
 
 ## Before you start
 
-**Prerequisites.** Chapters 12 and 13, and the contract fragment from the README: a module-level function with integer and sequence parameters, one loop, one final return, and no early returns. You should be able to read a verification condition and a variant.
+**Prerequisites.** Chapter 12, and the contract fragment from the README: a module-level function with integer and sequence parameters, one loop, one final return, and no early returns. You should be able to read a verification condition and a variant.
 
 **Outcomes.** You will bind a theorem to a real standard-library function, compare the verified body with the interpreter's code object, prove a non-negativity invariant through augmented assignments and floor division, and see a mutation that the recomputed obligations refuse.
 

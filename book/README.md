@@ -22,9 +22,10 @@ The project is [`scriptorium.yaml`](scriptorium.yaml). The chapters are under
 | `09-factorial.md` | User Guide | Primitive recursion, induction, factorial divisibility |
 | `10-least-prime.md` | User Guide | A negated definition, `p.least`, the least prime divisor |
 | `11-euclid.md` | User Guide | Euclid's theorem composed from named lemmas |
-| `12-finite-graph.md` | User Guide | A finite graph as a table, an order invariant, paths and cycles |
-| `13-binary-search.md` | User Guide | Total correctness, bounds, variant, duplicates and a precondition counterexample |
-| `14-production-contract.md` | User Guide | A standard-library function, source binding, mutation and strict verification |
+| `12-binary-search.md` | User Guide | Total correctness, bounds, variant, duplicates and a precondition counterexample |
+| `13-production-contract.md` | User Guide | A standard-library function, source binding, mutation and strict verification |
+| `14-developer-guide.md` | Developer Guide | A checked interval domain, the tactic protocol and the portable encoding |
+| `15-api-reference.md` | Reference | Generated public class, function and method inventory |
 
 ## Build it
 
@@ -85,12 +86,11 @@ lesson for the diagnostic it documents. It also checks that `scriptorium.yaml`
 lists every chapter in order, that every quoted number theory snippet matches
 `logos/domains/number_theory.py`, and that the Euclid certificate verifies with
 `--strict` while the altered `n! + 1` line fails at the consecutive-divisor
-application and writes no certificate. The finite graph chapter is checked with
-a descending edge, the binary search chapter with a shifted midpoint, a weakened
-invariant and an unsorted counterexample, and the production chapter with a
-mutated bias expression and a source drift after decoration. The production
-chapter's copied body is compared with the code object of
-`encodings.punycode.adapt` from the interpreter that runs the book.
+application and writes no certificate. The binary search chapter is checked with
+a shifted midpoint, a weakened invariant and an unsorted counterexample, and the
+production chapter with a mutated bias expression and a source drift after
+decoration. The production chapter's copied body is compared with the code
+object of `encodings.punycode.adapt` from the interpreter that runs the book.
 
 `tests/test_number_theory.py` checks the domain on its own: every lemma, the
 strict certificate for `euclid`, and the exported artifact.
@@ -119,9 +119,10 @@ material becomes useful:
 
 | Stage | Content | Why it comes here | Status |
 |---|---|---|---|
-| Arithmetic and induction | Primitive recursion and the factorial | Chapter 9 teaches the mechanism before contracts and finite structures | Drafted |
+| Arithmetic and induction | Primitive recursion and the factorial | Chapter 9 teaches the mechanism before contracts and algorithms | Drafted |
 | Number theory | Divisibility, least divisors, Euclid's theorem | Chapters 7 to 11, with the reusable domain in `logos/domains/number_theory.py` | Drafted |
 | Logic puzzles | Finite models, `KnightsKnaves`, guided and automatic search | Shows a domain that searches for a model instead of a proof, and a diagnostic that reports a counterexample | Not drafted |
+| Finite graphs | A concrete relation as a table, an order invariant, paths and cycles | Needs a reusable graph domain and a standalone fixture first; see backlog issue #60 | Deferred |
 | Contracts | Function contracts, branch selection, loop invariants, binary search | The engineering half of the project; assumes quantifiers and definitions | Drafted |
 | Developer Guide | Kernel terms, portable encoding, the Rust checker, the authoring API | Explains how to extend the checker without weakening it | Drafted |
 | Embedding | Serve the built book from the CLI and the API; search over its sections | Needs the site and the PDF to be stable first | Shipped |
