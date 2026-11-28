@@ -170,3 +170,47 @@ fn rejects_a_recursive_call_in_the_base_case() {
     let error = verify(&artifact).err().unwrap();
     assert!(error.contains("undeclared function"), "{error}");
 }
+
+fn parameterized() -> Value {
+    // f(0, bias) = bias; f(n + 1, bias) = f(n, bias) + bias.
+    let mut function = factorial_like("f1");
+    function["params"] = json!(["int", "int"]);
+    function["recursor"] = json!({"base": bound(0), "step": add(bound(0), bound(2))});
+    function
+}
+
+#[test]
+fn instantiates_the_fixed_parameter_in_both_equations() {
+    let base = bundle(
+        vec![parameterized()],
+        eq(app("f1", vec![int(0), int(3)]), int(3)),
+        json!({"tag": "recursor_base", "id": "f1", "parameters": [int(3)]}),
+    );
+    let step = bundle(
+        vec![parameterized()],
+        eq(
+            app("f1", vec![int(1), int(3)]),
+            add(app("f1", vec![int(0), int(3)]), int(3)),
+        ),
+        json!({"tag": "recursor_step", "id": "f1", "argument": int(0),
+            "parameters": [int(3)],
+            "proof": {"tag": "core_law", "id": "lt_irrefl", "args": [int(0)]}}),
+    );
+    for artifact in [base, step] {
+        let checked = verify(&artifact).unwrap_or_else(|error| panic!("{error}"));
+        assert!(checked.judgment.custom_axioms.is_empty());
+    }
+}
+
+#[test]
+fn rejects_a_recursive_call_that_changes_a_fixed_parameter() {
+    let mut function = parameterized();
+    function["recursor"]["step"] = app("f1", vec![bound(1), add(bound(2), int(1))]);
+    let artifact = bundle(
+        vec![function],
+        eq(app("f1", vec![int(0), int(3)]), int(3)),
+        json!({"tag": "recursor_base", "id": "f1", "parameters": [int(3)]}),
+    );
+    let error = verify(&artifact).err().unwrap();
+    assert!(error.contains("away from its predecessor"), "{error}");
+}

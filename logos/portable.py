@@ -248,8 +248,8 @@ def artifact_bytes(
             if symbol.recursor is not None:
                 base, step, previous = symbol.recursor
                 declaration["recursor"] = {
-                    "base": proposition(base, set(), ()),
-                    "step": proposition(step, set(), (symbol.params[0], previous)),
+                    "base": proposition(base, set(), tuple(symbol.params[1:])),
+                    "step": proposition(step, set(), (*symbol.params[1:], symbol.params[0], previous)),
                 }
             functions.append(declaration)
         return function_ids[key]
@@ -421,11 +421,17 @@ def artifact_bytes(
                 return {"tag": "least", "bound": encode(lower), "name": var.name,
                         "predicate": proposition(predicate, scope, (*bound, var)),
                         "nonempty": derive(nonempty)}
-            case RecursorBase(function):
-                return {"tag": "recursor_base", "id": function_id(function)}
-            case RecursorStep(function, argument, nonnegative):
-                return {"tag": "recursor_step", "id": function_id(function),
-                        "argument": encode(argument), "proof": derive(nonnegative)}
+            case RecursorBase(function, parameters):
+                evidence = {"tag": "recursor_base", "id": function_id(function)}
+                if parameters:
+                    evidence["parameters"] = [encode(item) for item in parameters]
+                return evidence
+            case RecursorStep(function, argument, nonnegative, parameters):
+                evidence = {"tag": "recursor_step", "id": function_id(function),
+                            "argument": encode(argument), "proof": derive(nonnegative)}
+                if parameters:
+                    evidence["parameters"] = [encode(item) for item in parameters]
+                return evidence
             case Refl(expr):
                 return {"tag": "refl", "term": encode(expr)}
             case Symm(child):

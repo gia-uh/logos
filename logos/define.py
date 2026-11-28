@@ -1,8 +1,9 @@
 from __future__ import annotations
 import inspect
-from typing import Callable, get_type_hints
+from typing import Callable, Mapping, get_type_hints
 from logos.expr import Expr, Var, App, _lift
 from logos.helpers import normalize_order
+from logos.sequence import SeqType
 
 # Registry: function name → (params, body_expr)
 _definitions: dict[str, tuple[list[Var], Expr]] = {}
@@ -18,8 +19,8 @@ class Function:
     """A logos-defined function. Callable (builds App nodes) and carries its definition.
 
     ``recursor`` is ``(base, step, value_var)`` for a primitive-recursive
-    definition on the natural numbers. The single parameter is the argument;
-    ``step`` uses the argument and ``value_var`` for the previous value.
+    definition on the natural numbers. The first parameter is the argument.
+    Any remaining parameters are fixed during recursion.
     """
     def __init__(self, name: str, params: list[Var], body: Expr | None,
                  original_fn: Callable = None, result_type: type | None = None,
@@ -64,22 +65,26 @@ def define(fn: Callable) -> Function:
     return Function(func_name, params, body_expr, original_fn=fn, result_type=hints.get('return'))
 
 
-def recursor(name: str, base, step: Callable[[Var, Var], Expr]) -> Function:
+def recursor(name: str, base, step: Callable[..., Expr], *,
+             parameters: Mapping[str, type | SeqType] | None = None) -> Function:
     """Declare a primitive-recursive integer function on the naturals.
 
     ``base`` is the value at zero and ``step(n, previous)`` is the value at
     ``n + 1`` for ``n >= 0``. The checker owns the two defining equations; the
     function stays opaque to conversion, so proofs must cite the equations.
+    With fixed ``parameters``, ``base`` receives those parameters and ``step``
+    receives them after ``n`` and ``previous``.
     """
     argument = Var("n", int)
     previous = Var("value", int)
-    base_expr = _lift(base)
-    step_expr = normalize_order(step(argument, previous))
+    fixed = [Var(key, sort) for key, sort in (parameters or {}).items()]
+    base_expr = _lift(base(*fixed) if fixed else base)
+    step_expr = normalize_order(step(argument, previous, *fixed))
     if not isinstance(step_expr, Expr):
         raise TypeError("logos.recursor: the step must return an Expr")
     return Function(
         name,
-        [argument],
+        [argument, *fixed],
         None,
         result_type=int,
         recursor=(base_expr, step_expr, previous),

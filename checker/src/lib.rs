@@ -133,11 +133,15 @@ pub(crate) enum Evidence {
     },
     RecursorBase {
         id: String,
+        #[serde(default)]
+        parameters: Vec<Proposition>,
     },
     RecursorStep {
         id: String,
         argument: Proposition,
         proof: Box<Self>,
+        #[serde(default)]
+        parameters: Vec<Proposition>,
     },
     CoreLaw {
         id: String,
@@ -289,21 +293,23 @@ fn block_order(steps: &[Evidence], result: usize) -> Result<Vec<usize>, String> 
 /// predecessor is bound index 1. Nested binders shift that index by their own
 /// depth. Any other recursive call would describe a definition that is not a
 /// primitive recursion.
-fn check_recursor_step(step: &Proposition, id: &str) -> Result<(), String> {
-    fn walk(term: &Proposition, depth: usize, id: &str) -> Result<(), String> {
+fn check_recursor_step(step: &Proposition, id: &str, fixed_count: usize) -> Result<(), String> {
+    fn walk(term: &Proposition, depth: usize, id: &str, fixed_count: usize) -> Result<(), String> {
         use Proposition::*;
         match term {
             App { id: called, args } => {
                 if called == id {
-                    let predecessor = Bound { index: depth + 1 };
-                    if args.len() != 1 || args[0] != predecessor {
+                    let expected = std::iter::once(depth + 1)
+                        .chain((depth + 2..depth + 2 + fixed_count).rev())
+                        .map(|index| Bound { index });
+                    if args.iter().cloned().ne(expected) {
                         return Err(format!(
                             "recursor step calls {id:?} away from its predecessor"
                         ));
                     }
                 }
                 for arg in args {
-                    walk(arg, depth, id)?;
+                    walk(arg, depth, id, fixed_count)?;
                 }
                 Ok(())
             }
@@ -318,22 +324,22 @@ fn check_recursor_step(step: &Proposition, id: &str) -> Result<(), String> {
             | And { left, right }
             | Or { left, right }
             | Implies { left, right } => {
-                walk(left, depth, id)?;
-                walk(right, depth, id)
+                walk(left, depth, id, fixed_count)?;
+                walk(right, depth, id, fixed_count)
             }
             Neg { operand }
             | Not { operand }
             | Pow { base: operand, .. }
             | Len { seq: operand }
-            | Sorted { seq: operand } => walk(operand, depth, id),
+            | Sorted { seq: operand } => walk(operand, depth, id, fixed_count),
             Nth { seq, index } => {
-                walk(seq, depth, id)?;
-                walk(index, depth, id)
+                walk(seq, depth, id, fixed_count)?;
+                walk(index, depth, id, fixed_count)
             }
-            Forall { body, .. } | Exists { body, .. } => walk(body, depth + 1, id),
+            Forall { body, .. } | Exists { body, .. } => walk(body, depth + 1, id, fixed_count),
         }
     }
-    walk(step, 0, id)
+    walk(step, 0, id, fixed_count)
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -589,23 +595,23 @@ pub fn verify(bytes: &[u8]) -> Result<Verified, String> {
                 .expect(function.result)?;
         }
         if let Some(recursor) = &function.recursor {
-            if function.params.len() != 1
-                || function.params[0] != Sort::Int
-                || function.result != Sort::Int
-            {
+            if function.params.first() != Some(&Sort::Int) || function.result != Sort::Int {
                 return Err(format!(
-                    "recursor {:?} must take one integer and return an integer",
+                    "recursor {:?} must take a leading integer and return an integer",
                     function.id
                 ));
             }
             // The base is evaluated before the function has any value. Only
             // the step may refer to the function, at its predecessor.
-            checker.sort(&recursor.base, &[])?.expect(Sort::Int)?;
+            let fixed = &function.params[1..];
+            checker.sort(&recursor.base, fixed)?.expect(Sort::Int)?;
             checker.functions.insert(function.id.as_str(), function);
+            let mut step_sorts = fixed.to_vec();
+            step_sorts.extend([Sort::Int, Sort::Int]);
             checker
-                .sort(&recursor.step, &[Sort::Int, Sort::Int])?
+                .sort(&recursor.step, &step_sorts)?
                 .expect(Sort::Int)?;
-            check_recursor_step(&recursor.step, &function.id)?;
+            check_recursor_step(&recursor.step, &function.id, fixed.len())?;
         }
         checker.functions.insert(function.id.as_str(), function);
     }
@@ -1005,6 +1011,25 @@ impl<'a> Checker<'a> {
             Proposition::Symbol { id } => format!("declaration {id:?} {error}"),
             _ => error,
         })
+    }
+
+    fn check_recursor_parameters(
+        &self,
+        function: &Function,
+        parameters: &[Proposition],
+        binders: &[Sort],
+    ) -> Result<(), String> {
+        let expected = &function.params[1..];
+        if parameters.len() != expected.len() {
+            return Err(format!(
+                "recursor {:?}: wrong number of fixed parameters",
+                function.id
+            ));
+        }
+        for (term, sort) in parameters.iter().zip(expected) {
+            self.sort(term, binders)?.expect(*sort)?;
+        }
+        Ok(())
     }
 
     fn sort(&self, term: &Proposition, scope: &[Sort]) -> Result<Sort, String> {
@@ -2004,7 +2029,7 @@ impl<'a> Checker<'a> {
                     None,
                 )
             }
-            Evidence::RecursorBase { id } => {
+            Evidence::RecursorBase { id, parameters } => {
                 let function = self
                     .functions
                     .get(id.as_str())
@@ -2012,12 +2037,16 @@ impl<'a> Checker<'a> {
                 let recursor = function.recursor.as_ref().ok_or_else(|| {
                     format!("{path}: function {id:?} is not a recursive definition")
                 })?;
-                let base = recursor.base.clone();
+                self.check_recursor_parameters(function, parameters, &scope.binders)?;
+                let bindings = parameters.iter().rev().cloned().collect::<Vec<_>>();
+                let base = instantiate_bounded(&recursor.base, &bindings)?;
+                let mut arguments = vec![Proposition::Int { value: "0".into() }];
+                arguments.extend_from_slice(parameters);
                 reference_id = Some(id.clone());
                 let conclusion = Proposition::Eq {
                     left: Box::new(Proposition::App {
                         id: id.clone(),
-                        args: vec![Proposition::Int { value: "0".into() }],
+                        args: arguments,
                     }),
                     right: Box::new(base),
                 };
@@ -2027,6 +2056,7 @@ impl<'a> Checker<'a> {
                 id,
                 argument,
                 proof,
+                parameters,
             } => {
                 let step_expression = {
                     let function = self
@@ -2036,6 +2066,7 @@ impl<'a> Checker<'a> {
                     let recursor = function.recursor.as_ref().ok_or_else(|| {
                         format!("{path}: function {id:?} is not a recursive definition")
                     })?;
+                    self.check_recursor_parameters(function, parameters, &scope.binders)?;
                     recursor.step.clone()
                 };
                 self.sort(argument, &scope.binders)?.expect(Sort::Int)?;
@@ -2053,19 +2084,24 @@ impl<'a> Checker<'a> {
                     &proof_path,
                     "recursor step requires a nonnegative argument",
                 )?;
+                let mut arguments = vec![argument.clone()];
+                arguments.extend_from_slice(parameters);
                 let value = Proposition::App {
                     id: id.clone(),
-                    args: vec![argument.clone()],
+                    args: arguments.clone(),
                 };
-                let step_term = instantiate_bounded(&step_expression, &[value, argument.clone()])?;
+                let mut bindings = vec![value, argument.clone()];
+                bindings.extend(parameters.iter().rev().cloned());
+                let step_term = instantiate_bounded(&step_expression, &bindings)?;
                 let successor = Proposition::Add {
                     left: Box::new(argument.clone()),
                     right: Box::new(Proposition::Int { value: "1".into() }),
                 };
+                arguments[0] = successor;
                 let conclusion = Proposition::Eq {
                     left: Box::new(Proposition::App {
                         id: id.clone(),
-                        args: vec![successor],
+                        args: arguments,
                     }),
                     right: Box::new(step_term),
                 };
