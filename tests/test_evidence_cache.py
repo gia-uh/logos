@@ -471,6 +471,118 @@ def test_warm_reading_and_export_keep_docstrings_and_notes(tmp_path):
 MUTABLE = []
 
 
+def _loaded_module(tmp_path, name, source):
+    import importlib.util
+
+    path = tmp_path / f"{name}.py"
+    path.write_text(source, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(name, path)
+    loaded = importlib.util.module_from_spec(spec)
+    sys.modules[name] = loaded
+    spec.loader.exec_module(loaded)
+    return loaded
+
+
+def test_ineligible_proof_reruns_on_every_explicit_check(tmp_path, monkeypatch):
+    loaded = _loaded_module(
+        tmp_path,
+        "mutable_state",
+        """\
+from logos import theorem, lit
+state = [True]
+
+@theorem
+def mutable():
+    return lit(1) == lit(1)
+
+@mutable.proof
+def prove_mutable(p):
+    if state[0]:
+        return p.refl(lit(1))
+    return p.refl(lit(2))
+""",
+    )
+    logos.check(loaded.mutable)
+    loaded.state[0] = False
+    with pytest.raises(logos.LogosProofError, match="does not prove"):
+        logos.check(loaded.mutable)
+
+    # The same failure must not depend on the cache being enabled.
+    loaded.state[0] = True
+    logos.check(loaded.mutable)
+    loaded.state[0] = False
+    monkeypatch.setenv("LOGOS_CACHE", "off")
+    with pytest.raises(logos.LogosProofError, match="does not prove"):
+        logos.check(loaded.mutable)
+
+
+def test_unordered_or_opaque_python_is_not_eligible(tmp_path):
+    loaded = _loaded_module(
+        tmp_path,
+        "nondeterministic",
+        """\
+from logos import theorem, lit
+
+def choose():
+    return next(iter(set(("alpha", "beta"))))
+
+@theorem
+def target():
+    return lit(1) == lit(1)
+
+@target.proof
+def prove_target(p):
+    if choose() == "alpha":
+        return p.refl(lit(1))
+    return p.refl(lit(2))
+""",
+    )
+    assert evidence_cache._plan(loaded.target) is None
+
+    loaded2 = _loaded_module(
+        tmp_path,
+        "opaque_attribute",
+        """\
+from logos import theorem, lit
+
+@theorem
+def target():
+    return lit(1) == lit(1)
+
+@target.proof
+def prove_target(p):
+    return p.refl(target._evidence)
+""",
+    )
+    assert evidence_cache._plan(loaded2.target) is None
+
+
+@requires_checker
+def test_nondeterministic_set_proof_writes_no_record(tmp_path):
+    source = """\
+from logos import theorem, lit
+
+def choose():
+    return next(iter(set(("alpha", "beta"))))
+
+@theorem
+def target():
+    return lit(1) == lit(1)
+
+@target.proof
+def prove_target(p):
+    if choose() == "alpha":
+        return p.refl(lit(1))
+    return p.refl(lit(2))
+"""
+    write_library(tmp_path, source)
+    cache = tmp_path / "cache"
+    first = run(tmp_path, cache, target="target")
+    second = run(tmp_path, cache, target="target")
+    assert records(cache) == []
+    assert first["executed"] == ["target"] and second["executed"] == ["target"]
+
+
 def test_plain_tactics_and_unsafe_python_are_not_eligible(tmp_path):
     statement = logos.lit(1) == logos.lit(1)
 

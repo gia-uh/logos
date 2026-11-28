@@ -50,20 +50,23 @@ MAX_RECORD_BYTES = 64 * 1024 * 1024
 MAX_NODES = 2_000_000
 MAX_DEPTH = 200
 
-# Builtins that may observe or change state outside the proof's own evidence.
-_UNSAFE_BUILTINS = frozenset({
-    "__import__", "breakpoint", "compile", "delattr", "eval", "exec", "exit",
-    "getattr", "globals", "hash", "help", "id", "input", "locals", "memoryview",
-    "object", "open", "quit", "setattr", "super", "type", "vars",
+# Deterministic builtins whose result depends only on their arguments.  A
+# denylist is not enough: iteration order, hashing and identity are observable
+# in Python, so anything not on this list falls back to execution.
+_ALLOWED_BUILTINS = frozenset({
+    "abs", "all", "any", "bool", "divmod", "enumerate", "int", "isinstance",
+    "len", "list", "max", "min", "pow", "range", "reversed", "sorted", "sum",
+    "tuple", "zip",
 })
 
-# Bytecode that writes outside the local frame, imports at proof time, or
-# suspends the frame.  A proof that does any of these is not a pure function of
-# its source and declared inputs.
+# Bytecode that writes outside the local frame, imports at proof time, builds
+# an unordered container, or suspends the frame.  A proof that does any of
+# these is not a pure function of its source and declared inputs.
 _UNSAFE_OPNAMES = frozenset({
-    "DELETE_DEREF", "DELETE_GLOBAL", "IMPORT_NAME", "IMPORT_FROM",
-    "STORE_ATTR", "STORE_DEREF", "STORE_GLOBAL", "STORE_SUBSCR",
-    "YIELD_VALUE", "YIELD_FROM", "GET_AWAITABLE", "GET_AITER", "GET_ANEXT",
+    "BUILD_SET", "DELETE_ATTR", "DELETE_DEREF", "DELETE_GLOBAL", "DICT_MERGE",
+    "DICT_UPDATE", "IMPORT_FROM", "IMPORT_NAME", "LOAD_SUPER_ATTR", "SET_ADD",
+    "SET_UPDATE", "STORE_ATTR", "STORE_DEREF", "STORE_GLOBAL", "STORE_SUBSCR",
+    "YIELD_FROM", "YIELD_VALUE", "GET_AITER", "GET_ANEXT", "GET_AWAITABLE",
 })
 
 _EXPR_TYPES = {
@@ -518,12 +521,47 @@ def _code_fingerprint(code: CodeType) -> dict:
     }
 
 
+_ATTRIBUTE_ALLOW_CACHE: frozenset[str] | None = None
+
+
+def _allowed_attributes() -> frozenset[str]:
+    """Public members of trusted authoring objects and expression nodes.
+
+    A proof may read expression fields and call proof-context or fact methods.
+    It may not reach arbitrary attributes such as a theorem's stored evidence,
+    a class's internals or a set-valued field whose iteration order varies.
+    """
+    global _ATTRIBUTE_ALLOW_CACHE
+    if _ATTRIBUTE_ALLOW_CACHE is not None:
+        return _ATTRIBUTE_ALLOW_CACHE
+    from logos.authoring import Fact, ProofContext
+
+    names = set()
+    for cls in (Fact, ProofContext):
+        names.update(name for name in dir(cls) if not name.startswith("_"))
+    names.update({
+        "binders", "context", "file", "goal", "hypotheses", "initial_goal",
+        "label", "last_fact", "left", "line", "opened", "proof", "right",
+        "source_line", "statement", "theorem",
+    })
+    for cls in _EXPR_TYPES.values():
+        names.update(field.name for field in fields(cls))
+    _ATTRIBUTE_ALLOW_CACHE = frozenset(names)
+    return _ATTRIBUTE_ALLOW_CACHE
+
+
 def _check_bytecode(code: CodeType, *, depth: int = 0) -> None:
     if depth > 4:
         raise _Ineligible("proof implementation nests too many code objects")
+    allowed_attributes = _allowed_attributes()
     for instruction in dis.get_instructions(code):
         if instruction.opname in _UNSAFE_OPNAMES:
             raise _Ineligible(f"proof implementation uses {instruction.opname}")
+        if instruction.opname in {"LOAD_ATTR", "LOAD_METHOD"}:
+            if instruction.argval not in allowed_attributes:
+                raise _Ineligible(
+                    f"proof implementation reads attribute {instruction.argval!r}"
+                )
     for item in code.co_consts:
         if isinstance(item, CodeType):
             _check_bytecode(item, depth=depth + 1)
@@ -625,7 +663,7 @@ def _function_fingerprint(fn: FunctionType, seen: set[int], depth: int = 0) -> d
                     fn.__globals__[name], seen, depth + 1
                 )
             elif hasattr(builtins, name):
-                if name in _UNSAFE_BUILTINS:
+                if name not in _ALLOWED_BUILTINS:
                     raise _Ineligible(f"proof implementation uses builtin {name}")
                 globals_fingerprint[name] = {"kind": "builtin", "name": name}
             # Attribute names in co_names are not globals; the object they are

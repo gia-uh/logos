@@ -67,11 +67,14 @@ class _Proof:
     def _revalidate(self):
         """Hook for proofs bound to external state; most proofs need nothing."""
 
-    def _compile_evidence(self):
+    def _compile_evidence(self, *, force_run=False):
         """Return current evidence, reusing compiled records only when eligible.
 
         The persistent record holds a proof term, never a verdict.  A caller
         that verifies an artifact still sends every lemma to the Rust checker.
+        ``force_run`` is used by an explicit ``check`` for a theorem that has
+        no usable record: its proof body must execute as it did before the
+        cache existed.
         """
         from logos import evidence_cache
 
@@ -84,7 +87,8 @@ class _Proof:
         )
         cache_plan = evidence_cache._plan(self)
         same_spec = _matches_spec(self._proof_spec, self._checked_spec)
-        if self._evidence is not None and same_spec and not revalidates:
+        reuse_memory = not (force_run and cache_plan is None)
+        if self._evidence is not None and same_spec and not revalidates and reuse_memory:
             if cache_plan is None:
                 if self._evidence_key is None:
                     return self._evidence
@@ -116,6 +120,10 @@ class _Proof:
             or type(self)._revalidate is not _Proof._revalidate
         )
         if self._evidence is not None and same_spec and not revalidates:
+            if not refresh:
+                # The receipt freshness pass re-encodes the current evidence.
+                # It does not recompile a dependency, as before the cache.
+                return self._evidence
             # A persistent key change means a mutable input or dependency may
             # have moved since the in-memory evidence was built.  Recompile
             # rather than trusting the old object graph.
@@ -308,7 +316,7 @@ def check(thm):
     name = thm.name
     evidence_cache._begin()
     try:
-        evidence = thm._compile_evidence()
+        evidence = thm._compile_evidence(force_run=True)
         artifact = artifact_bytes(
             name, statement, declarations, evidence, refresh_lemmas=True,
             annotations=thm._annotations(),

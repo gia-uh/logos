@@ -309,15 +309,15 @@ the `check()` call after import (three runs per row):
 
 | Operation | Without cache | First run with cache | Repeated with cache | Proof bodies executed | Rust checks |
 |---|---:|---:|---:|---:|---:|
-| Cold seed of both roots | 4.7 s | 6.7 s | 1.6 s | 1,022 then 0 | 2 |
-| Add a theorem citing two roots through a tuple | 4.6 s | 1.6 s | 1.8 s | 1 then 0 | 1 |
-| Edit one branch of the new proof | 4.9 s | 1.6 s | 1.7 s | 1 then 0 | 1 |
-| Change one base lemma proof | 4.8 s | 1.7 s | 1.7 s | 1 then 0 | 1 |
-| Narrow subset of three lemmas | 0.038 s | 0.055 s | 0.025 s | 3 then 0 | 1 |
+| Cold seed of both roots | 4.7 s | 6.2 s | 1.2 s | 1,022 then 0 | 2 |
+| Add a theorem citing two roots through a tuple | 4.6 s | 1.3 s | 1.3 s | 1 then 0 | 1 |
+| Edit one branch of the new proof | 4.7 s | 1.2 s | 1.2 s | 1 then 0 | 1 |
+| Change one base lemma proof | 4.6 s | 1.2 s | 1.2 s | 1 then 0 | 1 |
+| Narrow subset of three lemmas | 0.034 s | 0.048 s | 0.027 s | 3 then 0 | 1 |
 
-The first cold seed pays about two seconds to fingerprint and write 1,022
-records. Every later run spends about 1.6 seconds in Python instead of 4.7 to
-5.0, and executes only the proof that changed. The artifact is byte-identical
+The first cold seed pays about 1.5 seconds to fingerprint and write 1,022
+records. Every later run spends about 1.2 seconds in Python instead of 4.6 to
+4.7, and executes only the proof that changed. The artifact is byte-identical
 with and without a warm cache. The Rust checker sees the same 1,022 lemma
 records every time. The remaining Python cost is the portable artifact
 assembly and the receipt freshness check, not proof search. On the narrow
