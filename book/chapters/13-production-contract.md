@@ -43,6 +43,12 @@ def adapt(delta: int, first: int, numchars: int) -> int:
 
 ## The assumptions and the contract
 
+Each floor division in executable code also creates a separate safety
+obligation. The checker proves that its divisor is nonzero on each path
+that reaches it. It checks indexing in the same pass and carries each
+branch’s assignments into the following statements. At a loop head, use
+the invariant to record the facts needed for safe evaluation of the guard.
+
 Start at the last assignment. What facts at loop exit make each summand of `divisions + (36 * delta // (delta + 38))` non-negative? The first summand needs `divisions >= 0`. For the second, `delta >= 0` gives a non-negative numerator and a denominator of at least 38. We can aim to keep these two lower bounds at every loop head, including the last one when the guard is false.
 
 Before writing the contract, check that the bounds hold even if the loop runs zero times. Assume the input `delta >= 0` and `numchars > 0`. Both branches divide by a positive constant, and `delta += delta // numchars` adds a non-negative quotient. Thus the loop starts with `delta >= 0` and `divisions = 0`. Each iteration keeps the bounds by dividing `delta` by 35 and adding 36 to `divisions`.

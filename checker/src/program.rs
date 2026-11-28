@@ -604,7 +604,7 @@ impl<'a> Generator<'a> {
         mut path: Proposition,
         mut state: BTreeMap<String, Proposition>,
     ) -> Result<(), String> {
-        for statement in statements {
+        for (offset, statement) in statements.iter().enumerate() {
             match statement {
                 Statement::Assign { name, value } => {
                     let value = subst(value, &state);
@@ -618,18 +618,18 @@ impl<'a> Generator<'a> {
                 } => {
                     let condition = subst(condition, &state);
                     self.read_obligations(&condition, &path)?;
-                    let mut then_state = state.clone();
-                    let mut else_state = state.clone();
+                    // Each branch reaches the continuation with its own local values.
+                    let continuation = &statements[offset + 1..];
+                    let mut then_path = then_body.clone();
+                    then_path.extend_from_slice(continuation);
+                    let mut else_path = else_body.clone();
+                    else_path.extend_from_slice(continuation);
                     self.reads_in(
-                        then_body,
+                        &then_path,
                         and(path.clone(), condition.clone()),
-                        std::mem::take(&mut then_state),
+                        state.clone(),
                     )?;
-                    self.reads_in(
-                        else_body,
-                        and(path.clone(), not(condition)),
-                        std::mem::take(&mut else_state),
-                    )?;
+                    return self.reads_in(&else_path, and(path, not(condition)), state);
                 }
                 Statement::While {
                     condition,
@@ -637,16 +637,19 @@ impl<'a> Generator<'a> {
                     invariant,
                     ..
                 } => {
-                    self.read_obligations(condition, &and(path.clone(), invariant.clone()))?;
+                    self.read_obligations(condition, invariant)?;
                     self.reads_in(
                         body,
                         and(invariant.clone(), condition.clone()),
                         BTreeMap::new(),
                     )?;
+                    // Use facts about the exit state in place of facts about entry.
                     state.clear();
+                    path = and(invariant.clone(), not(condition.clone()));
                 }
                 Statement::Return { value } => {
                     self.read_obligations(&subst(value, &state), &path)?;
+                    return Ok(());
                 }
                 Statement::Call { target, call, args } => {
                     let actuals: Vec<Proposition> =
@@ -670,16 +673,18 @@ impl<'a> Generator<'a> {
                     }
                     mapping.insert(callee.result.clone(), application);
                     if callee.requires_clauses.is_empty() {
-                        self.obligations.push((
+                        Self::call_requirement(
+                            &mut self.obligations,
                             format!("{}.requires", site.id),
                             implies(path.clone(), subst(&callee.requires, &mapping)),
-                        ));
+                        );
                     } else {
                         for clause in &callee.requires_clauses {
-                            self.obligations.push((
+                            Self::call_requirement(
+                                &mut self.obligations,
                                 format!("{}.requires.{}", site.id, clause.name),
                                 implies(path.clone(), subst(&clause.proposition, &mapping)),
-                            ));
+                            );
                         }
                     }
                     state.insert(target.clone(), {
@@ -696,50 +701,74 @@ impl<'a> Generator<'a> {
         Ok(())
     }
 
+    fn call_requirement(
+        obligations: &mut Vec<(String, Proposition)>,
+        name: String,
+        goal: Proposition,
+    ) {
+        if let Some((_, existing)) = obligations.iter_mut().find(|(key, _)| *key == name) {
+            *existing = and(existing.clone(), goal);
+        } else {
+            obligations.push((name, goal));
+        }
+    }
+
     fn read_obligations(
         &mut self,
         expression: &Proposition,
         path: &Proposition,
     ) -> Result<(), String> {
-        let mut reads = Vec::new();
-        collect_reads(expression, &mut reads);
-        for read in reads {
-            let (seq, index) = match read {
-                Proposition::Nth { seq, index } => (seq.as_ref(), index.as_ref()),
-                _ => unreachable!(),
-            };
-            let bounds = and(
-                le(int(0), index.clone()),
-                lt(index.clone(), len(seq.clone())),
-            );
+        let mut guards = Vec::new();
+        collect_guards(expression, &mut guards);
+        for guard in guards {
             let name = format!("read{}", self.reads);
             self.reads += 1;
-            self.obligations.push((name, implies(path.clone(), bounds)));
+            self.obligations.push((name, implies(path.clone(), guard)));
         }
         Ok(())
     }
 }
 
-fn collect_reads<'a>(expr: &'a Proposition, result: &mut Vec<&'a Proposition>) {
+fn collect_guards(expr: &Proposition, result: &mut Vec<Proposition>) {
     use Proposition::*;
     match expr {
         Nth { seq, index } => {
-            result.push(expr);
-            collect_reads(seq, result);
-            collect_reads(index, result);
+            result.push(and(
+                le(int(0), *index.clone()),
+                lt(*index.clone(), len(*seq.clone())),
+            ));
+            collect_guards(seq, result);
+            collect_guards(index, result);
+        }
+        Div { left, right } => {
+            result.push(or(lt(*right.clone(), int(0)), lt(int(0), *right.clone())));
+            collect_guards(left, result);
+            collect_guards(right, result);
+        }
+        And { left, right } | Or { left, right } => {
+            collect_guards(left, result);
+            let evaluated = if matches!(expr, And { .. }) {
+                *left.clone()
+            } else {
+                not(*left.clone())
+            };
+            let mut guards = Vec::new();
+            collect_guards(right, &mut guards);
+            result.extend(
+                guards
+                    .into_iter()
+                    .map(|guard| implies(evaluated.clone(), guard)),
+            );
         }
         Add { left, right }
         | Sub { left, right }
         | Mul { left, right }
-        | Div { left, right }
         | Eq { left, right }
         | Le { left, right }
         | Lt { left, right }
-        | And { left, right }
-        | Or { left, right }
         | Implies { left, right } => {
-            collect_reads(left, result);
-            collect_reads(right, result);
+            collect_guards(left, result);
+            collect_guards(right, result);
         }
         Neg { operand }
         | Not { operand }
@@ -747,10 +776,10 @@ fn collect_reads<'a>(expr: &'a Proposition, result: &mut Vec<&'a Proposition>) {
         | Len { seq: operand }
         | Sorted { seq: operand }
         | Forall { body: operand, .. }
-        | Exists { body: operand, .. } => collect_reads(operand, result),
+        | Exists { body: operand, .. } => collect_guards(operand, result),
         App { args, .. } => {
             for arg in args {
-                collect_reads(arg, result);
+                collect_guards(arg, result);
             }
         }
         _ => {}

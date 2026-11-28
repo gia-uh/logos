@@ -129,7 +129,7 @@ class _Generator:
         raise ProofSearchError(f"unknown program variable {name!r}")
 
     def reads_in(self, statements, path, state):
-        for statement in statements:
+        for offset, statement in enumerate(statements):
             if isinstance(statement, Assign):
                 value = _subst(statement.value, state)
                 self._read_obligations(value, path)
@@ -139,17 +139,22 @@ class _Generator:
             elif isinstance(statement, If):
                 condition = _subst(statement.condition, state)
                 self._read_obligations(condition, path)
-                self.reads_in(statement.then_body, And(path, condition), dict(state))
-                self.reads_in(statement.else_body, And(path, Not(condition)), dict(state))
+                # Each branch reaches the continuation with its own local values.
+                continuation = tuple(statements[offset + 1:])
+                self.reads_in(statement.then_body + continuation, And(path, condition), state)
+                self.reads_in(statement.else_body + continuation, And(path, Not(condition)), state)
+                return
             elif isinstance(statement, While):
                 condition = statement.condition
-                self._read_obligations(condition, And(path, statement.invariant))
+                self._read_obligations(condition, statement.invariant)
                 self.reads_in(
                     statement.body,
                     And(statement.invariant, condition),
                     {},
                 )
+                # Use facts about the exit state in place of facts about entry.
                 state = {}
+                path = And(statement.invariant, Not(condition))
             elif isinstance(statement, Call):
                 callee = statement.callee.program
                 actuals = [_subst(argument, state) for argument in statement.args]
@@ -166,39 +171,42 @@ class _Generator:
                         name = f"{statement.id}.requires.{clause.name}"
                     else:
                         name = f"{statement.id}.requires"
-                    self.obligations[name] = Implies(path, requirement)
+                    goal = Implies(path, requirement)
+                    if name in self.obligations:
+                        goal = And(self.obligations[name], goal)
+                    self.obligations[name] = goal
                 state = dict(state)
                 state[id(self._variable(statement.target))] = value
                 path = And(path, _subst(callee.ensures, mapping))
             elif isinstance(statement, Return):
                 self._read_obligations(_subst(statement.value, state), path)
+                return
 
     def _read_obligations(self, expression, path):
-        for read in _nth_reads(expression):
-            self.obligations[f"read{self.reads}"] = Implies(
-                path, (Lit(0) <= read.index) & (read.index < length(read.seq))
-            )
+        for guard in _evaluation_guards(expression):
+            self.obligations[f"read{self.reads}"] = Implies(path, guard)
             self.reads += 1
 
 
-def _nth_reads(expr: Expr):
+def _evaluation_guards(expr: Expr):
     if isinstance(expr, Nth):
-        yield expr
-        yield from _nth_reads(expr.seq)
-        yield from _nth_reads(expr.index)
+        yield (Lit(0) <= expr.index) & (expr.index < length(expr.seq))
+    if isinstance(expr, Div):
+        yield (expr.right < Lit(0)) | (Lit(0) < expr.right)
+    if isinstance(expr, (And, Or)):
+        yield from _evaluation_guards(expr.left)
+        evaluated = expr.left if isinstance(expr, And) else Not(expr.left)
+        for guard in _evaluation_guards(expr.right):
+            yield Implies(evaluated, guard)
         return
     for field in getattr(expr, "__dataclass_fields__", ()):
         value = getattr(expr, field)
         if isinstance(value, Expr):
-            yield from _nth_reads(value)
+            yield from _evaluation_guards(value)
         elif isinstance(value, (list, tuple)):
             for item in value:
                 if isinstance(item, Expr):
-                    yield from _nth_reads(item)
-        elif isinstance(value, tuple):
-            for item in value:
-                if isinstance(item, Expr):
-                    yield from _nth_reads(item)
+                    yield from _evaluation_guards(item)
 
 
 def verification_conditions(program: Program) -> dict[str, Expr]:
