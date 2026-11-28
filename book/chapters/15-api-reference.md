@@ -392,9 +392,9 @@ The book spelling of :func:`define` for transparent propositions.
 
 Import with `from logos import recursor`.
 
-`recursor(name, base, step, *, parameters=None) -> Function`
+`recursor(name: str, base, step: Callable[..., Expr], *, parameters: Mapping[str, type | SeqType] | None=None) -> Function`
 
-Declare a primitive-recursive integer function on the naturals. Pass a mapping of parameter names to sorts when the definition depends on fixed arguments. For example, a prefix sum takes an integer recursion index and a fixed sequence. With fixed parameters, `base` is a callable of those parameters, and `step` takes the predecessor index, the previous result and the fixed parameters.
+Declare a primitive-recursive integer function on the naturals.
 
 ### logos.extern
 
