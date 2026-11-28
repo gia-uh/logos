@@ -1,7 +1,6 @@
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 
@@ -20,7 +19,6 @@ from logos.tactics import (
 pytestmark = pytest.mark.skipif(shutil.which("logos") is None, reason="install the Rust logos CLI")
 EXPECTED = "(Authenticated ∧ Authorized) → Authorized"
 DERIVED = "(Authenticated ∧ Authorized) → Authenticated"
-FIXTURE = Path(__file__).resolve().parents[1] / "checker/tests/fixtures/portable/authorization.logos"
 
 
 @pytest.fixture(autouse=True)
@@ -48,6 +46,14 @@ def prepared(kind):
 
         return authorization.proof(proof)
     return logos.prove(statement, proof)
+
+
+def _checked_artifact():
+    proof = prepared("anonymous")
+    logos.check(proof)
+    artifact = proof.receipt.artifact
+    logos.portable._CAPABILITY_MEASUREMENT = None
+    return artifact
 
 
 @pytest.fixture
@@ -199,7 +205,7 @@ def test_changed_checker_identity_invalidates_capability_measurement(
 
 
 def test_failed_capability_handshake_is_not_cached(monkeypatch):
-    artifact = FIXTURE.read_bytes()
+    artifact = _checked_artifact()
     real_invoke = logos.portable._checker_invoke
     attempts = []
     fail = True
@@ -228,7 +234,7 @@ def test_failed_capability_handshake_is_not_cached(monkeypatch):
 
 
 def test_incompatible_capability_contract_is_not_cached(monkeypatch):
-    artifact = FIXTURE.read_bytes()
+    artifact = _checked_artifact()
     real_invoke = logos.portable._checker_invoke
     attempts = []
 
