@@ -84,6 +84,19 @@ logos.export_proof(square_of_sum, "square.logos")
 
 A custom tactic can inspect the current goal and return evidence, or split it into subgoals and combine their proofs. Rust checks the resulting derivation independently of the tactic.
 
+## Reuse compiled proofs across runs
+
+When the proof is an ordinary module-level book-style function, `check()` can reuse the compiled evidence that an earlier interpreter produced. A record is reused only while the declared statement, the proof source and code, the live declarations it references and the Logos compiler identity are unchanged. The cache stores proof terms, never a verdict. Every `check()` still sends the complete artifact to `logos check --json -`, and a stored proof that no longer proves the current statement is rejected.
+
+The cache is on by default under the user cache directory (`$XDG_CACHE_HOME/logos/evidence-v1`, or `~/.cache/logos/evidence-v1`). Use the environment to control it:
+
+```bash
+LOGOS_CACHE=off python prove.py          # execute every proof body
+LOGOS_CACHE_DIR=/tmp/logos-cache python prove.py  # isolate a cache
+```
+
+Proofs with closures, mutable or opaque globals, missing source, plain tactic lists, function definitions, source-bound programs or evidence outside the portable proof vocabulary keep executing as before. `@logos.function` and program contracts keep their own source revalidation. See the [Developer Guide](https://github.com/gia-uh/logos/blob/main/book/chapters/14-developer-guide.md#reuse-compiled-evidence-across-processes) for the exact rules and limits.
+
 ## Declare a contract beside the function
 
 `@logos.function` reads the function's source and either translates the body or refuses at the first construct it cannot represent, before any clause is declared. Clauses are separate Python functions named by their function names. Their parameters are symbolic and bound by name; `result` is bound only in a postcondition. The decorator returns the original function, so there is no wrapper and no runtime check.

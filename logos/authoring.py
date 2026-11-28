@@ -1996,4 +1996,8 @@ def authoring_tactic(theorem, fn):
             # reader still sees the source line and the local state.
             raise
 
+    # The persistent evidence cache identifies a source-bound proof through
+    # these two attributes.  They are not part of the public authoring API.
+    tactic.__logos_authoring_source__ = fn
+    tactic.__logos_authoring_theorem__ = theorem
     return tactic

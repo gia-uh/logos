@@ -568,8 +568,11 @@ dependencies.
 
 `logos.check` runs the target tactics and invokes `logos check --json -`
 via the installed checker on PATH. Named, anonymous, and automatic entry
-points share this verifier. A successful check records a `ProofReceipt` with
-the immutable bytes and digest. `proof.certified` tracks whether the current
+points share this verifier. An eligible authored lemma may reuse a compiled
+Python proof term from an earlier process; this is untrusted evidence, so the
+complete artifact still reaches the checker and the certificate bytes are
+unchanged. A successful check records a `ProofReceipt` with the immutable
+bytes and digest. `proof.certified` tracks whether the current
 statement, declarations, evidence, and transitive dependencies still match
 the receipt. A changed dependency can clear current certification before
 another checker call. After invalidation, `logos.check` must verify the

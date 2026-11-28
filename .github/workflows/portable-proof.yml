@@ -46,6 +46,8 @@ jobs:
           python tests/installed_portable.py "$RUNNER_TEMP/portable/bin/logos" "$author" "$RUNNER_TEMP/evidence" > "$RUNNER_TEMP/installed-proof-transcript.txt"
           cp tests/test_portable.py "$RUNNER_TEMP/test_portable.py"
           (cd "$RUNNER_TEMP" && "$author" -I -m pytest -q test_portable.py)
+          cp tests/test_evidence_cache.py "$RUNNER_TEMP/test_evidence_cache.py"
+          (cd "$RUNNER_TEMP" && "$author" -I -m pytest -q test_evidence_cache.py)
           "$author" -m pytest -q -rx
 
       - name: Exercise the native English chapter from the installed wheel

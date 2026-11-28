@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Proof compilation
+
+- Persist one compiled Python proof term per eligible authored lemma in the
+  user cache and reuse it across interpreters. A record is keyed by the
+  statement, declarations, proof source and code, live theorem and axiom
+  bindings, and the Logos compiler digest. Every `check()` still sends the
+  complete artifact to the Rust checker; corrupt or stale records execute
+  again, and `LOGOS_CACHE=off` or `LOGOS_CACHE_DIR` controls the cache.
+
 ## [0.1.0] - 2026-11-27
 
 First public release. The Python distribution is `logos-ai`, imported as

@@ -237,6 +237,108 @@ for theorem in intervals.check_all():
     print(f"{theorem.name}: {theorem.certified}")
 ```
 
+## Reuse compiled evidence across processes
+
+A fresh Python process normally runs every proof body before it builds the
+certificate. For a library of many small lemmas that work repeats itself. The
+persistent evidence cache lets `check()` reuse the compiled proof term of an
+unchanged lemma, while Rust still replays the complete certificate.
+
+A cache record is not a certificate and not a verdict. It holds one compiled
+`ProofTerm` graph, keyed by:
+
+- the theorem name and the declared statement;
+- the declarations and their sorts;
+- the source text, code object, bytecode globals and module path of the
+  authored proof function;
+- the live theorem and axiom objects the evidence references, including their
+  statements and declarations;
+- a digest of the Logos Python sources plus `logos-proof-v1` and
+  `logos-core-v1`.
+
+The cache is enabled by default under the user cache directory. These
+environment variables control it:
+
+| Variable | Meaning |
+|---|---|
+| `LOGOS_CACHE=off` | Execute every proof body; read and write no records. |
+| `LOGOS_CACHE_DIR=/path` | Use exactly this directory as the evidence cache. |
+| `LOGOS_CACHE=on` | The default. |
+
+A record is used only when all of those inputs still match. When a proof
+source changes, its key changes, so the old record is ignored. When a
+dependency statement or declaration changes, the parent record no longer
+matches its live binding, so the parent executes again. An edit to a
+dependency's *proof* keeps the parent record eligible: the parent still cites
+the live theorem by name, and the artifact carries the dependency's current
+proof, which Rust checks.
+
+The eligibility rule is deliberately narrow. A proof uses the cache only when:
+
+- it is a book-style authored proof function (`@thm.proof def prove_x(p)`);
+- the function is module-level, has an empty closure, no default arguments,
+  no nested code objects or lambdas and readable source;
+- its bytecode neither writes globals or attributes, imports, yields nor
+  awaits, builds no sets or unordered containers, and uses only a short list of
+  deterministic builtins (`len`, `range`, `int`, `enumerate`, `sorted`, and
+  similar) rather than `open`, `eval`, `getattr`, `iter`, `next`, `set` or
+  `hash`;
+- every attribute it reads is a public proof-context or fact member or an
+  expression field, not a theorem's stored evidence, an internal object, a
+  source location or a diagnostic label;
+- every global it reads is an immutable value, a tuple of such values, a
+  theorem or axiom declaration, or a Logos library function;
+- its compiled evidence uses only the portable vocabulary: arithmetic,
+  comparisons, connectives, quantifiers and the ordinary proof terms. Function
+  applications, primitive-recursion terms, program references and `Subst`
+  terms keep executing.
+
+Everything else executes as before. That includes plain tactic lists,
+closures, mutable or opaque globals, missing source, `@logos.function`
+declarations, program contracts and source-bound revalidation. Those paths do
+not silently become cache hits, and an explicit `check()` of a fallback proof
+runs its body every time. Source locations and diagnostic labels are not part
+of the key, so a proof that reads `Fact.line`, `Fact.file`, `Fact.source_line`
+or `Fact.label` also executes.
+
+Loads are untrusted. After reviving a record, `check()` builds the full artifact
+and invokes the installed Rust checker exactly as it would for freshly executed
+evidence. A record whose evidence proves the wrong statement fails the Rust
+check. Records are written only after Rust accepted the artifact that used
+them. A malformed, incompatible or unreadable record is ignored and the proof
+executes; an unwritable cache leaves `check()` working. Writes use a temporary
+file and an atomic rename, so concurrent processes cannot read a partial
+record. The record is JSON with an explicit constructor whitelist; there is no
+pickle and no executable deserialization.
+
+On a balanced tree of 1,022 integer-equality lemmas, with leaves proved by
+`p.ring` and joins by `p.trans`, one host produced these median wall times for
+the `check()` call after import (three runs per row):
+
+| Operation | Without cache | First run with cache | Repeated with cache | Proof bodies executed | Rust checks |
+|---|---:|---:|---:|---:|---:|
+| Cold seed of both roots | 4.7 s | 6.2 s | 1.2 s | 1,022 then 0 | 2 |
+| Add a theorem citing two roots through a tuple | 4.6 s | 1.3 s | 1.3 s | 1 then 0 | 1 |
+| Edit one branch of the new proof | 4.7 s | 1.2 s | 1.2 s | 1 then 0 | 1 |
+| Change one base lemma proof | 4.6 s | 1.2 s | 1.2 s | 1 then 0 | 1 |
+| Narrow subset of three lemmas | 0.034 s | 0.048 s | 0.027 s | 3 then 0 | 1 |
+
+The first cold seed pays about 1.5 seconds to fingerprint and write 1,022
+records. Every later run spends about 1.2 seconds in Python instead of 4.6 to
+4.7, and executes only the proof that changed. The artifact is byte-identical
+with and without a warm cache. The Rust checker sees the same 1,022 lemma
+records every time. The remaining Python cost is the portable artifact
+assembly and the receipt freshness check, not proof search. On the narrow
+subset the cache is nearly break-even: three tiny proofs do not repay the
+record I/O.
+
+The cache does not make Rust faster, does not store per-lemma Rust verdicts and
+does not change the portable format. A recipient who receives a `.logos` file
+still needs only the Rust checker and sees no cache metadata. If a record is
+suspicious, set `LOGOS_CACHE=off` or point `LOGOS_CACHE_DIR` at a new directory;
+the proof executes and a fresh record is written after the next successful
+check.
+
 ## A tactic returns evidence, not trust
 
 The four lemmas are enough to write proofs by hand, but a developer will meet the same overlap goal repeatedly. The `interval` tactic closes an overlap goal by unfolding it and building two linear certificates from the order facts in the local context. It uses the same exact Farkas routine as `p.linear`; it does not search for a truth it cannot certify.
