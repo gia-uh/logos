@@ -599,6 +599,8 @@ def _function_fingerprint(fn: FunctionType, seen: set[int], depth: int = 0) -> d
     if fn.__defaults__ or fn.__kwdefaults__:
         raise _Ineligible("proof implementation has default arguments")
     code = fn.__code__
+    if code.co_flags & (inspect.CO_GENERATOR | inspect.CO_COROUTINE | inspect.CO_ASYNC_GENERATOR):
+        raise _Ineligible("proof implementation is a generator or coroutine")
     _check_bytecode(code)
     if id(fn) in seen:
         return {
@@ -662,8 +664,8 @@ def _authored_source(theorem) -> FunctionType:
         raise _Ineligible("authored proof wrapper belongs to another theorem")
     if not isinstance(fn, FunctionType):
         raise _Ineligible("authored proof source is not a plain function")
-    if "<locals>" in fn.__qualname__:
-        raise _Ineligible("authored proof is defined inside a function")
+    if "<locals>" in fn.__qualname__ or "." in fn.__qualname__:
+        raise _Ineligible("authored proof is not a module-level function")
     if fn.__closure__:
         raise _Ineligible("authored proof has a closure")
     return fn
@@ -749,7 +751,9 @@ def _validate_descriptor(descriptor: dict, globals_map: dict):
     from logos.theorem import Axiom as AuthorAxiom, Theorem
 
     path = descriptor.get("path")
-    if not isinstance(path, list):
+    if not isinstance(path, list) or len(path) > 8:
+        raise _Ineligible("cached dependency path is malformed")
+    if any(not isinstance(step, (str, int)) or isinstance(step, bool) for step in path):
         raise _Ineligible("cached dependency path is malformed")
     if len(path) == 2 and path[0] == "logos.builtins":
         value = getattr(logos_builtins, path[1], None)
