@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redirecting to the Logos book</title>
+<link rel="canonical" href="https://logos.uhgia.org/index.html">
+<meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="0; url=../../index.html">
+<script>
+(function () {
+  var target = "../../index.html";
+  var anchors = {};
+  var old = decodeURIComponent(location.hash.replace(/^#/, ""));
+  if (old) target += "#" + (Object.prototype.hasOwnProperty.call(anchors, old) ? anchors[old] : old);
+  location.replace(target);
+})();
+</script>
+</head>
+<body>
+<p>This page moved to <a href="../../index.html">the Logos book</a>.</p>
+</body>
+</html>

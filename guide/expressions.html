@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redirecting to the Logos book</title>
+<link rel="canonical" href="https://logos.uhgia.org/introduction.html">
+<meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="0; url=../introduction.html#conventions">
+<script>
+(function () {
+  var target = "../introduction.html";
+  var anchors = {"arithmetic-operators": "conventions", "comparison-operators": "conventions", "expression-trees-are-identity-based": "conventions", "logical-connectives": "conventions", "substitution": "conventions", "the-__bool__-guard": "conventions", "the-bool-guard": "conventions", "variables-and-literals": "conventions"};
+  var old = decodeURIComponent(location.hash.replace(/^#/, ""));
+  if (old) target += "#" + (Object.prototype.hasOwnProperty.call(anchors, old) ? anchors[old] : old);
+  location.replace(target);
+})();
+</script>
+</head>
+<body>
+<p>This page moved to <a href="../introduction.html#conventions">the Logos book</a>.</p>
+</body>
+</html>

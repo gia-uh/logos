@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en" data-scheme-default="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Public API Reference · Logos</title>
+<script>(function(){var d=document.documentElement,m=d.dataset.schemeDefault||'auto';try{m=localStorage.getItem('scriptorium-scheme')||m}catch(e){}d.dataset.schemeMode=m;d.dataset.scheme=m==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):m})()</script>
+<meta name="description" content="Use this chapter to find the supported import, call signature, and result of a Logos operation. It covers exports from logos and logos.tactics plus the…">
+<meta property="og:title" content="Public API Reference">
+<meta property="og:type" content="website">
+<meta property="og:description" content="Use this chapter to find the supported import, call signature, and result of a Logos operation. It covers exports from logos and logos.tactics plus the…">
+<link rel="canonical" href="https://logos.uhgia.org/public-api-reference.html">
+<meta property="og:url" content="https://logos.uhgia.org/public-api-reference.html">
+<link rel="stylesheet" href="docs.css">
+<script src="docs.js" defer></script>
+</head>
+<body class="docs typo-docs" data-copy="Copy" data-copied="Copied" style="--docs-output-label: 'Output'">
+<header class="topbar">
+<button class="menu" type="button" aria-label="Menu" aria-expanded="false">☰</button>
+<a class="site-title" href="index.html"><span>Logos</span></a>
+<div class="search"><input type="search" placeholder="Search" aria-label="Search" autocomplete="off"><div class="search-results" data-none="No results" hidden></div></div>
+<button class="scheme" type="button" aria-label="Colour scheme" title="Colour scheme"></button>
+<a class="source repo" href="https://github.com/gia-uh/logos" title="Source" data-github="gia-uh/logos"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.6 7.6 0 0 1 8 3.87c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span class="repo-name">gia-uh/logos<small class="repo-facts" hidden></small></span></a>
+</header>
+<div class="layout">
+<nav class="sidebar" aria-label="Contents"><ul><li><a href="introduction.html">Introduction</a></li><li><a href="quick-start.html">Quick Start</a></li><li><a href="writing-your-first-proof.html">Writing Your First Proof</a></li><li><a href="facts-that-hold-together.html">Facts That Hold Together</a></li><li><a href="when-a-proof-splits-in-two.html">When a Proof Splits in Two</a></li><li><a href="witnesses-and-their-scope.html">Witnesses and Their Scope</a></li><li><a href="definitions-that-unfold-lemmas-you-can-name.html">Definitions That Unfold, Lemmas You Can Name</a></li><li><a href="even-odd-and-what-divides-means.html">Even, Odd, and What Divides Means</a></li><li><a href="what-divides-two-neighbours.html">What Divides Two Neighbours</a></li><li><a href="induction-that-builds-a-factorial.html">Induction That Builds a Factorial</a></li><li><a href="the-smallest-divisor.html">The Smallest Divisor</a></li><li><a href="one-more-prime-always.html">One More Prime, Always</a></li><li><a href="binary-search-all-the-way-down.html">Binary Search, All the Way Down</a></li><li><a href="a-contract-on-code-that-ships.html">A Contract on Code That Ships</a></li><li><a href="can-two-clients-hold-the-lock.html">Can Two Clients Hold the Lock?</a></li><li><a href="extend-the-checked-language-with-a-domain.html">Extend the Checked Language with a Domain</a></li><li><a href="public-api-reference.html" aria-current="page">Public API Reference</a><ul class="sections"><li><a href="#existential-lookup">Existential lookup</a></li><li><a href="#expressions">Expressions</a></li><li><a href="#theorems-and-evidence">Theorems and evidence</a></li><li><a href="#definitions">Definitions</a></li><li><a href="#program-contracts">Program contracts</a></li><li><a href="#proof-context">Proof context</a></li><li><a href="#tactics">Tactics</a></li><li><a href="#tactic-extensions">Tactic extensions</a></li><li><a href="#finite-transition-systems">Finite transition systems</a></li></ul></li></ul></nav>
+<main>
+<section style="counter-reset: chapter 16 part 0 figure 0 audio 0" class="docs-page chapter"><div class="unit"><h1 id="public-api-reference">Public API Reference</h1>
+</div><div class="unit"><p>Use this chapter to find the supported import, call signature, and result of a
+Logos operation. It covers exports from <code>logos</code> and <code>logos.tactics</code> plus the
+documented proof-context and tactic-extension interfaces. Class members are
+called on the returned object or on the context provided by Logos. Signatures
+come from Python source, so a missing type annotation has the same meaning
+here as in Python. Implementation inventory lives in
+<a href="https://github.com/gia-uh/logos/blob/main/book/maintenance/api-inventory.md">the maintainer file</a>.</p>
+</div><div class="unit"><ul>
+<li><a href="#existential-lookup">Existential lookup</a></li>
+<li><a href="#expressions">Expressions</a></li>
+<li><a href="#theorems-and-evidence">Theorems and evidence</a></li>
+<li><a href="#definitions">Definitions</a></li>
+<li><a href="#program-contracts">Program contracts</a></li>
+<li><a href="#proof-context">Proof context</a></li>
+<li><a href="#tactics">Tactics</a></li>
+<li><a href="#tactic-extensions">Tactic extensions</a></li>
+</ul>
+</div><div class="unit"><h2 id="existential-lookup">Existential lookup<a class="anchor" href="#existential-lookup">#</a></h2>
+</div><div class="unit"><table>
+<thead>
+<tr>
+<th>What you have</th>
+<th>Operation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A predicate and a type</td>
+<td><a href="#logosexists"><code>logos.exists</code></a></td>
+<td>The symbolic statement ∃x. P(x).</td>
+</tr>
+<tr>
+<td>An existential tactic goal and a candidate value</td>
+<td><a href="#logostacticswitness"><code>logos.tactics.witness</code></a></td>
+<td>A tactic that replaces ∃x. P(x) with P(value).</td>
+</tr>
+<tr>
+<td>A current existential goal and evidence for the candidate</td>
+<td><a href="#proofcontextwitness"><code>ProofContext.witness</code></a></td>
+<td>Proof term to return from the proof function.</td>
+</tr>
+<tr>
+<td>An existential statement you want as an intermediate fact and evidence for the candidate</td>
+<td><a href="#proofcontextexists"><code>ProofContext.exists</code></a></td>
+<td>A fact for ∃x. P(x). The current goal stays open.</td>
+</tr>
+<tr>
+<td>An existential fact you want to use</td>
+<td><a href="#proofcontextobtain"><code>ProofContext.obtain</code></a></td>
+<td>A fresh local symbol and a fact about it.</td>
+</tr>
+</tbody>
+</table>
+</div><div class="unit"><h3 id="complete-existential-examples">Complete existential examples<a class="anchor" href="#complete-existential-examples">#</a></h3>
+</div><div class="unit"><p>To show that an integer greater than four exists, choose five. In a tactic
+proof, <code>witness</code> leaves <code>4 &lt; 5</code>, the same comparison as <code>5 &gt; 4</code>. Prove that
+comparison as a separate lemma and use <code>apply</code> to close the subgoal. Write
+<code>lit(4) &lt; x</code> so the symbolic comparison has the same shape as the lemma.</p>
+</div><div class="unit"><div class="codeblock" data-lang="python"><span class="code-src"><div class="hl"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">logos</span><span class="w"> </span><span class="kn">import</span> <span class="n">Int</span><span class="p">,</span> <span class="n">check</span><span class="p">,</span> <span class="n">exists</span><span class="p">,</span> <span class="n">lit</span><span class="p">,</span> <span class="n">prove</span><span class="p">,</span> <span class="n">theorem</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">logos.tactics</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply</span><span class="p">,</span> <span class="n">witness</span>
+
+<span class="nd">@theorem</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">five_above_four</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">lit</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">5</span>
+
+<span class="nd">@five_above_four</span><span class="o">.</span><span class="n">proof</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">prove_five_above_four</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">linear</span><span class="p">(</span><span class="n">lit</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">)</span>
+
+<span class="n">check</span><span class="p">(</span><span class="n">five_above_four</span><span class="p">)</span>
+<span class="n">statement</span> <span class="o">=</span> <span class="n">exists</span><span class="p">(</span><span class="n">Int</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">lit</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">x</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">check</span><span class="p">(</span><span class="n">prove</span><span class="p">(</span><span class="n">statement</span><span class="p">,</span> <span class="p">[</span><span class="n">witness</span><span class="p">(</span><span class="n">lit</span><span class="p">(</span><span class="mi">5</span><span class="p">)),</span> <span class="n">apply</span><span class="p">(</span><span class="n">five_above_four</span><span class="p">)]))</span><span class="o">.</span><span class="n">certified</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Tactic witness certified"</span><span class="p">)</span>
+</pre></div>
+</span></div></div><div class="unit"><p>Tactic witness certified</p>
+</div><div class="unit"><p>In a proof function, establish <code>5 &gt; 4</code> first. If the existential is the
+current goal, return <code>p.witness</code>. When the existential is needed as one part of
+a conjunction, build it with <code>p.exists</code> and combine the resulting facts.</p>
+</div><div class="unit"><div class="codeblock" data-lang="python"><span class="code-src"><div class="hl"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">logos</span><span class="w"> </span><span class="kn">import</span> <span class="n">Int</span><span class="p">,</span> <span class="n">check</span><span class="p">,</span> <span class="n">exists</span><span class="p">,</span> <span class="n">lit</span><span class="p">,</span> <span class="n">theorem</span>
+
+<span class="nd">@theorem</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">above_four</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">exists</span><span class="p">(</span><span class="n">Int</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">)</span>
+
+<span class="nd">@above_four</span><span class="o">.</span><span class="n">proof</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">prove_above_four</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">witness</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">linear</span><span class="p">(</span><span class="n">lit</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">))</span>
+
+<span class="nd">@theorem</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">two_claims</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">exists</span><span class="p">(</span><span class="n">Int</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">lit</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">6</span><span class="p">)</span>
+
+<span class="nd">@two_claims</span><span class="o">.</span><span class="n">proof</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">prove_two_claims</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+    <span class="n">above_four</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span>
+        <span class="n">exists</span><span class="p">(</span><span class="n">Int</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">),</span> <span class="mi">5</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">linear</span><span class="p">(</span><span class="n">lit</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">and_intro</span><span class="p">(</span><span class="n">above_four</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">linear</span><span class="p">(</span><span class="n">lit</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">6</span><span class="p">))</span>
+
+<span class="k">assert</span> <span class="n">check</span><span class="p">(</span><span class="n">above_four</span><span class="p">)</span><span class="o">.</span><span class="n">certified</span>
+<span class="k">assert</span> <span class="n">check</span><span class="p">(</span><span class="n">two_claims</span><span class="p">)</span><span class="o">.</span><span class="n">certified</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Proof-context witness and existential fact certified"</span><span class="p">)</span>
+</pre></div>
+</span></div></div><div class="unit"><p>Proof-context witness and existential fact certified</p>
+</div><div class="unit"><p>See <a href="witnesses-and-their-scope.html">Witnesses and Their Scope</a> for a complete
+proof that opens an existential with <code>p.obtain</code>.</p>
+</div><div class="unit"><h2 id="expressions">Expressions<a class="anchor" href="#expressions">#</a></h2>
+</div><div class="unit"><p><a href="quick-start.html">Complete checked example</a></p>
+</div><div class="unit"><h3 id="logosint">logos.Int<a class="anchor" href="#logosint">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import Int</code>.</p>
+</div><div class="unit"><p>Alias for Python <code>int</code>, the integer sort in portable statements.</p>
+</div><div class="unit"><h3 id="logosprop">logos.Prop<a class="anchor" href="#logosprop">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import Prop</code>.</p>
+</div><div class="unit"><p>Alias for Python <code>bool</code>, the proposition sort in portable statements.</p>
+</div><div class="unit"><h3 id="logosexpr">logos.Expr<a class="anchor" href="#logosexpr">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import Expr</code>.</p>
+</div><div class="unit"><p>Base class for all expression nodes. Operators build expression trees.</p>
+</div><div class="unit"><h3 id="logosvar-constructor">logos.Var constructor<a class="anchor" href="#logosvar-constructor">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import Var</code>.</p>
+</div><div class="unit"><p><code>Var(name: str, type: type)</code></p>
+</div><div class="unit"><p>Construct a symbolic variable. Its identity distinguishes it from other variables with the same name.</p>
+</div><div class="unit"><h3 id="logoslit-constructor">logos.Lit constructor<a class="anchor" href="#logoslit-constructor">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import Lit</code>.</p>
+</div><div class="unit"><p><code>Lit(value: Any)</code></p>
+</div><div class="unit"><p>Construct a symbolic literal from a Python value. Use integers or Booleans for portable proofs.</p>
+</div><div class="unit"><h3 id="logosforall-constructor">logos.Forall constructor<a class="anchor" href="#logosforall-constructor">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import Forall</code>.</p>
+</div><div class="unit"><p><code>Forall(*args: Var | Expr) -&gt; Expr</code></p>
+</div><div class="unit"><p>Forall(x, y, body) → nested ForallNode(x, ForallNode(y, body)).</p>
+</div><div class="unit"><h3 id="logosexists-constructor">logos.Exists constructor<a class="anchor" href="#logosexists-constructor">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import Exists</code>.</p>
+</div><div class="unit"><p><code>Exists(var: Var, body: Expr) -&gt; Expr</code></p>
+</div><div class="unit"><p>Bind one symbolic variable in the supplied predicate expression. Nest calls for multiple variables.</p>
+</div><div class="unit"><h3 id="logosimplies">logos.Implies<a class="anchor" href="#logosimplies">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import Implies</code>.</p>
+</div><div class="unit"><p><code>Implies(antecedent: Expr, consequent: Expr)</code></p>
+</div><div class="unit"><p>Build the symbolic implication from its antecedent and consequent, as with <code>A &gt;&gt; B</code>.</p>
+</div><div class="unit"><h3 id="logosvar">logos.var<a class="anchor" href="#logosvar">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import var</code>.</p>
+</div><div class="unit"><p><code>var(name: str, type_: type) -&gt; Var</code></p>
+</div><div class="unit"><p>Return a fresh symbolic variable of the supplied type. Reuse the returned object to refer to the same symbol.</p>
+</div><div class="unit"><h3 id="logosvars">logos.vars<a class="anchor" href="#logosvars">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import vars</code>.</p>
+</div><div class="unit"><p><code>vars(names: str, type_: type) -&gt; tuple[Var, ...]</code></p>
+</div><div class="unit"><p>Split whitespace-separated names and return one fresh symbolic variable per name.</p>
+</div><div class="unit"><h3 id="logoslit">logos.lit<a class="anchor" href="#logoslit">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import lit</code>.</p>
+</div><div class="unit"><p><code>lit(value) -&gt; Lit</code></p>
+</div><div class="unit"><p>Lift a Python value into a symbolic literal. Use an integer or Boolean for portable proofs.</p>
+</div><div class="unit"><h3 id="logosforall">logos.forall<a class="anchor" href="#logosforall">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import forall</code>.</p>
+</div><div class="unit"><p><code>forall(type_: type, *rest) -&gt; Expr</code></p>
+</div><div class="unit"><p>Pass one sort per parameter followed by a callable that returns a symbolic predicate. Return the universally quantified expression. A noncallable predicate argument is rejected.</p>
+</div><div class="unit"><h3 id="logosexists">logos.exists<a class="anchor" href="#logosexists">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import exists</code>.</p>
+</div><div class="unit"><p><code>exists(type_: type, fn) -&gt; Expr</code></p>
+</div><div class="unit"><p>Pass a sort and a unary callable returning a symbolic predicate. Return an existential expression. The callable is evaluated on a fresh symbolic variable.</p>
+</div><div class="unit"><h3 id="logoschain">logos.chain<a class="anchor" href="#logoschain">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import chain</code>.</p>
+</div><div class="unit"><p><code>chain(*props: Expr) -&gt; Expr</code></p>
+</div><div class="unit"><p>Build a right-associated implication from one or more propositions. <code>chain(A, B, C)</code> builds <code>A &gt;&gt; (B &gt;&gt; C)</code>. An empty chain has no conclusion and raises <code>IndexError</code>.</p>
+</div><div class="unit"><h3 id="logosformat-expr">logos.format_expr<a class="anchor" href="#logosformat-expr">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import format_expr</code>.</p>
+</div><div class="unit"><p><code>format_expr(expr: Expr) -&gt; str</code></p>
+</div><div class="unit"><p>Render an expression the way a reader writes it in the book.</p>
+</div><div class="unit"><h3 id="logosseq">logos.Seq<a class="anchor" href="#logosseq">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import Seq</code>.</p>
+</div><div class="unit"><p>The sort marker for a sequence of integers in program contracts.</p>
+</div><div class="unit"><h3 id="logosseq-var">logos.seq_var<a class="anchor" href="#logosseq-var">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import seq_var</code>.</p>
+</div><div class="unit"><p><code>seq_var(name: str) -&gt; Var</code></p>
+</div><div class="unit"><p>Create a fresh symbolic variable of sequence sort.</p>
+</div><div class="unit"><h3 id="logoslength">logos.length<a class="anchor" href="#logoslength">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import length</code>.</p>
+</div><div class="unit"><p><code>length(xs: Expr) -&gt; Len</code></p>
+</div><div class="unit"><p>Build the symbolic length of a sequence.</p>
+</div><div class="unit"><h3 id="logosnth">logos.nth<a class="anchor" href="#logosnth">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import nth</code>.</p>
+</div><div class="unit"><p><code>nth(xs: Expr, index) -&gt; Nth</code></p>
+</div><div class="unit"><p>Build a symbolic zero-based element access. Program proofs must establish both index bounds.</p>
+</div><div class="unit"><h3 id="logossorted">logos.sorted<a class="anchor" href="#logossorted">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import sorted</code>.</p>
+</div><div class="unit"><p><code>sorted(xs: Expr) -&gt; Sorted</code></p>
+</div><div class="unit"><p>The checker-owned sortedness predicate over a sequence.</p>
+</div><div class="unit"><h3 id="logosabsent">logos.absent<a class="anchor" href="#logosabsent">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import absent</code>.</p>
+</div><div class="unit"><p><code>absent(xs: Expr, target: Expr) -&gt; Expr</code></p>
+</div><div class="unit"><p>Every in-range index holds something other than <code>target</code>.</p>
+</div><div class="unit"><h3 id="logosoccurrence">logos.occurrence<a class="anchor" href="#logosoccurrence">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import occurrence</code>.</p>
+</div><div class="unit"><p><code>occurrence(xs: Expr, target: Expr) -&gt; Expr</code></p>
+</div><div class="unit"><p>Some in-range index holds <code>target</code>.</p>
+</div><div class="unit"><h2 id="theorems-and-evidence">Theorems and evidence<a class="anchor" href="#theorems-and-evidence">#</a></h2>
+</div><div class="unit"><p><a href="writing-your-first-proof.html">Complete checked example</a></p>
+</div><div class="unit"><h3 id="logostheorem">logos.theorem<a class="anchor" href="#logostheorem">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import theorem</code>.</p>
+</div><div class="unit"><p><code>theorem(fn=None, *, about=None)</code></p>
+</div><div class="unit"><p>@logos.theorem decorator — creates a Theorem object (no proof yet).</p>
+</div><div class="unit"><h3 id="logosaxiom">logos.axiom<a class="anchor" href="#logosaxiom">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import axiom</code>.</p>
+</div><div class="unit"><p><code>axiom(fn_or_stmt)</code></p>
+</div><div class="unit"><p>@logos.axiom decorator or logos.axiom(expr) — creates a trusted Axiom.</p>
+</div><div class="unit"><h3 id="logosprove">logos.prove<a class="anchor" href="#logosprove">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import prove</code>.</p>
+</div><div class="unit"><p><code>prove(thm_or_stmt, tactics=None, *, hints=None, depth: int=5, timeout: float | None=None)</code></p>
+</div><div class="unit"><p>With an expression and explicit tactics, return an anonymous proof for <code>check</code> to certify. With a <code>Theorem</code>, run bounded automatic search using <code>hints</code>, <code>depth</code> and <code>timeout</code> and return the certified theorem or raise <code>LogosProofError</code>.</p>
+</div><div class="unit"><h3 id="logoscheck">logos.check<a class="anchor" href="#logoscheck">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import check</code>.</p>
+</div><div class="unit"><p><code>check(thm)</code></p>
+</div><div class="unit"><p>Run the proof and certify its evidence with the Rust checker. Return the theorem, anonymous proof, or checked Python function. Missing proofs, unclosed goals and rejected evidence raise <code>LogosProofError</code>.</p>
+</div><div class="unit"><h3 id="logostheorem-constructor">logos.Theorem constructor<a class="anchor" href="#logostheorem-constructor">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import Theorem</code>.</p>
+</div><div class="unit"><p><code>Theorem(statement: Expr, *, name: str='', declarations=None)</code></p>
+</div><div class="unit"><p>A statement with tactics that can be verified by logos.check().</p>
+</div><div class="unit"><h3 id="theoremproof">Theorem.proof<a class="anchor" href="#theoremproof">#</a></h3>
+</div><div class="unit"><p><code>proof(*args)</code> on <code>Theorem</code>.</p>
+</div><div class="unit"><p>Attach tactics as positional arguments or as a list, and return the theorem. As a decorator, accept a zero-argument tactic-producing function or a proof function whose first argument is <code>p</code>, followed by the quantified theorem parameters. Replacing the proof clears its receipt.</p>
+</div><div class="unit"><h3 id="theoremcheck">Theorem.check<a class="anchor" href="#theoremcheck">#</a></h3>
+</div><div class="unit"><p><code>check()</code> on <code>Theorem</code>.</p>
+</div><div class="unit"><p>Check this theorem now and certify its actual evidence.</p>
+</div><div class="unit"><h3 id="theoreminspect">Theorem.inspect<a class="anchor" href="#theoreminspect">#</a></h3>
+</div><div class="unit"><p><code>inspect() -&gt; str</code> on <code>Theorem</code>.</p>
+</div><div class="unit"><p>Return checker-rendered Markdown for a currently certified proof. A missing or stale receipt raises <code>LogosProofError</code>.</p>
+</div><div class="unit"><h3 id="theoremreceipt">Theorem.receipt<a class="anchor" href="#theoremreceipt">#</a></h3>
+</div><div class="unit"><p><code>receipt</code> on <code>Theorem</code>.</p>
+</div><div class="unit"><p>The current <code>ProofReceipt</code>, or <code>None</code> before certification or after the proof changes.</p>
+</div><div class="unit"><h3 id="theoremcertified">Theorem.certified<a class="anchor" href="#theoremcertified">#</a></h3>
+</div><div class="unit"><p><code>certified</code> on <code>Theorem</code>.</p>
+</div><div class="unit"><p>Whether the theorem has a current checker receipt.</p>
+</div><div class="unit"><h3 id="logosaxiom-constructor">logos.Axiom constructor<a class="anchor" href="#logosaxiom-constructor">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import Axiom</code>.</p>
+</div><div class="unit"><p><code>Axiom(statement: Expr, *, name: str='')</code></p>
+</div><div class="unit"><p>An author-declared assumption.</p>
+</div><div class="unit"><h3 id="logosproofreceipt">logos.ProofReceipt<a class="anchor" href="#logosproofreceipt">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import ProofReceipt</code>.</p>
+</div><div class="unit"><p>A verification result for the exact immutable artifact bytes.</p>
+</div><div class="unit"><h3 id="logoslogosprooferror">logos.LogosProofError<a class="anchor" href="#logoslogosprooferror">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import LogosProofError</code>.</p>
+</div><div class="unit"><p><code>LogosProofError(message='', *, details=None)</code></p>
+</div><div class="unit"><p>A rejected proof.</p>
+</div><div class="unit"><h3 id="logosexport-proof">logos.export_proof<a class="anchor" href="#logosexport-proof">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import export_proof</code>.</p>
+</div><div class="unit"><p><code>export_proof(theorem, path: str | Path) -&gt; ProofReceipt</code></p>
+</div><div class="unit"><p>Write the current checked artifact for a named or anonymous proof.</p>
+</div><div class="unit"><h2 id="definitions">Definitions<a class="anchor" href="#definitions">#</a></h2>
+</div><div class="unit"><p><a href="definitions-that-unfold-lemmas-you-can-name.html">Complete checked example</a></p>
+</div><div class="unit"><h3 id="logosdefine">logos.define<a class="anchor" href="#logosdefine">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import define</code>.</p>
+</div><div class="unit"><p><code>define(fn: Callable) -&gt; Function</code></p>
+</div><div class="unit"><p>@logos.define decorator — creates a Function object.</p>
+</div><div class="unit"><h3 id="logosdefinition">logos.definition<a class="anchor" href="#logosdefinition">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import definition</code>.</p>
+</div><div class="unit"><p><code>definition(fn: Callable) -&gt; Function</code></p>
+</div><div class="unit"><p>The book spelling of :func:<code>define</code> for transparent propositions.</p>
+</div><div class="unit"><h3 id="logosrecursor">logos.recursor<a class="anchor" href="#logosrecursor">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import recursor</code>.</p>
+</div><div class="unit"><p><code>recursor(name: str, base, step: Callable[[Var, Var], Expr]) -&gt; Function</code></p>
+</div><div class="unit"><p>Declare a primitive-recursive integer function on the naturals.</p>
+</div><div class="unit"><h3 id="logosextern">logos.extern<a class="anchor" href="#logosextern">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import extern</code>.</p>
+</div><div class="unit"><p><code>extern(name: str, arg_types: list[type], ret_type: type) -&gt; Callable</code></p>
+</div><div class="unit"><p>Declare an external (uninterpreted) function symbol.</p>
+</div><div class="unit"><h3 id="logoscases">logos.cases<a class="anchor" href="#logoscases">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import cases</code>.</p>
+</div><div class="unit"><p><code>cases(*branches) -&gt; Expr</code></p>
+</div><div class="unit"><p>Build a piecewise symbolic expression from condition/value pairs and a default value.</p>
+</div><div class="unit"><h3 id="logosif-">logos.if_<a class="anchor" href="#logosif-">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import if_</code>.</p>
+</div><div class="unit"><p><code>if_(condition: Expr, then_val: Expr, else_val: Expr) -&gt; Expr</code></p>
+</div><div class="unit"><p>Build a symbolic conditional expression from a condition and its two possible values.</p>
+</div><div class="unit"><h2 id="program-contracts">Program contracts<a class="anchor" href="#program-contracts">#</a></h2>
+</div><div class="unit"><p><a href="binary-search-all-the-way-down.html">Complete checked example</a></p>
+</div><div class="unit"><h3 id="logoscontract">logos.contract<a class="anchor" href="#logoscontract">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import contract</code>.</p>
+</div><div class="unit"><p><code>contract(*, ensures: Expr, requires: Expr | None=None) -&gt; Contract</code></p>
+</div><div class="unit"><p>Describe a postcondition and an optional explicit precondition.</p>
+</div><div class="unit"><h3 id="logoscontract-constructor">logos.Contract constructor<a class="anchor" href="#logoscontract-constructor">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import Contract</code>.</p>
+</div><div class="unit"><p>The two halves of a function contract, written with signature names.</p>
+</div><div class="unit"><h3 id="logoslogoscontracterror">logos.LogosContractError<a class="anchor" href="#logoslogoscontracterror">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import LogosContractError</code>.</p>
+</div><div class="unit"><p>A contract, or the source binding behind it, could not be established.</p>
+</div><div class="unit"><h3 id="logosprogram-contract">logos.program_contract<a class="anchor" href="#logosprogram-contract">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import program_contract</code>.</p>
+</div><div class="unit"><p><code>program_contract(*, requires: Expr, ensures: Expr, invariant: Expr, variant: Expr) -&gt; ProgramContract</code></p>
+</div><div class="unit"><p>Build a loop contract with precondition, postcondition, invariant and decreasing integer variant.</p>
+</div><div class="unit"><h3 id="logosprogramcontract">logos.ProgramContract<a class="anchor" href="#logosprogramcontract">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import ProgramContract</code>.</p>
+</div><div class="unit"><p>The precondition, postcondition, invariant and variant returned by <code>program_contract</code>.</p>
+</div><div class="unit"><h3 id="logosfunction">logos.function<a class="anchor" href="#logosfunction">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import function</code>.</p>
+</div><div class="unit"><p><code>function(fn)</code></p>
+</div><div class="unit"><p>Decorate an ordinary Python function that uses the supported program fragment. Return the same callable with <code>requires</code>, <code>ensures</code>, <code>invariant</code> and <code>decreases</code> clause decorators and bound <code>check()</code>, <code>inspect()</code>, <code>export(path)</code> and <code>clauses()</code> methods. Unsupported source raises <code>LogosContractError</code>.</p>
+</div><div class="unit"><h3 id="logosfunctiondeclaration">logos.FunctionDeclaration<a class="anchor" href="#logosfunctiondeclaration">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import FunctionDeclaration</code>.</p>
+</div><div class="unit"><p><code>FunctionDeclaration(fn)</code></p>
+</div><div class="unit"><p>The source-bound declaration behind one <code>@logos.function</code>.</p>
+</div><div class="unit"><h3 id="functiondeclarationcheck">FunctionDeclaration.check<a class="anchor" href="#functiondeclarationcheck">#</a></h3>
+</div><div class="unit"><p><code>check()</code> on <code>FunctionDeclaration</code>.</p>
+</div><div class="unit"><p>Translate and verify the decorated function and return the original callable with a current certificate. Invalid source or proof obligations fail verification.</p>
+</div><div class="unit"><h3 id="functiondeclarationinspect">FunctionDeclaration.inspect<a class="anchor" href="#functiondeclarationinspect">#</a></h3>
+</div><div class="unit"><p><code>inspect()</code> on <code>FunctionDeclaration</code>.</p>
+</div><div class="unit"><p>Return checker-rendered Markdown for the current certificate. Requires current verification.</p>
+</div><div class="unit"><h3 id="functiondeclarationexport">FunctionDeclaration.export<a class="anchor" href="#functiondeclarationexport">#</a></h3>
+</div><div class="unit"><p><code>export(path)</code> on <code>FunctionDeclaration</code>.</p>
+</div><div class="unit"><p>Write the current portable artifact to <code>path</code> and return its receipt. Requires current verification.</p>
+</div><div class="unit"><h3 id="functiondeclarationreceipt">FunctionDeclaration.receipt<a class="anchor" href="#functiondeclarationreceipt">#</a></h3>
+</div><div class="unit"><p><code>receipt</code> on <code>FunctionDeclaration</code>.</p>
+</div><div class="unit"><p>The current checker receipt, or <code>None</code> before verification or after a change invalidates it.</p>
+</div><div class="unit"><h3 id="functiondeclarationcertified">FunctionDeclaration.certified<a class="anchor" href="#functiondeclarationcertified">#</a></h3>
+</div><div class="unit"><p><code>certified</code> on <code>FunctionDeclaration</code>.</p>
+</div><div class="unit"><p>Whether the declaration has a current checker receipt.</p>
+</div><div class="unit"><h3 id="functiondeclarationclauses">FunctionDeclaration.clauses<a class="anchor" href="#functiondeclarationclauses">#</a></h3>
+</div><div class="unit"><p><code>clauses()</code> on <code>FunctionDeclaration</code>.</p>
+</div><div class="unit"><p>Return a tuple of authored contract clauses in clause-kind order.</p>
+</div><div class="unit"><h3 id="logosclause">logos.Clause<a class="anchor" href="#logosclause">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos import Clause</code>.</p>
+</div><div class="unit"><p>One named clause bound to a declarative function.</p>
+</div><div class="unit"><h2 id="proof-context">Proof context<a class="anchor" href="#proof-context">#</a></h2>
+</div><div class="unit"><p><a href="witnesses-and-their-scope.html">Complete checked proof functions</a>. For context managers, use the methods on the object they yield.</p>
+</div><div class="unit"><h3 id="logosauthoringproofcontext">logos.authoring.ProofContext<a class="anchor" href="#logosauthoringproofcontext">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.authoring import ProofContext</code>.</p>
+</div><div class="unit"><p><code>ProofContext(statement: Expr, binders: tuple[Var, ...], theorem: str, fn=None)</code></p>
+</div><div class="unit"><p>The <code>p</code> argument supplied to a proof function by <code>@theorem_name.proof</code>. Its goal and available facts change as you introduce assumptions and enter scopes.</p>
+</div><div class="unit"><h3 id="proofcontextnote">ProofContext.note<a class="anchor" href="#proofcontextnote">#</a></h3>
+</div><div class="unit"><p><code>note(text: str) -&gt; None</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Attach authored commentary after the most recently derived fact.</p>
+</div><div class="unit"><h3 id="proofcontextassume">ProofContext.assume<a class="anchor" href="#proofcontextassume">#</a></h3>
+</div><div class="unit"><p><code>assume(proposition: Expr) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Introduce the antecedent of the current implication as a local fact and leave the consequent as the goal. The supplied proposition must match the antecedent.</p>
+</div><div class="unit"><h3 id="proofcontextobtain">ProofContext.obtain<a class="anchor" href="#proofcontextobtain">#</a></h3>
+</div><div class="unit"><p><code>obtain(existential: Fact) -&gt; tuple[Var, Fact]</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Open a fact of shape ∃x. P(x), returning a fresh local variable and a fact for its instantiated predicate. The symbol is scoped to the elimination: it cannot appear free in the conclusion.</p>
+</div><div class="unit"><h3 id="proofcontextapply">ProofContext.apply<a class="anchor" href="#proofcontextapply">#</a></h3>
+</div><div class="unit"><p><code>apply(lemma, *arguments) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Instantiate a checked theorem (or local implication fact) step by step.</p>
+</div><div class="unit"><h3 id="proofcontextand-intro">ProofContext.and_intro<a class="anchor" href="#proofcontextand-intro">#</a></h3>
+</div><div class="unit"><p><code>and_intro(left: Fact, right: Fact) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Combine two facts for A and B into a fact for A &amp; B.</p>
+</div><div class="unit"><h3 id="proofcontextexists">ProofContext.exists<a class="anchor" href="#proofcontextexists">#</a></h3>
+</div><div class="unit"><p><code>exists(goal: Expr, value: Expr, evidence: Fact) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Given ∃x. P(x), a value, and a <code>Fact</code> proving P(value), return a <code>Fact</code> for the existential without closing the current goal. A Python literal is lifted. A non-existential target reports <code>exists_goal</code>, and an out-of-scope value reports <code>witness_escape</code>. Mismatched evidence reports <code>evidence_mismatch</code>. See the <a href="#complete-existential-examples">complete examples</a>.</p>
+</div><div class="unit"><h3 id="proofcontextsubst">ProofContext.subst<a class="anchor" href="#proofcontextsubst">#</a></h3>
+</div><div class="unit"><p><code>subst(fact: Fact, equality: Fact) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Replace one side of an equality throughout a fact.</p>
+</div><div class="unit"><h3 id="proofcontextrefl">ProofContext.refl<a class="anchor" href="#proofcontextrefl">#</a></h3>
+</div><div class="unit"><p><code>refl(expression: Expr) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Return a fact proving the expression equal to itself.</p>
+</div><div class="unit"><h3 id="proofcontextsymm">ProofContext.symm<a class="anchor" href="#proofcontextsymm">#</a></h3>
+</div><div class="unit"><p><code>symm(fact: Fact) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Reverse an equality fact. Other fact shapes fail.</p>
+</div><div class="unit"><h3 id="proofcontexttrans">ProofContext.trans<a class="anchor" href="#proofcontexttrans">#</a></h3>
+</div><div class="unit"><p><code>trans(left: Fact, right: Fact) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Compose two equality facts at their matching middle expression. Non-equalities and mismatched middle expressions fail.</p>
+</div><div class="unit"><h3 id="proofcontextnot-elim">ProofContext.not_elim<a class="anchor" href="#proofcontextnot-elim">#</a></h3>
+</div><div class="unit"><p><code>not_elim(negation: Fact, premise: Fact) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>From facts for ¬P and P, return a fact for falsehood. The operands must match.</p>
+</div><div class="unit"><h3 id="proofcontextex-falso">ProofContext.ex_falso<a class="anchor" href="#proofcontextex-falso">#</a></h3>
+</div><div class="unit"><p><code>ex_falso(falsehood: Fact) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Use a fact for falsehood to obtain a fact for the current goal. Requires an open goal.</p>
+</div><div class="unit"><h3 id="proofcontextnot-lt-of-lt">ProofContext.not_lt_of_lt<a class="anchor" href="#proofcontextnot-lt-of-lt">#</a></h3>
+</div><div class="unit"><p><code>not_lt_of_lt(low: Expr, high: Expr, fact: Fact) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>From <code>low &lt; high</code> derive <code>~(high &lt; low)</code> without a new axiom.</p>
+</div><div class="unit"><h3 id="proofcontextorder">ProofContext.order<a class="anchor" href="#proofcontextorder">#</a></h3>
+</div><div class="unit"><p><code>order(law: str, *args, using=()) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Cite a core order law with explicit integer arguments and premises.</p>
+</div><div class="unit"><h3 id="proofcontextlinear">ProofContext.linear<a class="anchor" href="#proofcontextlinear">#</a></h3>
+</div><div class="unit"><p><code>linear(goal: Expr, *, using=()) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Prove a linear inequality from named facts with a checked certificate.</p>
+</div><div class="unit"><h3 id="proofcontextrecursor-base">ProofContext.recursor_base<a class="anchor" href="#proofcontextrecursor-base">#</a></h3>
+</div><div class="unit"><p><code>recursor_base(function) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Return the defining equality of the indicated recursor at zero.</p>
+</div><div class="unit"><h3 id="proofcontextrecursor-step">ProofContext.recursor_step<a class="anchor" href="#proofcontextrecursor-step">#</a></h3>
+</div><div class="unit"><p><code>recursor_step(function, argument: Expr, nonnegative: Fact) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Return the defining equality at the successor of the supplied argument. Supply a fact establishing that the argument is nonnegative.</p>
+</div><div class="unit"><h3 id="proofcontextrewrite">ProofContext.rewrite<a class="anchor" href="#proofcontextrewrite">#</a></h3>
+</div><div class="unit"><p><code>rewrite(fact: Fact, equality: Fact) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Rewrite the second argument of a transparent <code>divides</code> fact.</p>
+</div><div class="unit"><h3 id="proofcontextleast">ProofContext.least<a class="anchor" href="#proofcontextleast">#</a></h3>
+</div><div class="unit"><p><code>least(lower: Expr, nonempty: Fact) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Apply the least-element rule to a nonempty bounded predicate.</p>
+</div><div class="unit"><h3 id="proofcontextfix">ProofContext.fix<a class="anchor" href="#proofcontextfix">#</a></h3>
+</div><div class="unit"><p><code>fix(name: str='x') -&gt; '_Fixed'</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Enter a universal goal with <code>with p.fix(name) as scope</code>. Use the fresh symbol <code>scope.variable</code> and call <code>scope.finish(evidence)</code> inside the block. Read <code>scope.result</code> afterward. Other goal shapes fail.</p>
+</div><div class="unit"><h3 id="proofcontextnegate">ProofContext.negate<a class="anchor" href="#proofcontextnegate">#</a></h3>
+</div><div class="unit"><p><code>negate(statement: Expr | None=None) -&gt; '_Negation'</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Enter a negation goal with its operand as a local assumption. Derive a contradiction inside the block.</p>
+</div><div class="unit"><h3 id="proofcontextcases">ProofContext.cases<a class="anchor" href="#proofcontextcases">#</a></h3>
+</div><div class="unit"><p><code>cases(disjunction: Fact) -&gt; '_Cases'</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Split a disjunction fact into two branches. Prove the same conclusion with the left alternative in one branch and the right in the other.</p>
+</div><div class="unit"><h3 id="proofcontextcontradict">ProofContext.contradict<a class="anchor" href="#proofcontextcontradict">#</a></h3>
+</div><div class="unit"><p><code>contradict(proposition: Expr) -&gt; '_Contradiction'</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Enter a branch with the given proposition assumed and derive falsehood to discharge that assumption.</p>
+</div><div class="unit"><h3 id="proofcontextinduction">ProofContext.induction<a class="anchor" href="#proofcontextinduction">#</a></h3>
+</div><div class="unit"><p><code>induction(variable: Var, lower=0, *, nonnegative: Fact | None=None) -&gt; '_Induction'</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Use integer induction from <code>lower</code> on the goal's variable. Prove the goal at the lower bound in <code>ind.base()</code>, and prove it at the successor from the induction hypothesis in <code>ind.step()</code>. Supply an appropriate lower-bound fact when it is not already available. See <a href="induction-that-builds-a-factorial.html">the factorial proof</a>.</p>
+</div><div class="unit"><h3 id="proofcontextring">ProofContext.ring<a class="anchor" href="#proofcontextring">#</a></h3>
+</div><div class="unit"><p><code>ring(equation: Expr, *, using=()) -&gt; Fact</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>Return a fact for an integer polynomial equality, optionally using equality facts. If normalization cannot establish the identity, the proof step fails.</p>
+</div><div class="unit"><h3 id="proofcontextwitness">ProofContext.witness<a class="anchor" href="#proofcontextwitness">#</a></h3>
+</div><div class="unit"><p><code>witness(value: Expr, evidence: Fact | ProofTerm) -&gt; ProofTerm</code> on <code>ProofContext</code>.</p>
+</div><div class="unit"><p>For the current goal ∃x. P(x), supply a value and evidence for P(value), then return the resulting proof term. A Python literal is lifted. Diagnostics include <code>witness_goal</code> for the wrong goal shape, <code>witness_escape</code> for an out-of-scope value, and <code>witness_mismatch</code> for a fact that proves the wrong predicate. See the <a href="#complete-existential-examples">complete examples</a>.</p>
+</div><div class="unit"><h3 id="logosauthoringfact">logos.authoring.Fact<a class="anchor" href="#logosauthoringfact">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.authoring import Fact</code>.</p>
+</div><div class="unit"><p>Evidence for a symbolic proposition in a proof context. Read <code>statement</code> for the proposition; obtain facts from context operations.</p>
+</div><div class="unit"><h3 id="factleft">Fact.left<a class="anchor" href="#factleft">#</a></h3>
+</div><div class="unit"><p><code>left() -&gt; 'Fact'</code> on <code>Fact</code>.</p>
+</div><div class="unit"><p>Project the left conjunct from a conjunction fact.</p>
+</div><div class="unit"><h3 id="factright">Fact.right<a class="anchor" href="#factright">#</a></h3>
+</div><div class="unit"><p><code>right() -&gt; 'Fact'</code> on <code>Fact</code>.</p>
+</div><div class="unit"><p>Project the right conjunct from a conjunction fact.</p>
+</div><div class="unit"><h2 id="tactics">Tactics<a class="anchor" href="#tactics">#</a></h2>
+</div><div class="unit"><p>A tactic receives a <code>Goal</code> and returns evidence or subgoals with a function to compose their evidence. Supply tactics in order to the runner. A failed step raises <code>TacticFailed</code> and a sequence with unclosed goals fails certification. See the <a href="#complete-existential-examples">complete examples</a>.</p>
+</div><div class="unit"><h3 id="logostacticsall-goals">logos.tactics.all_goals<a class="anchor" href="#logostacticsall-goals">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import all_goals</code>.</p>
+</div><div class="unit"><p><code>all_goals(tactic_fn)</code></p>
+</div><div class="unit"><p>Apply tactic_fn to each open subgoal (for use after a splitting tactic).</p>
+</div><div class="unit"><h3 id="logostacticsandl">logos.tactics.andL<a class="anchor" href="#logostacticsandl">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import andL</code>.</p>
+</div><div class="unit"><p><code>andL(hyp_name: str, result_name: str)</code></p>
+</div><div class="unit"><p>Extract left conjunct: from h: A &amp; B, add result_name: A.</p>
+</div><div class="unit"><h3 id="logostacticsandr">logos.tactics.andR<a class="anchor" href="#logostacticsandr">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import andR</code>.</p>
+</div><div class="unit"><p><code>andR(hyp_name: str, result_name: str)</code></p>
+</div><div class="unit"><p>Extract right conjunct: from h: A &amp; B, add result_name: B.</p>
+</div><div class="unit"><h3 id="logostacticsapply">logos.tactics.apply<a class="anchor" href="#logostacticsapply">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import apply</code>.</p>
+</div><div class="unit"><p><code>apply(ref)</code></p>
+</div><div class="unit"><p>Apply a theorem/axiom/hypothesis to close or transform the goal.</p>
+</div><div class="unit"><h3 id="logostacticsassumption">logos.tactics.assumption<a class="anchor" href="#logostacticsassumption">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import assumption</code>.</p>
+</div><div class="unit"><p><code>assumption()</code></p>
+</div><div class="unit"><p>Return a tactic that closes a goal with a matching local hypothesis, or fails if none matches.</p>
+</div><div class="unit"><h3 id="logostacticsauto">logos.tactics.auto<a class="anchor" href="#logostacticsauto">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import auto</code>.</p>
+</div><div class="unit"><p><code>auto(*hints, depth: int=5, timeout: float | None=None)</code></p>
+</div><div class="unit"><p>Automatic tactic. Tries a cascade of strategies up to <code>depth</code> search levels.</p>
+</div><div class="unit"><h3 id="logostacticscases">logos.tactics.cases<a class="anchor" href="#logostacticscases">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import cases</code>.</p>
+</div><div class="unit"><p><code>cases(hyp_name: str, case_name: str='h')</code></p>
+</div><div class="unit"><p>Build a piecewise symbolic expression from condition/value pairs and a default value.</p>
+</div><div class="unit"><h3 id="logostacticsconj">logos.tactics.conj<a class="anchor" href="#logostacticsconj">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import conj</code>.</p>
+</div><div class="unit"><p><code>conj(h1: str, h2: str, result_name: str)</code></p>
+</div><div class="unit"><p>Conjunction intro: from h1: A and h2: B, add result_name: A &amp; B.</p>
+</div><div class="unit"><h3 id="logostacticscontradiction">logos.tactics.contradiction<a class="anchor" href="#logostacticscontradiction">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import contradiction</code>.</p>
+</div><div class="unit"><p><code>contradiction()</code></p>
+</div><div class="unit"><p>Return a tactic that closes a goal using a contradiction derivable from its local hypotheses. Fails if it cannot find one.</p>
+</div><div class="unit"><h3 id="logostacticsdecide">logos.tactics.decide<a class="anchor" href="#logostacticsdecide">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import decide</code>.</p>
+</div><div class="unit"><p><code>decide()</code></p>
+</div><div class="unit"><p>Test a closed Boolean proposition as a tactic. False or unsupported propositions fail. A successful test returns legacy evidence that does not certify the proposition under Rust replay. For portable integer inequalities use <code>ProofContext.linear</code>.</p>
+</div><div class="unit"><h3 id="logostacticseval-">logos.tactics.eval_<a class="anchor" href="#logostacticseval-">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import eval_</code>.</p>
+</div><div class="unit"><p><code>eval_()</code></p>
+</div><div class="unit"><p>Evaluate ground (variable-free) arithmetic sub-expressions, then close with Refl.</p>
+</div><div class="unit"><h3 id="logostacticsexact">logos.tactics.exact<a class="anchor" href="#logostacticsexact">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import exact</code>.</p>
+</div><div class="unit"><p><code>exact(term: ProofTerm)</code></p>
+</div><div class="unit"><p>Return a tactic that supplies the given proof term for checker validation against the current goal.</p>
+</div><div class="unit"><h3 id="logostacticsfirst">logos.tactics.first<a class="anchor" href="#logostacticsfirst">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import first</code>.</p>
+</div><div class="unit"><p><code>first(*tactics)</code></p>
+</div><div class="unit"><p>Try each tactic in order; succeed with the first that doesn't raise TacticFailed.</p>
+</div><div class="unit"><h3 id="logostacticshave">logos.tactics.have<a class="anchor" href="#logostacticshave">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import have</code>.</p>
+</div><div class="unit"><p><code>have(new_name: str, impl_hyp: str, ant_hyp: str)</code></p>
+</div><div class="unit"><p>Forward modus ponens: from impl_hyp: A→B and ant_hyp: A, add new_name: B.</p>
+</div><div class="unit"><h3 id="logostacticsintro">logos.tactics.intro<a class="anchor" href="#logostacticsintro">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import intro</code>.</p>
+</div><div class="unit"><p><code>intro(*names: str)</code></p>
+</div><div class="unit"><p>Return a tactic that opens one universal binder, implication, or negation per supplied name. Continue with the body or consequent, or with falsehood for a negation. Unsupported goal shapes fail.</p>
+</div><div class="unit"><h3 id="logostacticsleft">logos.tactics.left<a class="anchor" href="#logostacticsleft">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import left</code>.</p>
+</div><div class="unit"><p><code>left(right_type: Expr)</code></p>
+</div><div class="unit"><p>Return a tactic that chooses the left side of a disjunction and leaves that side as a goal. Pass the right proposition as <code>right_type</code>.</p>
+</div><div class="unit"><h3 id="logostacticslinarith">logos.tactics.linarith<a class="anchor" href="#logostacticslinarith">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import linarith</code>.</p>
+</div><div class="unit"><p><code>linarith()</code></p>
+</div><div class="unit"><p>Search for a linear arithmetic consequence of local hypotheses. Unsupported goals or failed searches raise <code>TacticFailed</code>. The legacy evidence returned on success does not certify the inequality under Rust replay. Use <code>ProofContext.linear</code> for portable certificates.</p>
+</div><div class="unit"><h3 id="logostacticsnorm-num">logos.tactics.norm_num<a class="anchor" href="#logostacticsnorm-num">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import norm_num</code>.</p>
+</div><div class="unit"><p><code>norm_num()</code></p>
+</div><div class="unit"><p>Normalize numeric literals and close if equal.</p>
+</div><div class="unit"><h3 id="logostacticsorder">logos.tactics.order<a class="anchor" href="#logostacticsorder">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import order</code>.</p>
+</div><div class="unit"><p><code>order(law: str)</code></p>
+</div><div class="unit"><p>Close a strict-order goal with one core order law.</p>
+</div><div class="unit"><h3 id="logostacticsrefl">logos.tactics.refl<a class="anchor" href="#logostacticsrefl">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import refl</code>.</p>
+</div><div class="unit"><p><code>refl()</code></p>
+</div><div class="unit"><p>Return a tactic that closes an equality with structurally identical sides. Other goal shapes fail.</p>
+</div><div class="unit"><h3 id="logostacticsrepeat">logos.tactics.repeat<a class="anchor" href="#logostacticsrepeat">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import repeat</code>.</p>
+</div><div class="unit"><p><code>repeat(tactic_fn)</code></p>
+</div><div class="unit"><p>Apply tactic_fn until it fails; apply all successful steps.</p>
+</div><div class="unit"><h3 id="logostacticsrewrite">logos.tactics.rewrite<a class="anchor" href="#logostacticsrewrite">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import rewrite</code>.</p>
+</div><div class="unit"><p><code>rewrite(ref)</code></p>
+</div><div class="unit"><p>Rewrite left-to-right using a named equation or Axiom/Theorem object.</p>
+</div><div class="unit"><h3 id="logostacticsrewrite-rev">logos.tactics.rewrite_rev<a class="anchor" href="#logostacticsrewrite-rev">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import rewrite_rev</code>.</p>
+</div><div class="unit"><p><code>rewrite_rev(ref)</code></p>
+</div><div class="unit"><p>Rewrite right-to-left using a named equation or Axiom/Theorem object.</p>
+</div><div class="unit"><h3 id="logostacticsright">logos.tactics.right<a class="anchor" href="#logostacticsright">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import right</code>.</p>
+</div><div class="unit"><p><code>right(left_type: Expr)</code></p>
+</div><div class="unit"><p>Return a tactic that chooses the right side of a disjunction and leaves that side as a goal. Pass the left proposition as <code>left_type</code>.</p>
+</div><div class="unit"><h3 id="logostacticsring">logos.tactics.ring<a class="anchor" href="#logostacticsring">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import ring</code>.</p>
+</div><div class="unit"><p><code>ring()</code></p>
+</div><div class="unit"><p>Return a tactic that closes integer polynomial equalities such as <code>a*m + b*m == (a+b)*m</code>. A non-equality or distinct polynomial normal forms fail. See <a href="what-divides-two-neighbours.html">the complete divisibility proof</a> for the corresponding proof-context operation.</p>
+</div><div class="unit"><h3 id="logostacticssplit">logos.tactics.split<a class="anchor" href="#logostacticssplit">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import split</code>.</p>
+</div><div class="unit"><p><code>split()</code></p>
+</div><div class="unit"><p>Return a tactic for A &amp; B that opens A and B as subgoals in that order. Other goal shapes fail.</p>
+</div><div class="unit"><h3 id="logostacticsthen">logos.tactics.then<a class="anchor" href="#logostacticsthen">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import then</code>.</p>
+</div><div class="unit"><p><code>then(*tactics)</code></p>
+</div><div class="unit"><p>Apply tactics in sequence to the current goal (as a single compound tactic).</p>
+</div><div class="unit"><h3 id="logostacticstry-">logos.tactics.try_<a class="anchor" href="#logostacticstry-">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import try_</code>.</p>
+</div><div class="unit"><p><code>try_(tactic_fn)</code></p>
+</div><div class="unit"><p>Apply tactic_fn; if it fails, return a no-op (transforms goal to itself).</p>
+</div><div class="unit"><h3 id="logostacticsunfold">logos.tactics.unfold<a class="anchor" href="#logostacticsunfold">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import unfold</code>.</p>
+</div><div class="unit"><p><code>unfold(*refs)</code></p>
+</div><div class="unit"><p>Replace App(name, args) nodes with the function's definition body.</p>
+</div><div class="unit"><h3 id="logostacticswitness">logos.tactics.witness<a class="anchor" href="#logostacticswitness">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.tactics import witness</code>.</p>
+</div><div class="unit"><p><code>witness(val: Expr)</code></p>
+</div><div class="unit"><p>Return a tactic for an existential goal ∃x. P(x). Pass a symbolic value such as <code>lit(5)</code>. The tactic opens one subgoal P(value) with the same hypotheses; the next tactic supplies its evidence. Other goal shapes raise <code>TacticFailed</code> with <code>witness: expected Exists</code>. The checker validates the witness sort and evidence. See the <a href="#complete-existential-examples">complete examples</a>.</p>
+</div><div class="unit"><h2 id="tactic-extensions">Tactic extensions<a class="anchor" href="#tactic-extensions">#</a></h2>
+</div><div class="unit"><p><a href="extend-the-checked-language-with-a-domain.html">Complete custom tactic</a>.</p>
+</div><div class="unit"><h3 id="logosgoalgoal">logos.goal.Goal<a class="anchor" href="#logosgoalgoal">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.goal import Goal</code>.</p>
+</div><div class="unit"><p><code>Goal(context: dict[str, Expr], statement: Expr)</code></p>
+</div><div class="unit"><p>Construct a tactic input containing <code>context</code> (named hypotheses) and <code>statement</code> (the conclusion to prove).</p>
+</div><div class="unit"><h3 id="goalwith-hyp">Goal.with_hyp<a class="anchor" href="#goalwith-hyp">#</a></h3>
+</div><div class="unit"><p><code>with_hyp(name: str, hyp: Expr) -&gt; 'Goal'</code> on <code>Goal</code>.</p>
+</div><div class="unit"><p>Return a new goal with the same conclusion and an added or replaced named hypothesis.</p>
+</div><div class="unit"><h3 id="goalwith-statement">Goal.with_statement<a class="anchor" href="#goalwith-statement">#</a></h3>
+</div><div class="unit"><p><code>with_statement(stmt: Expr) -&gt; 'Goal'</code> on <code>Goal</code>.</p>
+</div><div class="unit"><p>Return a new goal with the same hypotheses and the supplied conclusion.</p>
+</div><div class="unit"><h3 id="logoskernelproofterm">logos.kernel.ProofTerm<a class="anchor" href="#logoskernelproofterm">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.kernel import ProofTerm</code>.</p>
+</div><div class="unit"><p>Base type for evidence returned by tactics and checked by the verifier.</p>
+</div><div class="unit"><h3 id="logosrunnertacticfailed">logos.runner.TacticFailed<a class="anchor" href="#logosrunnertacticfailed">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.runner import TacticFailed</code>.</p>
+</div><div class="unit"><p>Signal that a tactic cannot handle its current goal. The proof runner reports the failure, and tactic alternatives can catch it.</p>
+</div><div class="unit"><h3 id="logosrunnertacticresult">logos.runner.TacticResult<a class="anchor" href="#logosrunnertacticresult">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.runner import TacticResult</code>.</p>
+</div><div class="unit"><p>A closing <code>ProofTerm</code> or a pair of subgoals and a function composing their proofs into evidence for the original goal.</p>
+</div><div class="unit"><h2 id="finite-transition-systems">Finite transition systems<a class="anchor" href="#finite-transition-systems">#</a></h2>
+</div><div class="unit"><p><a href="can-two-clients-hold-the-lock.html">Complete checked lock model</a>.</p>
+</div><div class="unit"><h3 id="logosdomainstransition-systemsfinitetransitionsystem">logos.domains.transition_systems.FiniteTransitionSystem<a class="anchor" href="#logosdomainstransition-systemsfinitetransitionsystem">#</a></h3>
+</div><div class="unit"><p>Import with <code>from logos.domains.transition_systems import FiniteTransitionSystem</code>.</p>
+</div><div class="unit"><p><code>FiniteTransitionSystem(universe: Iterable[State], initial: Iterable[State], transitions: Mapping[str, Iterable[Edge]], safe: Callable[[State], bool])</code></p>
+</div><div class="unit"><p>Snapshot an explicit universe, initial states, named relations and safety table.</p>
+</div><div class="unit"><h3 id="finitetransitionsystemexport-safety">FiniteTransitionSystem.export_safety<a class="anchor" href="#finitetransitionsystemexport-safety">#</a></h3>
+</div><div class="unit"><p><code>export_safety(invariant: Iterable[State], path: str | Path) -&gt; ProofReceipt</code> on <code>FiniteTransitionSystem</code>.</p>
+</div><div class="unit"><p>Check initiation, closure and safety with Rust, then write the certificate.</p>
+</div><div class="unit"><h3 id="finitetransitionsystemverify-safety">FiniteTransitionSystem.verify_safety<a class="anchor" href="#finitetransitionsystemverify-safety">#</a></h3>
+</div><div class="unit"><p><code>verify_safety(invariant: Iterable[State], path: str | Path) -&gt; ProofReceipt</code> on <code>FiniteTransitionSystem</code>.</p>
+</div><div class="unit"><p>Require strict evidence for this table and this proposed invariant.</p>
+</div><div class="unit"><h3 id="finitetransitionsystemreplay-violation">FiniteTransitionSystem.replay_violation<a class="anchor" href="#finitetransitionsystemreplay-violation">#</a></h3>
+</div><div class="unit"><p><code>replay_violation(start: State, steps: Iterable[tuple[str, State]]) -&gt; State</code> on <code>FiniteTransitionSystem</code>.</p>
+</div><div class="unit"><p>Require a legal named run from an initial state to an unsafe state.</p>
+</div></section>
+<footer class="page-foot"><span>Last updated 2026-11-28 · <a class="edit" href="https://github.com/gia-uh/logos/edit/HEAD/book/chapters/15-api-reference.md">Edit this page</a></span></footer>
+<nav class="pager"><a rel="prev" href="extend-the-checked-language-with-a-domain.html">← Extend the Checked Language with a Domain</a></nav>
+</main>
+<aside class="outline"><p>On this page</p><ul><li class="h2"><a href="#existential-lookup">Existential lookup</a></li><li class="h3"><a href="#complete-existential-examples">Complete existential examples</a></li><li class="h2"><a href="#expressions">Expressions</a></li><li class="h3"><a href="#logosint">logos.Int</a></li><li class="h3"><a href="#logosprop">logos.Prop</a></li><li class="h3"><a href="#logosexpr">logos.Expr</a></li><li class="h3"><a href="#logosvar-constructor">logos.Var constructor</a></li><li class="h3"><a href="#logoslit-constructor">logos.Lit constructor</a></li><li class="h3"><a href="#logosforall-constructor">logos.Forall constructor</a></li><li class="h3"><a href="#logosexists-constructor">logos.Exists constructor</a></li><li class="h3"><a href="#logosimplies">logos.Implies</a></li><li class="h3"><a href="#logosvar">logos.var</a></li><li class="h3"><a href="#logosvars">logos.vars</a></li><li class="h3"><a href="#logoslit">logos.lit</a></li><li class="h3"><a href="#logosforall">logos.forall</a></li><li class="h3"><a href="#logosexists">logos.exists</a></li><li class="h3"><a href="#logoschain">logos.chain</a></li><li class="h3"><a href="#logosformat-expr">logos.format_expr</a></li><li class="h3"><a href="#logosseq">logos.Seq</a></li><li class="h3"><a href="#logosseq-var">logos.seq_var</a></li><li class="h3"><a href="#logoslength">logos.length</a></li><li class="h3"><a href="#logosnth">logos.nth</a></li><li class="h3"><a href="#logossorted">logos.sorted</a></li><li class="h3"><a href="#logosabsent">logos.absent</a></li><li class="h3"><a href="#logosoccurrence">logos.occurrence</a></li><li class="h2"><a href="#theorems-and-evidence">Theorems and evidence</a></li><li class="h3"><a href="#logostheorem">logos.theorem</a></li><li class="h3"><a href="#logosaxiom">logos.axiom</a></li><li class="h3"><a href="#logosprove">logos.prove</a></li><li class="h3"><a href="#logoscheck">logos.check</a></li><li class="h3"><a href="#logostheorem-constructor">logos.Theorem constructor</a></li><li class="h3"><a href="#theoremproof">Theorem.proof</a></li><li class="h3"><a href="#theoremcheck">Theorem.check</a></li><li class="h3"><a href="#theoreminspect">Theorem.inspect</a></li><li class="h3"><a href="#theoremreceipt">Theorem.receipt</a></li><li class="h3"><a href="#theoremcertified">Theorem.certified</a></li><li class="h3"><a href="#logosaxiom-constructor">logos.Axiom constructor</a></li><li class="h3"><a href="#logosproofreceipt">logos.ProofReceipt</a></li><li class="h3"><a href="#logoslogosprooferror">logos.LogosProofError</a></li><li class="h3"><a href="#logosexport-proof">logos.export_proof</a></li><li class="h2"><a href="#definitions">Definitions</a></li><li class="h3"><a href="#logosdefine">logos.define</a></li><li class="h3"><a href="#logosdefinition">logos.definition</a></li><li class="h3"><a href="#logosrecursor">logos.recursor</a></li><li class="h3"><a href="#logosextern">logos.extern</a></li><li class="h3"><a href="#logoscases">logos.cases</a></li><li class="h3"><a href="#logosif-">logos.if_</a></li><li class="h2"><a href="#program-contracts">Program contracts</a></li><li class="h3"><a href="#logoscontract">logos.contract</a></li><li class="h3"><a href="#logoscontract-constructor">logos.Contract constructor</a></li><li class="h3"><a href="#logoslogoscontracterror">logos.LogosContractError</a></li><li class="h3"><a href="#logosprogram-contract">logos.program_contract</a></li><li class="h3"><a href="#logosprogramcontract">logos.ProgramContract</a></li><li class="h3"><a href="#logosfunction">logos.function</a></li><li class="h3"><a href="#logosfunctiondeclaration">logos.FunctionDeclaration</a></li><li class="h3"><a href="#functiondeclarationcheck">FunctionDeclaration.check</a></li><li class="h3"><a href="#functiondeclarationinspect">FunctionDeclaration.inspect</a></li><li class="h3"><a href="#functiondeclarationexport">FunctionDeclaration.export</a></li><li class="h3"><a href="#functiondeclarationreceipt">FunctionDeclaration.receipt</a></li><li class="h3"><a href="#functiondeclarationcertified">FunctionDeclaration.certified</a></li><li class="h3"><a href="#functiondeclarationclauses">FunctionDeclaration.clauses</a></li><li class="h3"><a href="#logosclause">logos.Clause</a></li><li class="h2"><a href="#proof-context">Proof context</a></li><li class="h3"><a href="#logosauthoringproofcontext">logos.authoring.ProofContext</a></li><li class="h3"><a href="#proofcontextnote">ProofContext.note</a></li><li class="h3"><a href="#proofcontextassume">ProofContext.assume</a></li><li class="h3"><a href="#proofcontextobtain">ProofContext.obtain</a></li><li class="h3"><a href="#proofcontextapply">ProofContext.apply</a></li><li class="h3"><a href="#proofcontextand-intro">ProofContext.and_intro</a></li><li class="h3"><a href="#proofcontextexists">ProofContext.exists</a></li><li class="h3"><a href="#proofcontextsubst">ProofContext.subst</a></li><li class="h3"><a href="#proofcontextrefl">ProofContext.refl</a></li><li class="h3"><a href="#proofcontextsymm">ProofContext.symm</a></li><li class="h3"><a href="#proofcontexttrans">ProofContext.trans</a></li><li class="h3"><a href="#proofcontextnot-elim">ProofContext.not_elim</a></li><li class="h3"><a href="#proofcontextex-falso">ProofContext.ex_falso</a></li><li class="h3"><a href="#proofcontextnot-lt-of-lt">ProofContext.not_lt_of_lt</a></li><li class="h3"><a href="#proofcontextorder">ProofContext.order</a></li><li class="h3"><a href="#proofcontextlinear">ProofContext.linear</a></li><li class="h3"><a href="#proofcontextrecursor-base">ProofContext.recursor_base</a></li><li class="h3"><a href="#proofcontextrecursor-step">ProofContext.recursor_step</a></li><li class="h3"><a href="#proofcontextrewrite">ProofContext.rewrite</a></li><li class="h3"><a href="#proofcontextleast">ProofContext.least</a></li><li class="h3"><a href="#proofcontextfix">ProofContext.fix</a></li><li class="h3"><a href="#proofcontextnegate">ProofContext.negate</a></li><li class="h3"><a href="#proofcontextcases">ProofContext.cases</a></li><li class="h3"><a href="#proofcontextcontradict">ProofContext.contradict</a></li><li class="h3"><a href="#proofcontextinduction">ProofContext.induction</a></li><li class="h3"><a href="#proofcontextring">ProofContext.ring</a></li><li class="h3"><a href="#proofcontextwitness">ProofContext.witness</a></li><li class="h3"><a href="#logosauthoringfact">logos.authoring.Fact</a></li><li class="h3"><a href="#factleft">Fact.left</a></li><li class="h3"><a href="#factright">Fact.right</a></li><li class="h2"><a href="#tactics">Tactics</a></li><li class="h3"><a href="#logostacticsall-goals">logos.tactics.all_goals</a></li><li class="h3"><a href="#logostacticsandl">logos.tactics.andL</a></li><li class="h3"><a href="#logostacticsandr">logos.tactics.andR</a></li><li class="h3"><a href="#logostacticsapply">logos.tactics.apply</a></li><li class="h3"><a href="#logostacticsassumption">logos.tactics.assumption</a></li><li class="h3"><a href="#logostacticsauto">logos.tactics.auto</a></li><li class="h3"><a href="#logostacticscases">logos.tactics.cases</a></li><li class="h3"><a href="#logostacticsconj">logos.tactics.conj</a></li><li class="h3"><a href="#logostacticscontradiction">logos.tactics.contradiction</a></li><li class="h3"><a href="#logostacticsdecide">logos.tactics.decide</a></li><li class="h3"><a href="#logostacticseval-">logos.tactics.eval_</a></li><li class="h3"><a href="#logostacticsexact">logos.tactics.exact</a></li><li class="h3"><a href="#logostacticsfirst">logos.tactics.first</a></li><li class="h3"><a href="#logostacticshave">logos.tactics.have</a></li><li class="h3"><a href="#logostacticsintro">logos.tactics.intro</a></li><li class="h3"><a href="#logostacticsleft">logos.tactics.left</a></li><li class="h3"><a href="#logostacticslinarith">logos.tactics.linarith</a></li><li class="h3"><a href="#logostacticsnorm-num">logos.tactics.norm_num</a></li><li class="h3"><a href="#logostacticsorder">logos.tactics.order</a></li><li class="h3"><a href="#logostacticsrefl">logos.tactics.refl</a></li><li class="h3"><a href="#logostacticsrepeat">logos.tactics.repeat</a></li><li class="h3"><a href="#logostacticsrewrite">logos.tactics.rewrite</a></li><li class="h3"><a href="#logostacticsrewrite-rev">logos.tactics.rewrite_rev</a></li><li class="h3"><a href="#logostacticsright">logos.tactics.right</a></li><li class="h3"><a href="#logostacticsring">logos.tactics.ring</a></li><li class="h3"><a href="#logostacticssplit">logos.tactics.split</a></li><li class="h3"><a href="#logostacticsthen">logos.tactics.then</a></li><li class="h3"><a href="#logostacticstry-">logos.tactics.try_</a></li><li class="h3"><a href="#logostacticsunfold">logos.tactics.unfold</a></li><li class="h3"><a href="#logostacticswitness">logos.tactics.witness</a></li><li class="h2"><a href="#tactic-extensions">Tactic extensions</a></li><li class="h3"><a href="#logosgoalgoal">logos.goal.Goal</a></li><li class="h3"><a href="#goalwith-hyp">Goal.with_hyp</a></li><li class="h3"><a href="#goalwith-statement">Goal.with_statement</a></li><li class="h3"><a href="#logoskernelproofterm">logos.kernel.ProofTerm</a></li><li class="h3"><a href="#logosrunnertacticfailed">logos.runner.TacticFailed</a></li><li class="h3"><a href="#logosrunnertacticresult">logos.runner.TacticResult</a></li><li class="h2"><a href="#finite-transition-systems">Finite transition systems</a></li><li class="h3"><a href="#logosdomainstransition-systemsfinitetransitionsystem">logos.domains.transition_systems.FiniteTransitionSystem</a></li><li class="h3"><a href="#finitetransitionsystemexport-safety">FiniteTransitionSystem.export_safety</a></li><li class="h3"><a href="#finitetransitionsystemverify-safety">FiniteTransitionSystem.verify_safety</a></li><li class="h3"><a href="#finitetransitionsystemreplay-violation">FiniteTransitionSystem.replay_violation</a></li></ul></aside>
+</div>
+</body>
+</html>

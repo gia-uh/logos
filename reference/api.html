@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redirecting to the Logos book</title>
+<link rel="canonical" href="https://logos.uhgia.org/public-api-reference.html">
+<meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="0; url=../public-api-reference.html">
+<script>
+(function () {
+  var target = "../public-api-reference.html";
+  var anchors = {"arithmetic": "logostacticsring", "combinators": "logostacticsthen", "domains-logosdomains": "definitions", "exceptions": "logoslogosprooferror", "expressions-logosexpr": "expressions", "helpers-logoshelpers": "tactic-extensions", "kernel-functions": "tactic-extensions", "kernel-logoskernel": "tactic-extensions", "proof-terms": "logoskernelproofterm", "rewriting": "logostacticsrewrite", "structural": "tactics", "tactics-logostactics": "tactics", "top-level-logos": "theorems-and-evidence"};
+  var old = decodeURIComponent(location.hash.replace(/^#/, ""));
+  if (old) target += "#" + (Object.prototype.hasOwnProperty.call(anchors, old) ? anchors[old] : old);
+  location.replace(target);
+})();
+</script>
+</head>
+<body>
+<p>This page moved to <a href="../public-api-reference.html">the Logos book</a>.</p>
+</body>
+</html>
