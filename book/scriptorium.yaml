@@ -24,6 +24,7 @@ files:
   - chapters/11-euclid.md
   - chapters/12-binary-search.md
   - chapters/13-production-contract.md
+  - chapters/13a-two-client-lock.md
   - chapters/14-developer-guide.md
   - chapters/15-api-reference.md
 

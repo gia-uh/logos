@@ -39,6 +39,7 @@ METHODS = {
                     "fix negate cases contradict induction ring witness",
     "Fact": "left right",
     "Goal": "with_hyp with_statement",
+    "FiniteTransitionSystem": "export_safety verify_safety replay_violation",
 }
 EXTENSIONS = {
     "logos.authoring": "ProofContext Fact",
@@ -268,6 +269,12 @@ def render():
         for name in names.split():
             _, node = resolve(module, name)
             lines.extend(render_entry(module, name, node))
+    lines.append("## Finite transition systems\n\n"
+                 "[Complete checked lock model](two-client-lock.html).\n\n")
+    module = "logos.domains.transition_systems"
+    name = "FiniteTransitionSystem"
+    _, node = resolve(module, name)
+    lines.extend(render_entry(module, name, node))
     return "".join(lines).rstrip() + "\n"
 
 
