@@ -279,8 +279,12 @@ The eligibility rule is deliberately narrow. A proof uses the cache only when:
 - the function is module-level, has an empty closure, no default arguments,
   no nested code objects or lambdas and readable source;
 - its bytecode neither writes globals or attributes, imports, yields nor
-  awaits, and it does not use stateful builtins such as `open`, `eval` or
-  `getattr`;
+  awaits, builds no sets or unordered containers, and uses only a short list of
+  deterministic builtins (`len`, `range`, `int`, `enumerate`, `sorted`, and
+  similar) rather than `open`, `eval`, `getattr`, `iter`, `next`, `set` or
+  `hash`;
+- every attribute it reads is a public proof-context or fact member or an
+  expression field, not a theorem's stored evidence or an internal object;
 - every global it reads is an immutable value, a tuple of such values, a
   theorem or axiom declaration, or a Logos library function;
 - its compiled evidence uses only the portable vocabulary: arithmetic,
@@ -291,7 +295,8 @@ The eligibility rule is deliberately narrow. A proof uses the cache only when:
 Everything else executes as before. That includes plain tactic lists,
 closures, mutable or opaque globals, missing source, `@logos.function`
 declarations, program contracts and source-bound revalidation. Those paths do
-not silently become cache hits.
+not silently become cache hits, and an explicit `check()` of a fallback proof
+runs its body every time.
 
 Loads are untrusted. After reviving a record, `check()` builds the full artifact
 and invokes the installed Rust checker exactly as it would for freshly executed
