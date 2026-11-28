@@ -270,7 +270,7 @@ def render():
             _, node = resolve(module, name)
             lines.extend(render_entry(module, name, node))
     lines.append("## Finite transition systems\n\n"
-                 "[Complete checked lock model](two-client-lock.html).\n\n")
+                 "[Complete checked lock model](can-two-clients-hold-the-lock.html).\n\n")
     module = "logos.domains.transition_systems"
     name = "FiniteTransitionSystem"
     _, node = resolve(module, name)

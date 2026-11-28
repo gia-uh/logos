@@ -990,7 +990,7 @@ A closing `ProofTerm` or a pair of subgoals and a function composing their proof
 
 ## Finite transition systems
 
-[Complete checked lock model](two-client-lock.html).
+[Complete checked lock model](can-two-clients-hold-the-lock.html).
 
 ### logos.domains.transition_systems.FiniteTransitionSystem
 
