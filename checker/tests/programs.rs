@@ -97,3 +97,13 @@ fn rejects_a_missing_obligation() {
     let error = verify(&serde_json::to_vec(&bundle).unwrap()).err().unwrap();
     assert!(error.contains("missing proof"), "{error}");
 }
+
+#[test]
+fn requires_a_guard_for_runtime_division() {
+    let division = json!({"tag": "div", "left": int("1"), "right": symbol("p1")});
+    let error = verify(&program_bundle(division)).err().unwrap();
+    assert!(
+        error.contains("missing proof for program obligation \"read0\""),
+        "{error}"
+    );
+}

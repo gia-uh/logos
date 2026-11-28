@@ -428,3 +428,42 @@ def test_binary_search_negative_controls(tmp_path, old, new, expected):
         module.binary_search.check()
     assert expected in str(caught.value), str(caught.value)[:600]
     assert not module.binary_search.certified
+
+
+@pytest.mark.parametrize(
+    ('body', 'args', 'exception'),
+    [
+        (
+            '    i = 0\n'
+            '    if flag == 1:\n'
+            '        i = len(xs)\n'
+            '    else:\n'
+            '        pass\n'
+            '    return xs[i]\n',
+            ([42], 1),
+            IndexError,
+        ),
+        ('    return 1 // len(xs)\n', ([], 0), ZeroDivisionError),
+    ],
+)
+def test_a_reachable_python_exception_blocks_certification(tmp_path, body, args, exception):
+    text = (
+        'import logos\n'
+        '@logos.function\n'
+        'def example(xs: list[int], flag: int) -> int:\n'
+        + body
+        + '@example.ensures\n'
+        'def tautology(*, result):\n'
+        '    return result + 0 == result\n'
+    )
+    if exception is IndexError:
+        text += (
+            '@example.requires\n'
+            'def nonempty(xs):\n'
+            '    return 0 < logos.length(xs)\n'
+        )
+    module, _ = write_module(tmp_path, text)
+    with pytest.raises(exception):
+        module.example(*args)
+    with pytest.raises(LogosContractError, match='read0'):
+        module.example.check()
