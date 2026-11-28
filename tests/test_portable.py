@@ -1,5 +1,7 @@
 import hashlib
 import json
+import os
+from pathlib import Path
 import shutil
 import subprocess
 
@@ -18,6 +20,12 @@ from logos.tactics import (
 pytestmark = pytest.mark.skipif(shutil.which("logos") is None, reason="install the Rust logos CLI")
 EXPECTED = "(Authenticated ∧ Authorized) → Authorized"
 DERIVED = "(Authenticated ∧ Authorized) → Authenticated"
+FIXTURE = Path(__file__).resolve().parents[1] / "checker/tests/fixtures/portable/authorization.logos"
+
+
+@pytest.fixture(autouse=True)
+def isolated_capability_measurement(monkeypatch):
+    monkeypatch.setattr(logos.portable, "_CAPABILITY_MEASUREMENT", None)
 
 
 def project_authorized(goal):
@@ -55,6 +63,24 @@ def invocations(monkeypatch):
 
     monkeypatch.setattr(logos.portable.subprocess, "run", record)
     return seen
+
+
+@pytest.fixture
+def checker_calls(monkeypatch):
+    calls = []
+    run = subprocess.run
+
+    def record(argv, **kwargs):
+        result = run(argv, **kwargs)
+        calls.append((argv[1], result))
+        return result
+
+    monkeypatch.setattr(logos.portable.subprocess, "run", record)
+    return calls
+
+
+def _count(calls, operation):
+    return sum(operation == call[0] for call in calls)
 
 
 @pytest.mark.parametrize("kind", ["named", "anonymous"])
@@ -120,6 +146,134 @@ def test_changed_declaration_context_clears_verification(kind, change, invocatio
         assert original["target"] == changed["target"]
         if kind != "automatic":
             assert original["proof"] == changed["proof"]
+
+
+def test_capability_handshake_is_measured_once_for_an_unchanged_checker(checker_calls):
+    logos.check(prepared("anonymous"))
+    logos.check(prepared("named"))
+
+    assert [call[0] for call in checker_calls] == ["commands", "check", "check"]
+    assert all(result.returncode == 0 for _, result in checker_calls)
+
+
+@pytest.mark.parametrize("change", ["replace", "modify", "resolve"])
+def test_changed_checker_identity_invalidates_capability_measurement(
+    change, monkeypatch, tmp_path, checker_calls
+):
+    source = shutil.which("logos")
+    assert source is not None
+
+    def copy(directory):
+        directory.mkdir(exist_ok=True)
+        target = directory / "logos"
+        shutil.copy2(source, target)
+        target.chmod(target.stat().st_mode | 0o111)
+        return target
+
+    first_directory = tmp_path / "first"
+    first = copy(first_directory)
+    monkeypatch.setenv("PATH", os.pathsep.join([str(first_directory), os.environ["PATH"]]))
+    assert logos.portable._checker_executable() == str(first)
+
+    logos.check(prepared("anonymous"))
+    logos.check(prepared("named"))
+    assert _count(checker_calls, "commands") == 1
+
+    if change == "replace":
+        first.unlink()
+        copy(first_directory)
+    elif change == "modify":
+        info = first.stat()
+        os.utime(first, ns=(info.st_atime_ns, info.st_mtime_ns + 1_000_000))
+    else:
+        second_directory = tmp_path / "second"
+        copy(second_directory)
+        monkeypatch.setenv(
+            "PATH", os.pathsep.join([str(second_directory), os.environ["PATH"]])
+        )
+
+    logos.check(prepared("anonymous"))
+    assert _count(checker_calls, "commands") == 2
+    assert _count(checker_calls, "check") == 3
+    assert all(result.returncode == 0 for _, result in checker_calls)
+
+
+def test_failed_capability_handshake_is_not_cached(monkeypatch):
+    artifact = FIXTURE.read_bytes()
+    real_invoke = logos.portable._checker_invoke
+    attempts = []
+    fail = True
+
+    def scripted(executable, args, data=None):
+        nonlocal fail
+        if args[:1] == ["commands"]:
+            attempts.append(args)
+            if fail:
+                return subprocess.CompletedProcess(
+                    [executable, *args], 1, b"",
+                    b'{"protocol_version":1,"status":"error","error":"capabilities unavailable"}',
+                )
+        return real_invoke(executable, args, data)
+
+    monkeypatch.setattr(logos.portable, "_checker_invoke", scripted)
+    with pytest.raises(logos.LogosProofError, match="capabilities unavailable"):
+        logos.portable.verify_artifact(artifact)
+    assert logos.portable._CAPABILITY_MEASUREMENT is None
+
+    fail = False
+    receipt = logos.portable.verify_artifact(artifact)
+    assert receipt.artifact == artifact
+    assert len(attempts) == 2
+    assert logos.portable._CAPABILITY_MEASUREMENT is not None
+
+
+def test_incompatible_capability_contract_is_not_cached(monkeypatch):
+    artifact = FIXTURE.read_bytes()
+    real_invoke = logos.portable._checker_invoke
+    attempts = []
+
+    def incompatible(executable, args, data=None):
+        if args[:1] == ["commands"]:
+            attempts.append(args)
+            return subprocess.CompletedProcess(
+                [executable, *args], 0,
+                json.dumps({
+                    "protocol_version": logos.portable.PROTOCOL_VERSION,
+                    "proof_formats": ["another-format"],
+                    "theories": [logos.portable.THEORY],
+                }).encode(),
+                b"",
+            )
+        return real_invoke(executable, args, data)
+
+    monkeypatch.setattr(logos.portable, "_checker_invoke", incompatible)
+    for _ in range(2):
+        with pytest.raises(logos.LogosProofError, match="does not advertise"):
+            logos.portable.verify_artifact(artifact)
+    assert len(attempts) == 2
+    assert logos.portable._CAPABILITY_MEASUREMENT is None
+
+
+def test_warm_capability_cache_still_rejects_changed_evidence(checker_calls):
+    proof = prepared("anonymous")
+    logos.check(proof)
+    artifact = proof.receipt.artifact
+
+    document = json.loads(artifact)
+    document["proof"]["body"]["tag"] = "and_elim_l"
+    changed = json.dumps(document, separators=(",", ":")).encode() + b"\n"
+    with pytest.raises(logos.LogosProofError, match="Rust logos check failed"):
+        logos.portable.verify_artifact(changed)
+
+    assert _count(checker_calls, "commands") == 1
+    assert _count(checker_calls, "check") == 2
+    assert checker_calls[-1][1].returncode == 1
+    assert checker_calls[-1][1].stdout == b""
+
+    receipt = logos.portable.verify_artifact(artifact)
+    assert receipt.artifact_sha256 == hashlib.sha256(artifact).hexdigest()
+    assert _count(checker_calls, "commands") == 1
+    assert _count(checker_calls, "check") == 3
 
 
 @pytest.mark.parametrize("kind", ["named", "anonymous"])
