@@ -4,9 +4,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
+import threading
 
 from logos.expr import (
     Add, And, App, Div, Eq, Expr, ExistsNode, ForallNode, Implies, Le, Len,
@@ -23,6 +25,24 @@ from logos.kernel import (
 FORMAT = "logos-proof-v1"
 THEORY = "logos-core-v1"
 PROTOCOL_VERSION = 1
+
+
+@dataclass(frozen=True, slots=True)
+class _CheckerIdentity:
+    """What identifies the executable a process measured its capabilities from."""
+
+    path: str
+    real_path: str
+    device: int
+    inode: int
+    size: int
+    mtime_ns: int
+    ctime_ns: int
+    mode: int
+
+
+_CAPABILITY_LOCK = threading.Lock()
+_CAPABILITY_MEASUREMENT: tuple[_CheckerIdentity, dict] | None = None
 
 
 class LogosProofError(Exception):
@@ -542,14 +562,59 @@ def _checker_response(result, operation: str):
     return data
 
 
-def verify_artifact(artifact: bytes) -> ProofReceipt:
-    executable = _checker_executable()
+def _checker_identity(executable: str) -> _CheckerIdentity | None:
+    """Identify the exact file behind a PATH resolution, or None if uncertain."""
+    try:
+        info = os.stat(executable)
+    except OSError:
+        return None
+    return _CheckerIdentity(
+        path=os.path.abspath(executable),
+        real_path=os.path.realpath(executable),
+        device=info.st_dev,
+        inode=info.st_ino,
+        size=info.st_size,
+        mtime_ns=info.st_mtime_ns,
+        ctime_ns=info.st_ctime_ns,
+        mode=info.st_mode,
+    )
+
+
+def _require_checker_capabilities(contract: dict) -> None:
+    if contract.get("proof_formats") != [FORMAT] or contract.get("theories") != [THEORY]:
+        raise LogosProofError("Rust logos checker does not advertise the required proof format and theory")
+
+
+def _checker_capabilities(executable: str) -> dict:
+    """Measure a compatible checker once per unchanged executable in this process."""
+    global _CAPABILITY_MEASUREMENT
+
+    identity = _checker_identity(executable)
+    if identity is not None:
+        with _CAPABILITY_LOCK:
+            measured = _CAPABILITY_MEASUREMENT
+        if measured is not None and measured[0] == identity:
+            _require_checker_capabilities(measured[1])
+            return measured[1]
 
     contract = _checker_response(
         _checker_invoke(executable, ["commands", "--json"]), "commands"
     )
-    if contract.get("proof_formats") != [FORMAT] or contract.get("theories") != [THEORY]:
-        raise LogosProofError("Rust logos checker does not advertise the required proof format and theory")
+    _require_checker_capabilities(contract)
+    if identity is not None:
+        if _checker_identity(executable) != identity:
+            raise LogosProofError("Rust logos checker changed while its capabilities were measured")
+        with _CAPABILITY_LOCK:
+            _CAPABILITY_MEASUREMENT = (identity, contract)
+    return contract
+
+
+def verify_artifact(artifact: bytes) -> ProofReceipt:
+    executable = _checker_executable()
+
+    # The capability contract may be reused; the check below still runs for
+    # every artifact, so a warm cache never becomes a cached verdict.
+    _checker_capabilities(executable)
     result = _checker_response(
         _checker_invoke(executable, ["check", "--json", "-"], artifact), "check"
     )
