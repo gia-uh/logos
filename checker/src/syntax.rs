@@ -864,6 +864,11 @@ pub const CORE_LAWS: &[LawSpec] = &[
         sorts: &[Sort::Int, Sort::Int],
     },
     LawSpec {
+        id: "div_floor_interval",
+        formals: &["a", "b", "q"],
+        sorts: &[Sort::Int, Sort::Int, Sort::Int],
+    },
+    LawSpec {
         id: "length_nonneg",
         formals: &["xs"],
         sorts: &[Sort::Seq],
@@ -1019,6 +1024,19 @@ pub fn instantiate_law(id: &str, args: &[Proposition]) -> Option<Proposition> {
             lt(int("0"), a.clone()?),
             implies(lt(int("1"), b.clone()?), lt(div(a.clone()?, b?), a?)),
         ),
+        "div_floor_interval" => {
+            let (a, b, q) = (a?, b?, c?);
+            implies(
+                lt(int("0"), b.clone()),
+                implies(
+                    le(mul(q.clone(), b.clone()), a.clone()),
+                    implies(
+                        lt(a.clone(), mul(add(q.clone(), int("1")), b.clone())),
+                        eq(div(a, b), q),
+                    ),
+                ),
+            )
+        }
         "length_nonneg" => le(int("0"), len(a?)),
         "sorted_elim" => {
             let xs = a?;

@@ -213,6 +213,7 @@
       "mul_nonneg",
       "div_nonneg",
       "div_lt",
+      "div_floor_interval",
       "length_nonneg",
       "sorted_elim",
       "sorted_lower",
