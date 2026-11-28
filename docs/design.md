@@ -167,6 +167,21 @@ logos.theorem(
 
 Proved theorems become reusable in other proofs via `tactics.apply("add_comm")`.
 
+### Persistent compiled evidence
+
+`logos.check()` and dependency compilation can persist one compiled `ProofTerm`
+per eligible lemma in the user cache. A record is reused in a later Python
+process only when its key matches the current theorem name, statement,
+declarations, authored proof source and code, referenced live theorem and axiom
+declarations, and the Logos compiler digest. The store is JSON with a
+constructor whitelist and atomic renames; it is never a certificate and never a
+verdict. `check()` still builds the complete artifact and invokes the Rust
+checker, which alone decides whether the evidence proves the statement.
+Unsupported or untrackable proofs (closures, mutable globals, plain tactic
+lists, function and program declarations, evidence outside the portable
+vocabulary) execute normally. `LOGOS_CACHE=off` forces execution and
+`LOGOS_CACHE_DIR` selects an isolated directory.
+
 ---
 
 ## Proof Terms (Kernel Language)
