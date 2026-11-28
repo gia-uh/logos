@@ -44,6 +44,7 @@ ORDER = [
     "11-euclid.md",
     "12-binary-search.md",
     "13-production-contract.md",
+    "13a-two-client-lock.md",
     "14-developer-guide.md",
     "15-api-reference.md",
 ]
@@ -108,6 +109,11 @@ EXPECTED = {
         "adapt_bias_nonnegative: True",
         "certificate: adapt.logos",
         "obligations: loop0.preserve",
+    ],
+    "13a-two-client-lock.md": [
+        "Candidate states: 12", "Both inside is a candidate: True",
+        "Exact lock certificate verified.", "Correct model rejects: illegal step 2",
+        "Handoff solution certificate verified.", "failed closure under",
     ],
     "14-developer-guide.md": [
         "overlap_self: True",
@@ -430,3 +436,22 @@ def test_parity_reports_the_wrong_witness(tmp_path):
     assert "got: a + b = 2 * (k + k1)" in errors
     assert "obtained: a = 2 * k" in errors
     assert "obtained: b = 2 * k1" in errors
+
+
+def test_lock_chapter_matches_standalone_model_and_checks_handoff(tmp_path):
+    result, html = render(tmp_path, "13a-two-client-lock.md")
+    assert result.returncode == 0, result.stderr
+    assert "Handoff solution certificate verified." in html
+    for filename in ("two-client-lock.logos", "handoff-solution.logos"):
+        checked = subprocess.run(
+            [CHECKER, "check", "--strict", filename], cwd=tmp_path,
+            env=environment(), capture_output=True, text=True, check=True,
+        )
+        assert "Verified with 0 custom axioms" in checked.stdout
+    subprocess.run(
+        [sys.executable, "-I", str(ROOT / "examples" / "two_client_lock.py"),
+         "--verify", "two-client-lock.logos"],
+        cwd=tmp_path, env=environment(), check=True,
+    )
+    assert not (tmp_path / "invalid-lock.logos").exists()
+    assert not (tmp_path / "invalid-handoff.logos").exists()

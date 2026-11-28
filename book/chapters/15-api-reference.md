@@ -987,3 +987,33 @@ Signal that a tactic cannot handle its current goal. The proof runner reports th
 Import with `from logos.runner import TacticResult`.
 
 A closing `ProofTerm` or a pair of subgoals and a function composing their proofs into evidence for the original goal.
+
+## Finite transition systems
+
+[Complete checked lock model](can-two-clients-hold-the-lock.html).
+
+### logos.domains.transition_systems.FiniteTransitionSystem
+
+Import with `from logos.domains.transition_systems import FiniteTransitionSystem`.
+
+`FiniteTransitionSystem(universe: Iterable[State], initial: Iterable[State], transitions: Mapping[str, Iterable[Edge]], safe: Callable[[State], bool])`
+
+Snapshot an explicit universe, initial states, named relations and safety table.
+
+### FiniteTransitionSystem.export_safety
+
+`export_safety(invariant: Iterable[State], path: str | Path) -> ProofReceipt` on `FiniteTransitionSystem`.
+
+Check initiation, closure and safety with Rust, then write the certificate.
+
+### FiniteTransitionSystem.verify_safety
+
+`verify_safety(invariant: Iterable[State], path: str | Path) -> ProofReceipt` on `FiniteTransitionSystem`.
+
+Require strict evidence for this table and this proposed invariant.
+
+### FiniteTransitionSystem.replay_violation
+
+`replay_violation(start: State, steps: Iterable[tuple[str, State]]) -> State` on `FiniteTransitionSystem`.
+
+Require a legal named run from an initial state to an unsafe state.
