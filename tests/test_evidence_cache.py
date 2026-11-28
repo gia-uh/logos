@@ -556,6 +556,25 @@ def prove_target(p):
     )
     assert evidence_cache._plan(loaded2.target) is None
 
+    loaded3 = _loaded_module(
+        tmp_path,
+        "location_note",
+        """\
+from logos import theorem, lit
+
+@theorem
+def target():
+    return lit(1) == lit(1)
+
+@target.proof
+def prove_target(p):
+    evidence = p.refl(lit(1))
+    p.note(f"source line {evidence.line}")
+    return evidence
+""",
+    )
+    assert evidence_cache._plan(loaded3.target) is None
+
 
 @requires_checker
 def test_source_location_is_not_cached_as_evidence(tmp_path):
