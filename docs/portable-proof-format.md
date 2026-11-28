@@ -131,6 +131,7 @@ conclusion is a proposition rather than an equality.
 | `half_lower`, `half_upper` | `0 <= a`, `a < b` give `a <= (a+b)//2 < b`. |
 | `mul_nonneg`, `div_nonneg` | A product of non-negative integers is non-negative, and `0 <= a`, `0 < b` give `0 <= a // b`. |
 | `div_lt` | `0 < a`, `1 < b` give `a // b < a`. |
+| `div_floor_interval` | `0 < b`, `q*b <= a` and `a < (q+1)*b` give `a // b = q`. |
 | `length_nonneg` | `0 <= len(xs)`. |
 | `sorted_elim` | Sorted `xs` orders every in-range pair `i <= j` with `xs[i] <= xs[j]`. |
 | `sorted_lower`, `sorted_upper` | An element on the low side of a smaller in-range element is smaller than the target, and symmetrically on the high side. |

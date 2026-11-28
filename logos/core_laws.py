@@ -177,6 +177,9 @@ LAWS = {
     "mul_nonneg": ((_INT, _INT), lambda a, b: _imp(_le(_int(0), a), _imp(_le(_int(0), b), _le(_int(0), _mul(a, b))))),
     "div_nonneg": ((_INT, _INT), lambda a, b: _imp(_le(_int(0), a), _imp(_lt(_int(0), b), _le(_int(0), _div(a, b))))),
     "div_lt": ((_INT, _INT), lambda a, b: _imp(_lt(_int(0), a), _imp(_lt(_int(1), b), _lt(_div(a, b), a)))),
+    "div_floor_interval": ((_INT, _INT, _INT), lambda a, b, q: _imp(
+        _lt(_int(0), b), _imp(_le(_mul(q, b), a),
+            _imp(_lt(a, _mul(_add(q, _int(1)), b)), _eq(_div(a, b), q))))),
     "length_nonneg": ((_SEQ,), lambda xs: _le(_int(0), _len(xs))),
     "sorted_elim": ((_SEQ, _INT, _INT), _sorted_elim),
     "sorted_lower": ((_SEQ, _INT, _INT, _INT), _sorted_lower),

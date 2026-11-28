@@ -174,6 +174,9 @@ pub fn rule_explanation(rule: &str, reference: Option<&str>) -> &'static str {
             Some("div_lt") => {
                 "Floor division of a positive integer by a divisor above one is strictly smaller."
             }
+            Some("div_floor_interval") => {
+                "A positive denominator and consecutive multiple bounds determine the floor quotient."
+            }
             Some("length_nonneg") => "A finite sequence has non-negative length.",
             Some("sorted_elim") => "Sortedness gives the order of any two in-range elements.",
             Some("sorted_lower") => {
