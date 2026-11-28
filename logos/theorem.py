@@ -48,6 +48,7 @@ class _Proof:
         self._proof_spec = None
         self._receipt = None
         self._evidence = None
+        self._evidence_key = None
         self._checked_spec = None
         self._claim = None
         self._strategy = None
@@ -66,17 +67,72 @@ class _Proof:
     def _revalidate(self):
         """Hook for proofs bound to external state; most proofs need nothing."""
 
+    def _compile_evidence(self):
+        """Return current evidence, reusing compiled records only when eligible.
+
+        The persistent record holds a proof term, never a verdict.  A caller
+        that verifies an artifact still sends every lemma to the Rust checker.
+        """
+        from logos import evidence_cache
+
+        # Subclasses that bind evidence to live source keep revalidating and
+        # re-running on every check, as before.
+        revalidates = (
+            type(self)._run_proof is not _Proof._run_proof
+            or type(self)._revalidate is not _Proof._revalidate
+            or type(self)._dependency_evidence is not _Proof._dependency_evidence
+        )
+        cache_plan = evidence_cache._plan(self)
+        same_spec = _matches_spec(self._proof_spec, self._checked_spec)
+        if self._evidence is not None and same_spec and not revalidates:
+            if cache_plan is None:
+                if self._evidence_key is None:
+                    return self._evidence
+            elif self._evidence_key == cache_plan.key:
+                return self._evidence
+        if cache_plan is not None:
+            cached = evidence_cache._load(cache_plan)
+            if cached is not None:
+                self._evidence = cached
+                self._evidence_key = cache_plan.key
+                return cached
+        evidence = self._run_proof(self.statement)
+        self._evidence = evidence
+        self._evidence_key = cache_plan.key if cache_plan is not None else None
+        if cache_plan is not None:
+            evidence_cache._stage(cache_plan, evidence)
+        else:
+            # An ineligible proof may have changed a global that an eligible
+            # dependency reads.  Its next plan must observe the new value.
+            evidence_cache._forget_plans()
+        return evidence
+
     def _dependency_evidence(self, refresh):
         if self._proof_spec is None:
             raise LogosProofError(f"Lemma '{self.name}' has no proof attached")
-        if self._evidence is None or not _matches_spec(self._proof_spec, self._checked_spec):
-            if not refresh:
-                raise LogosProofError(f"Lemma '{self.name}' evidence has changed")
-            self._receipt = None
-            self._checked_spec = _freeze_spec(self._proof_spec)
-            self._evidence = None
-            self._evidence = self._run_proof(self.statement)
-        return self._evidence
+        same_spec = _matches_spec(self._proof_spec, self._checked_spec)
+        revalidates = (
+            type(self)._run_proof is not _Proof._run_proof
+            or type(self)._revalidate is not _Proof._revalidate
+        )
+        if self._evidence is not None and same_spec and not revalidates:
+            # A persistent key change means a mutable input or dependency may
+            # have moved since the in-memory evidence was built.  Recompile
+            # rather than trusting the old object graph.
+            from logos import evidence_cache
+            cache_plan = evidence_cache._plan(self)
+            if cache_plan is None:
+                if self._evidence_key is None:
+                    return self._evidence
+            elif self._evidence_key == cache_plan.key:
+                return self._evidence
+        if not refresh:
+            raise LogosProofError(f"Lemma '{self.name}' evidence has changed")
+        self._receipt = None
+        self._checked_spec = _freeze_spec(self._proof_spec)
+        self._evidence = None
+        self._evidence_key = None
+        return self._compile_evidence()
 
     @property
     def receipt(self) -> ProofReceipt | None:
@@ -143,6 +199,7 @@ class Theorem(_Proof):
         self._receipt = None
         self._checked_spec = None
         self._evidence = None
+        self._evidence_key = None
         self._strategy = None
         if len(args) == 1 and callable(args[0]) and not isinstance(args[0], list):
             fn = args[0]
@@ -242,22 +299,33 @@ def check(thm):
         raise TypeError(
             f"logos.check: expected Theorem or _GroundProof, got {type(thm).__name__!r}"
         )
+    from logos import evidence_cache
+
     thm._receipt = None
     saved_spec = _freeze_spec(thm._proof_spec)
     statement = thm.statement
     declarations = tuple(thm.declarations)
     name = thm.name
-    evidence = thm._run_proof(statement)
-    artifact = artifact_bytes(
-        name, statement, declarations, evidence, refresh_lemmas=True,
-        annotations=thm._annotations(),
-    )
-    receipt = verify_artifact(artifact)
-    thm._checked_spec = saved_spec
-    thm._evidence = evidence
-    thm._receipt = receipt
-    if thm.receipt is None:
-        raise LogosProofError("proof changed during Rust verification")
+    evidence_cache._begin()
+    try:
+        evidence = thm._compile_evidence()
+        artifact = artifact_bytes(
+            name, statement, declarations, evidence, refresh_lemmas=True,
+            annotations=thm._annotations(),
+        )
+        receipt = verify_artifact(artifact)
+        thm._checked_spec = saved_spec
+        thm._evidence = evidence
+        thm._receipt = receipt
+        # The receipt freshness check runs while the compiled-evidence plans
+        # for this check are still reusable.  A mutation during verification
+        # still clears the receipt and aborts the staged records.
+        if thm.receipt is None:
+            raise LogosProofError("proof changed during Rust verification")
+    except BaseException:
+        evidence_cache._abort()
+        raise
+    evidence_cache._commit()
     return thm
 
 
