@@ -284,7 +284,8 @@ The eligibility rule is deliberately narrow. A proof uses the cache only when:
   similar) rather than `open`, `eval`, `getattr`, `iter`, `next`, `set` or
   `hash`;
 - every attribute it reads is a public proof-context or fact member or an
-  expression field, not a theorem's stored evidence or an internal object;
+  expression field, not a theorem's stored evidence, an internal object, a
+  source location or a diagnostic label;
 - every global it reads is an immutable value, a tuple of such values, a
   theorem or axiom declaration, or a Logos library function;
 - its compiled evidence uses only the portable vocabulary: arithmetic,
@@ -296,7 +297,9 @@ Everything else executes as before. That includes plain tactic lists,
 closures, mutable or opaque globals, missing source, `@logos.function`
 declarations, program contracts and source-bound revalidation. Those paths do
 not silently become cache hits, and an explicit `check()` of a fallback proof
-runs its body every time.
+runs its body every time. Source locations and diagnostic labels are not part
+of the key, so a proof that reads `Fact.line`, `Fact.file`, `Fact.source_line`
+or `Fact.label` also executes.
 
 Loads are untrusted. After reviving a record, `check()` builds the full artifact
 and invokes the installed Rust checker exactly as it would for freshly executed

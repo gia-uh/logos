@@ -558,6 +558,36 @@ def prove_target(p):
 
 
 @requires_checker
+def test_source_location_is_not_cached_as_evidence(tmp_path):
+    template = """\
+from logos import theorem, lit
+
+@theorem
+def located():
+    return lit(1) == lit(1)
+
+@located.proof
+def prove_located(p):
+    evidence = p.refl(lit(1))
+    if evidence.line == LOCATION:
+        return evidence
+    return p.refl(lit(2))
+"""
+    line = template.splitlines().index("    evidence = p.refl(lit(1))") + 1
+    write_library(tmp_path, template.replace("LOCATION", str(line)))
+    cache = tmp_path / "cache"
+    first = run(tmp_path, cache, target="located")
+    assert first["ok"] and first["executed"] == ["located"]
+    assert records(cache) == []
+
+    source = (tmp_path / "library.py").read_text()
+    (tmp_path / "library.py").write_text("# shifted\n" + source, encoding="utf-8")
+    second = run(tmp_path, cache, target="located")
+    assert not second["ok"]
+    assert second["executed"] == ["located"]
+
+
+@requires_checker
 def test_nondeterministic_set_proof_writes_no_record(tmp_path):
     source = """\
 from logos import theorem, lit

@@ -523,13 +523,22 @@ def _code_fingerprint(code: CodeType) -> dict:
 
 _ATTRIBUTE_ALLOW_CACHE: frozenset[str] | None = None
 
+# Source location and diagnostic labels are observable Python state that a
+# comment above the proof can change without changing its code.  They stay out
+# of the cache key, so a proof that reads them is not eligible.
+_DENIED_ATTRIBUTES = frozenset({
+    "allowed", "file", "fn", "frames", "label", "line", "source_line",
+    "used_names",
+})
+
 
 def _allowed_attributes() -> frozenset[str]:
     """Public members of trusted authoring objects and expression nodes.
 
     A proof may read expression fields and call proof-context or fact methods.
     It may not reach arbitrary attributes such as a theorem's stored evidence,
-    a class's internals or a set-valued field whose iteration order varies.
+    a class's internals, source locations or a set-valued field whose iteration
+    order varies.
     """
     global _ATTRIBUTE_ALLOW_CACHE
     if _ATTRIBUTE_ALLOW_CACHE is not None:
@@ -540,12 +549,12 @@ def _allowed_attributes() -> frozenset[str]:
     for cls in (Fact, ProofContext):
         names.update(name for name in dir(cls) if not name.startswith("_"))
     names.update({
-        "binders", "context", "file", "goal", "hypotheses", "initial_goal",
-        "label", "last_fact", "left", "line", "opened", "proof", "right",
-        "source_line", "statement", "theorem",
+        "binders", "context", "goal", "hypotheses", "initial_goal", "last_fact",
+        "left", "opened", "proof", "right", "statement", "theorem",
     })
     for cls in _EXPR_TYPES.values():
         names.update(field.name for field in fields(cls))
+    names.difference_update(_DENIED_ATTRIBUTES)
     _ATTRIBUTE_ALLOW_CACHE = frozenset(names)
     return _ATTRIBUTE_ALLOW_CACHE
 
