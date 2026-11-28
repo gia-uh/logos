@@ -258,15 +258,17 @@ class Least(ProofTerm):
 
 @dataclass(frozen=True)
 class RecursorBase(ProofTerm):
-    """The base equation f(0) = base of a primitive-recursive function."""
+    """Instantiate the base equation of a primitive-recursive function."""
     function: object
+    parameters: tuple[Expr, ...] = ()
 
 @dataclass(frozen=True)
 class RecursorStep(ProofTerm):
-    """The step equation f(k + 1) = step(k, f(k)) for k >= 0."""
+    """Instantiate the step equation for a nonnegative predecessor."""
     function: object
     argument: Expr
     proof: ProofTerm          # proves not (argument < 0)
+    parameters: tuple[Expr, ...] = ()
 
 
 # ── Kernel Inference ──────────────────────────────────────────────────────────
@@ -475,23 +477,29 @@ def infer(term: ProofTerm, ctx: Context) -> Expr:
             )
             return ExistsNode(m, And(membership, minimal))
 
-        case RecursorBase(function):
+        case RecursorBase(function, parameters):
             if getattr(function, "recursor", None) is None:
                 raise KernelError("RecursorBase: function is not recursive")
             base, _, _ = function.recursor
-            return Eq(App(function.name, [Lit(0)], function), base)
+            if len(parameters) != len(function.params) - 1:
+                raise KernelError("RecursorBase: wrong number of fixed parameters")
+            substitutions = {id(var): actual for var, actual in zip(function.params[1:], parameters)}
+            return Eq(App(function.name, [Lit(0), *parameters], function),
+                      substitute_symbols(base, substitutions))
 
-        case RecursorStep(function, argument, proof):
+        case RecursorStep(function, argument, proof, parameters):
             if getattr(function, "recursor", None) is None:
                 raise KernelError("RecursorStep: function is not recursive")
             _, step, previous = function.recursor
             check(proof, Not(Lt(argument, Lit(0))), ctx)
-            value = App(function.name, [argument], function)
-            instantiated = substitute_symbols(
-                step,
-                {id(function.params[0]): argument, id(previous): value},
-            )
-            return Eq(App(function.name, [argument + 1], function), instantiated)
+            if len(parameters) != len(function.params) - 1:
+                raise KernelError("RecursorStep: wrong number of fixed parameters")
+            arguments = (argument, *parameters)
+            value = App(function.name, list(arguments), function)
+            substitutions = {id(var): actual for var, actual in zip(function.params, arguments)}
+            substitutions[id(previous)] = value
+            instantiated = substitute_symbols(step, substitutions)
+            return Eq(App(function.name, [argument + 1, *parameters], function), instantiated)
 
         case _:
             raise KernelError(f"Unknown proof term: {term!r}")

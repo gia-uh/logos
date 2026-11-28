@@ -136,9 +136,9 @@ pub struct Function {
 
 /// A primitive-recursive definition on the natural numbers.
 ///
-/// `base` is a closed integer term. `step` is an integer term with two
-/// integer binders: the argument (outer) and its previous value (inner).
-/// A step may call the recursive function only at the argument itself.
+/// `base` is an integer term with binders for the fixed parameters.
+/// `step` adds inner integer binders for the predecessor and previous value.
+/// A recursive call in the step must preserve all fixed parameters.
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Recursor {

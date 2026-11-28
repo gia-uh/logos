@@ -1286,19 +1286,17 @@ class ProofContext:
             proof = Have(name, fact.statement, fact.proof, proof)
         return self._fact(goal, proof)
 
-    def recursor_base(self, function) -> Fact:
-        from logos.expr import App
-
+    def recursor_base(self, function, *parameters) -> Fact:
+        fixed = tuple(item if isinstance(item, Expr) else Lit(item) for item in parameters)
+        proof = RecursorBase(function, fixed)
         base = function.recursor[0]
-        statement = Eq(function(Lit(0)), base)
-        return self._fact(statement, RecursorBase(function))
+        substitutions = {id(var): actual for var, actual in zip(function.params[1:], fixed)}
+        statement = Eq(function(Lit(0), *fixed), substitute_symbols(base, substitutions))
+        return self._fact(statement, proof)
 
-    def recursor_step(self, function, argument: Expr, nonnegative: Fact) -> Fact:
-        from logos.expr import App
-
+    def recursor_step(self, function, argument: Expr, nonnegative: Fact, *parameters) -> Fact:
         if not isinstance(argument, Expr):
             argument = Lit(argument)
-        base, step_body, previous = function.recursor
         expected = Not(Lt(argument, Lit(0)))
         if not _same(expected, nonnegative.statement):
             raise self.failure(
@@ -1307,16 +1305,13 @@ class ProofContext:
                 expected=expected,
                 got=nonnegative.statement,
             )
-        argument_var = function.params[0]
-        value = function(argument)
-        statement = Eq(
-            function(argument + Lit(1)),
-            substitute_symbols(
-                step_body,
-                {id(argument_var): argument, id(previous): value},
-            ),
-        )
-        return self._fact(statement, RecursorStep(function, argument, nonnegative.proof))
+        fixed = tuple(item if isinstance(item, Expr) else Lit(item) for item in parameters)
+        proof = RecursorStep(function, argument, nonnegative.proof, fixed)
+        substitutions = {id(var): actual for var, actual in zip(function.params, (argument, *fixed))}
+        step_body, previous = function.recursor[1:]
+        substitutions[id(previous)] = function(argument, *fixed)
+        statement = Eq(function(argument + Lit(1), *fixed), substitute_symbols(step_body, substitutions))
+        return self._fact(statement, proof)
 
     def rewrite(self, fact: Fact, equality: Fact) -> Fact:
         """Rewrite the second argument of a transparent ``divides`` fact."""

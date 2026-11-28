@@ -392,7 +392,7 @@ The book spelling of :func:`define` for transparent propositions.
 
 Import with `from logos import recursor`.
 
-`recursor(name: str, base, step: Callable[[Var, Var], Expr]) -> Function`
+`recursor(name: str, base, step: Callable[..., Expr], *, parameters: Mapping[str, type | SeqType] | None=None) -> Function`
 
 Declare a primitive-recursive integer function on the naturals.
 
@@ -620,13 +620,13 @@ Prove a linear inequality from named facts with a checked certificate.
 
 ### ProofContext.recursor_base
 
-`recursor_base(function) -> Fact` on `ProofContext`.
+`recursor_base(function, *parameters) -> Fact` on `ProofContext`.
 
 Return the defining equality of the indicated recursor at zero.
 
 ### ProofContext.recursor_step
 
-`recursor_step(function, argument: Expr, nonnegative: Fact) -> Fact` on `ProofContext`.
+`recursor_step(function, argument: Expr, nonnegative: Fact, *parameters) -> Fact` on `ProofContext`.
 
 Return the defining equality at the successor of the supplied argument. Supply a fact establishing that the argument is nonnegative.
 
