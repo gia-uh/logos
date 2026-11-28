@@ -155,3 +155,18 @@ fn rejects_a_recursor_with_a_non_integer_step() {
     let error = verify(&artifact).err().unwrap();
     assert!(error.contains("has sort prop, expected int"), "{error}");
 }
+
+#[test]
+fn rejects_a_recursive_call_in_the_base_case() {
+    let mut function = factorial_like("f1");
+    let at_zero = app("f1", vec![int(0)]);
+    let inconsistent_base = add(at_zero.clone(), int(1));
+    function["recursor"]["base"] = inconsistent_base.clone();
+    let artifact = bundle(
+        vec![function],
+        eq(at_zero, inconsistent_base),
+        json!({"tag": "recursor_base", "id": "f1"}),
+    );
+    let error = verify(&artifact).err().unwrap();
+    assert!(error.contains("undeclared function"), "{error}");
+}

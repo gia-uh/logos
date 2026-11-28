@@ -598,8 +598,10 @@ pub fn verify(bytes: &[u8]) -> Result<Verified, String> {
                     function.id
                 ));
             }
-            checker.functions.insert(function.id.as_str(), function);
+            // The base is evaluated before the function has any value. Only
+            // the step may refer to the function, at its predecessor.
             checker.sort(&recursor.base, &[])?.expect(Sort::Int)?;
+            checker.functions.insert(function.id.as_str(), function);
             checker
                 .sort(&recursor.step, &[Sort::Int, Sort::Int])?
                 .expect(Sort::Int)?;
